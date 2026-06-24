@@ -20,6 +20,12 @@ from harmonica.models import (
 
 
 def export_library(session: Session, output_path: Path) -> None:
+    payload = export_library_payload(session)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def export_library_payload(session: Session) -> dict[str, Any]:
     tracks = list(
         session.scalars(
             select(Track).options(
@@ -32,7 +38,7 @@ def export_library(session: Session, output_path: Path) -> None:
     )
     groups = list(session.scalars(select(WeightGroup)))
     factors = list(session.scalars(select(RatingFactor)))
-    payload = {
+    return {
         "rating_factors": [
             {
                 "key": factor.key,
@@ -56,12 +62,14 @@ def export_library(session: Session, output_path: Path) -> None:
         ],
         "tracks": [track_to_payload(track) for track in tracks],
     }
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def import_library(session: Session, input_path: Path) -> None:
     payload = json.loads(input_path.read_text(encoding="utf-8"))
+    import_library_payload(session, payload)
+
+
+def import_library_payload(session: Session, payload: dict[str, Any]) -> None:
     factor_map = upsert_rating_factors(session, payload.get("rating_factors", []))
     group_map = upsert_groups(session, payload.get("groups", []))
 

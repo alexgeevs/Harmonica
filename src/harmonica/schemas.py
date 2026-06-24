@@ -184,3 +184,7 @@ class StatsSummaryRead(BaseModel):
     skipped_count: int
     early_skip_count: int
     partial_skip_count: int
+
+
+class LibraryImportRequest(BaseModel):
+    payload: dict

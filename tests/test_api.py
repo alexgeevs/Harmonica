@@ -58,3 +58,11 @@ def test_stats_summary_is_available() -> None:
         payload = response.json()
         assert "track_count" in payload
         assert "early_skip_count" in payload
+
+
+def test_library_export_is_agent_friendly_json() -> None:
+    with TestClient(create_app()) as client:
+        response = client.get("/library/export-json")
+        assert response.status_code == 200
+        payload = response.json()
+        assert set(payload) >= {"rating_factors", "groups", "tracks"}

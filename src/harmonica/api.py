@@ -32,6 +32,7 @@ from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
 from harmonica.schemas import (
     GroupRead,
+    LibraryImportRequest,
     PlaybackEventCreate,
     PlaybackEventRead,
     QueueGenerateRequest,
@@ -47,6 +48,7 @@ from harmonica.schemas import (
     TrackRead,
     TrackUpdate,
 )
+from harmonica.serialization import export_library_payload, import_library_payload
 from harmonica.settings_store import get_effective_settings, settings_payload, update_setting_values
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -261,6 +263,15 @@ def create_app() -> FastAPI:
             early_skip_count=early_skip_count,
             partial_skip_count=partial_skip_count,
         )
+
+    @app.get("/library/export-json")
+    def export_library_json(session: SessionDep) -> dict[str, Any]:
+        return export_library_payload(session)
+
+    @app.post("/library/import-json")
+    def import_library_json(payload: LibraryImportRequest, session: SessionDep) -> dict[str, Any]:
+        import_library_payload(session, payload.payload)
+        return {"ok": True}
 
     return app
 
