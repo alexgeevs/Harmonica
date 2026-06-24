@@ -12,7 +12,7 @@ import {
   Star,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import type { AppSettings, QueueItem, QueueRun, RatingFactor, Track, TrackGroup } from "./types";
 
@@ -201,11 +201,24 @@ function Dashboard(props: {
   onPlayingChange: (playing: boolean) => void;
   onSkip: () => void;
 }) {
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
   const asset = props.currentItem?.track.assets.find(
     (candidate) => candidate.id === props.currentItem?.media_asset_id
   );
   const mediaUrl = props.currentItem?.media_url ?? null;
   const isVideo = asset?.asset_type === "video";
+
+  function togglePlayback() {
+    const media = mediaRef.current;
+    if (!media) {
+      return;
+    }
+    if (props.playing) {
+      media.pause();
+      return;
+    }
+    void media.play();
+  }
 
   return (
     <section className="dashboard-grid">
@@ -218,6 +231,9 @@ function Dashboard(props: {
         <div className="media-frame">
           {mediaUrl && isVideo ? (
             <video
+              ref={(node) => {
+                mediaRef.current = node;
+              }}
               key={mediaUrl}
               controls
               autoPlay={props.playing}
@@ -228,6 +244,9 @@ function Dashboard(props: {
             />
           ) : mediaUrl ? (
             <audio
+              ref={(node) => {
+                mediaRef.current = node;
+              }}
               key={mediaUrl}
               controls
               autoPlay={props.playing}
@@ -243,7 +262,11 @@ function Dashboard(props: {
           )}
         </div>
         <div className="transport">
-          <button className="icon-button" title={props.playing ? "Pause" : "Play"}>
+          <button
+            className="icon-button"
+            title={props.playing ? "Pause" : "Play"}
+            onClick={togglePlayback}
+          >
             {props.playing ? <Pause size={20} /> : <Play size={20} />}
           </button>
           <button className="icon-button" title="Skip" onClick={props.onSkip}>
@@ -592,4 +615,3 @@ function displayArtist(track?: Track | null) {
   }
   return [track.artist, track.album].filter(Boolean).join(" · ");
 }
-
