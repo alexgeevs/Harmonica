@@ -122,3 +122,16 @@ export type PlaybackEventCreate = {
   progress_seconds?: number | null;
   duration_seconds?: number | null;
 };
+
+export type StatsSummary = {
+  track_count: number;
+  rated_track_count: number;
+  unrated_track_count: number;
+  video_track_count: number;
+  group_count: number;
+  playback_event_count: number;
+  completed_count: number;
+  skipped_count: number;
+  early_skip_count: number;
+  partial_skip_count: number;
+};

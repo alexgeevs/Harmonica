@@ -1,4 +1,11 @@
-import type { AppSettings, PlaybackEventCreate, QueueRun, RatingFactor, Track } from "./types";
+import type {
+  AppSettings,
+  PlaybackEventCreate,
+  QueueRun,
+  RatingFactor,
+  StatsSummary,
+  Track
+} from "./types";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -17,6 +24,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   settings: () => request<AppSettings>("/settings"),
+  stats: () => request<StatsSummary>("/stats/summary"),
   updateSettings: (values: Record<string, number | boolean>) =>
     request<AppSettings>("/settings", {
       method: "PATCH",

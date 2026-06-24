@@ -49,3 +49,12 @@ def test_playback_event_can_be_recorded() -> None:
         assert response.status_code == 200
         assert response.json()["event_type"] == "started"
         assert response.json()["track_id"] == track_id
+
+
+def test_stats_summary_is_available() -> None:
+    with TestClient(create_app()) as client:
+        response = client.get("/stats/summary")
+        assert response.status_code == 200
+        payload = response.json()
+        assert "track_count" in payload
+        assert "early_skip_count" in payload

@@ -192,10 +192,58 @@ button {
 
 .player-surface {
   display: grid;
-  grid-template-rows: auto minmax(210px, 1fr) auto;
+  grid-template-rows: auto minmax(210px, 1fr) auto auto;
   gap: 18px;
   padding: 18px;
   min-height: 0;
+}
+
+.why-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #eef4f1;
+}
+
+.why-panel h4 {
+  margin: 0;
+  color: #33413e;
+  font-size: 14px;
+}
+
+.why-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px;
+}
+
+.why-metrics span,
+.why-panel li {
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #53605d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.why-panel ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.why-panel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.why-panel b {
+  color: #206a5d;
 }
 
 .now-playing p {
@@ -522,6 +570,36 @@ input {
   gap: 16px;
   margin: 20px;
   padding: 16px;
+}
+
+.stats-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  padding: 20px;
+}
+
+.metric-tile {
+  display: grid;
+  gap: 8px;
+  min-height: 112px;
+  align-content: center;
+  padding: 16px;
+  border: 1px solid #d8e2dd;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.metric-tile span {
+  color: #596561;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.metric-tile strong {
+  color: #20302f;
+  font-size: 28px;
+  line-height: 1;
 }
 
 .settings-controls,

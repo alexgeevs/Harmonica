@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Download,
   Library,
   Pause,
@@ -14,9 +15,18 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
-import type { AppSettings, QueueItem, QueueRun, RatingFactor, SettingControl, Track, TrackGroup } from "./types";
+import type {
+  AppSettings,
+  QueueItem,
+  QueueRun,
+  RatingFactor,
+  SettingControl,
+  StatsSummary,
+  Track,
+  TrackGroup
+} from "./types";
 
-type View = "dashboard" | "library" | "settings";
+type View = "dashboard" | "library" | "stats" | "settings";
 
 const emptyQueue: QueueRun = { id: 0, length: 0, items: [] };
 
@@ -24,6 +34,7 @@ export default function App() {
   const [view, setView] = useState<View>("dashboard");
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [ratingFactors, setRatingFactors] = useState<RatingFactor[]>([]);
+  const [stats, setStats] = useState<StatsSummary | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [queue, setQueue] = useState<QueueRun>(emptyQueue);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -44,14 +55,16 @@ export default function App() {
 
   async function refreshAll() {
     setError(null);
-    const [nextSettings, nextFactors, nextTracks] = await Promise.all([
+    const [nextSettings, nextFactors, nextTracks, nextStats] = await Promise.all([
       api.settings(),
       api.ratingFactors(),
-      api.tracks()
+      api.tracks(),
+      api.stats()
     ]);
     setSettings(nextSettings);
     setRatingFactors(nextFactors);
     setTracks(nextTracks);
+    setStats(nextStats);
     setPlaylistLength(nextSettings.default_playlist_length);
   }
 
@@ -169,6 +182,10 @@ export default function App() {
             <Library size={18} />
             Library
           </button>
+          <button className={view === "stats" ? "active" : ""} onClick={() => setView("stats")}>
+            <BarChart3 size={18} />
+            Stats
+          </button>
           <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>
             <Settings size={18} />
             Settings
@@ -179,7 +196,15 @@ export default function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <h2>{view === "dashboard" ? "Queue" : view === "library" ? "Library" : "Settings"}</h2>
+            <h2>
+              {view === "dashboard"
+                ? "Queue"
+                : view === "library"
+                  ? "Library"
+                  : view === "stats"
+                    ? "Stats"
+                    : "Settings"}
+            </h2>
             {error ? <p className="error-text">{error}</p> : null}
           </div>
           <button className="icon-button" title="Refresh" onClick={() => void refreshAll()}>
@@ -225,6 +250,8 @@ export default function App() {
             onCloseEditor={() => setSelectedTrack(null)}
           />
         ) : null}
+
+        {view === "stats" && stats ? <StatsView stats={stats} /> : null}
 
         {view === "settings" && settings ? (
           <SettingsView
@@ -376,6 +403,7 @@ function Dashboard(props: {
             </a>
           ) : null}
         </div>
+        {props.currentItem ? <WhyThisSong item={props.currentItem} /> : null}
       </div>
 
       <div className="queue-panel">
@@ -415,6 +443,35 @@ function Dashboard(props: {
         </ol>
       </div>
     </section>
+  );
+}
+
+function WhyThisSong(props: { item: QueueItem }) {
+  const explanation = props.item.explanation;
+  const groupContributions = Array.isArray(explanation.group_contributions)
+    ? explanation.group_contributions
+    : [];
+  return (
+    <div className="why-panel">
+      <h4>Why this song</h4>
+      <div className="why-metrics">
+        <span>Score {formatMetric(explanation.score)}</span>
+        <span>Rating {formatMetric(explanation.rating_multiplier)}x</span>
+        <span>History {formatMetric(explanation.history_multiplier)}x</span>
+        <span>Startup {formatMetric(explanation.cold_start_multiplier)}x</span>
+        <span>Visual {formatMetric(explanation.visual_multiplier)}x</span>
+      </div>
+      {groupContributions.length ? (
+        <ul>
+          {groupContributions.slice(0, 3).map((group, index) => (
+            <li key={`${String((group as { name?: string }).name)}-${index}`}>
+              <span>{String((group as { name?: string }).name ?? "Group")}</span>
+              <b>{formatMetric((group as { contribution?: number }).contribution)}</b>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -719,6 +776,36 @@ function SettingsView(props: {
   );
 }
 
+function StatsView(props: { stats: StatsSummary }) {
+  const coverage =
+    props.stats.track_count > 0
+      ? Math.round((props.stats.rated_track_count / props.stats.track_count) * 100)
+      : 0;
+  return (
+    <section className="stats-layout">
+      <Metric label="Tracks" value={props.stats.track_count} />
+      <Metric label="Rated" value={`${props.stats.rated_track_count} (${coverage}%)`} />
+      <Metric label="Unrated" value={props.stats.unrated_track_count} />
+      <Metric label="Visual tracks" value={props.stats.video_track_count} />
+      <Metric label="Groups" value={props.stats.group_count} />
+      <Metric label="Playback events" value={props.stats.playback_event_count} />
+      <Metric label="Completed" value={props.stats.completed_count} />
+      <Metric label="Skipped" value={props.stats.skipped_count} />
+      <Metric label="Early skips" value={props.stats.early_skip_count} />
+      <Metric label="Partial skips" value={props.stats.partial_skip_count} />
+    </section>
+  );
+}
+
+function Metric(props: { label: string; value: number | string }) {
+  return (
+    <div className="metric-tile">
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+    </div>
+  );
+}
+
 function SettingControlRow(props: {
   control: SettingControl;
   value: number | boolean;
@@ -766,6 +853,10 @@ function settingsToDraft(settings: AppSettings): Record<string, number | boolean
   return Object.fromEntries(
     settings.controls.map((control) => [control.key, settings[control.key]])
   ) as Record<string, number | boolean>;
+}
+
+function formatMetric(value: unknown): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(3) : "1.000";
 }
 
 function displayArtist(track?: Track | null) {

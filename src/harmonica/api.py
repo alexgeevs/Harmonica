@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from harmonica.bootstrap import ensure_default_rating_factors
 from harmonica.config import Settings, get_settings
 from harmonica.db import SessionLocal, get_session, init_db
+from harmonica.history import playback_event_signal
 from harmonica.models import (
     CooldownTag,
     GroupMembership,
@@ -41,6 +42,7 @@ from harmonica.schemas import (
     ScanResponse,
     SettingsRead,
     SettingsUpdate,
+    StatsSummaryRead,
     TrackGroupWrite,
     TrackRead,
     TrackUpdate,
@@ -217,6 +219,48 @@ def create_app() -> FastAPI:
             .limit(bounded_limit)
         ).all()
         return [playback_event_to_schema(event) for event in events]
+
+    @app.get("/stats/summary", response_model=StatsSummaryRead)
+    def stats_summary(session: SessionDep) -> StatsSummaryRead:
+        tracks = list(session.scalars(track_query()))
+        events = list(session.scalars(select(PlaybackEvent)))
+        rated_track_ids = {
+            track.id
+            for track in tracks
+            if any(rating.value is not None for rating in track.ratings)
+        }
+        video_track_ids = {
+            track.id
+            for track in tracks
+            if any(asset.asset_type == "video" for asset in track.assets)
+        }
+        early_skip_count = 0
+        partial_skip_count = 0
+        skipped_count = 0
+        completed_count = 0
+        for event in events:
+            if event.event_type == "completed":
+                completed_count += 1
+            if event.event_type == "skipped":
+                skipped_count += 1
+                repeat_credit, skip_penalty = playback_event_signal(event)
+                if repeat_credit == 0 and skip_penalty > 0:
+                    early_skip_count += 1
+                elif repeat_credit < 1 and skip_penalty > 0:
+                    partial_skip_count += 1
+        group_count = len(session.scalars(select(WeightGroup.id)).all())
+        return StatsSummaryRead(
+            track_count=len(tracks),
+            rated_track_count=len(rated_track_ids),
+            unrated_track_count=max(len(tracks) - len(rated_track_ids), 0),
+            video_track_count=len(video_track_ids),
+            group_count=group_count,
+            playback_event_count=len(events),
+            completed_count=completed_count,
+            skipped_count=skipped_count,
+            early_skip_count=early_skip_count,
+            partial_skip_count=partial_skip_count,
+        )
 
     return app
 

@@ -171,3 +171,16 @@ class PlaybackEventRead(BaseModel):
     progress_seconds: float | None = None
     duration_seconds: float | None = None
     created_at: str
+
+
+class StatsSummaryRead(BaseModel):
+    track_count: int
+    rated_track_count: int
+    unrated_track_count: int
+    video_track_count: int
+    group_count: int
+    playback_event_count: int
+    completed_count: int
+    skipped_count: int
+    early_skip_count: int
+    partial_skip_count: int
