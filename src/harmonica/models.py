@@ -120,7 +120,9 @@ class TrackCooldownTag(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
-    tag_id: Mapped[int] = mapped_column(ForeignKey("cooldown_tags.id", ondelete="CASCADE"), index=True)
+    tag_id: Mapped[int] = mapped_column(
+        ForeignKey("cooldown_tags.id", ondelete="CASCADE"), index=True
+    )
 
     track: Mapped[Track] = relationship(back_populates="cooldown_tags")
     tag: Mapped[CooldownTag] = relationship(back_populates="tracks")
@@ -149,7 +151,9 @@ class TrackRating(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
-    factor_id: Mapped[int] = mapped_column(ForeignKey("rating_factors.id", ondelete="CASCADE"), index=True)
+    factor_id: Mapped[int] = mapped_column(
+        ForeignKey("rating_factors.id", ondelete="CASCADE"), index=True
+    )
     value: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     track: Mapped[Track] = relationship(back_populates="ratings")
@@ -175,7 +179,9 @@ class PlaylistItem(Base):
     __table_args__ = (UniqueConstraint("run_id", "position", name="uq_run_position"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    run_id: Mapped[int] = mapped_column(ForeignKey("playlist_runs.id", ondelete="CASCADE"), index=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("playlist_runs.id", ondelete="CASCADE"), index=True
+    )
     track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
     media_asset_id: Mapped[int | None] = mapped_column(
         ForeignKey("media_assets.id", ondelete="SET NULL"), nullable=True
@@ -187,4 +193,3 @@ class PlaylistItem(Base):
     run: Mapped[PlaylistRun] = relationship(back_populates="items")
     track: Mapped[Track] = relationship()
     media_asset: Mapped[MediaAsset | None] = relationship()
-
