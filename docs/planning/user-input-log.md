@@ -344,3 +344,60 @@ Do not implement yet:
 - recency-weighted rating aggregation;
 - session-level rating anomaly detection;
 - regression-to-mean correction for unusually high or low session ratings.
+
+## 2026-06-24: History-Aware Generation, Curation Agents, Clustering, And Cold Start
+
+### User Input
+
+The user agreed that the next step should be playback-history-aware generation.
+
+Skip semantics:
+
+- A skip should not always count as recently played.
+- If less than 10% of a song was listened to before skipping, it should not count as played recently and can be considered a bad signal.
+- Listening to less than 50% is also a bad sign, but should count as about half a listen regarding repeat avoidance, or something similar.
+
+Curation workflow:
+
+- Library sorting/curation will primarily be done by a separate agent created for that purpose, rather than manually.
+- Harmonica should support agent-driven metadata workflows cleanly.
+
+Queue quality and clustering:
+
+- Tools like "why this song" and clustering checks are wanted.
+- Some things benefit from clustering; for example, a musical playlist can be better when listened to consecutively.
+- The algorithm should eventually support modes where clustering is encouraged rather than always suppressed.
+
+Group ratings:
+
+- Group rating aggregation should be added before the next version.
+
+Stats and settings:
+
+- The planned stats dashboard and better settings coverage still sound good.
+
+Cold-start and attention behavior:
+
+- Songs should not be abandoned just because they have not yet been played.
+- The user's current playlist is around 200 songs, roughly 5 minutes each, so listening through every song can take the better part of a month.
+- The app should prioritize visual songs while the UI is on, because that allows easier access to rankings.
+- When the UI is off, assume medium songs will not get attention; the user is more likely to come rank something only if it is exceptionally good or atrociously bad.
+- Before more than half the songs have been played twice, every song should have been played at least once.
+- During startup, "not having been played" should be defined as not having a ranking.
+- Therefore the startup algorithm should not be equivalent to the mature/general algorithm.
+
+### Current Interpretation
+
+Implement next:
+
+- Use playback history in queue generation.
+- Classify skip depth into repeat-cooldown and negative-quality signals.
+- Add group rating aggregation and apply it to group multipliers.
+- Add settings/hooks for clustering mode, history influence, visual priority, and cold-start coverage.
+
+Future direction:
+
+- Metadata should be easy for an external curation agent to write/import.
+- Add explicit queue quality tools and "why this song" explanations.
+- Add clustering-friendly modes for contexts such as listening through a musical consecutively.
+- Build a startup/cold-start algorithm that prioritizes unrated/unheard songs without permanently neglecting songs that have not yet received attention.
