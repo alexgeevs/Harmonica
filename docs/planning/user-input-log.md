@@ -298,3 +298,21 @@ The user said: "Implement the plan."
 
 Plan Mode has ended. Begin implementing the full thin slice with frequent pushes.
 
+## 2026-06-24: Settings Direction And Gap Check
+
+### User Input
+
+The user said settings should be more of a switches-and-sliders control surface, rather than the app merely reporting back the values from the original planning answers.
+
+The user said the current work looks good, but looking at it still feels like "this is missing what I want from the final project." They asked what is next and what is still missing.
+
+### Current Interpretation
+
+Settings should become a real tuning interface for the app and algorithm:
+
+- switches for enabling/disabling behavior;
+- sliders for algorithm strength, cooldowns, rating influence, and future profile preferences;
+- controls that persist settings and immediately affect generation;
+- a restrained settings icon entry point from the main dashboard, not a read-only summary page.
+
+The current implementation is a thin slice and foundation, not the final product experience. Future work should close the gap between "working scaffold" and "personal Spotify-like local music system."

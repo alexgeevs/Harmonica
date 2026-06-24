@@ -21,6 +21,14 @@ Build a full thin slice:
 - `.m3u8` export for external players or phone transfer.
 - Debug logs and explainable score breakdowns.
 
+## Settings Direction
+
+Settings should be a live control surface, not a read-only recap.
+
+The UI should use switches, sliders, steppers, segmented controls, and selectors for algorithm behavior, playback behavior, library behavior, and future profile behavior. These settings should persist and affect queue generation.
+
+The dashboard should stay focused. Settings should remain reachable through a settings icon or secondary view rather than becoming the main surface.
+
 ## What Matters Most
 
 - The algorithm is central.
@@ -100,6 +108,7 @@ Transcoding is not a v1 feature. Future tooling may keep storage-efficient versi
 - Transcoding/cache pipeline.
 - LAN access and authentication.
 - Focus/sleep/entertainment playlist profiles.
+- Full switches-and-sliders settings editor with persistent algorithm tuning.
 - Rich statistics dashboard.
 - Similarity/vector cloud based on ratings and metadata.
 - Native iOS app or deeper phone integration.
@@ -110,4 +119,3 @@ Transcoding is not a v1 feature. Future tooling may keep storage-efficient versi
 Push directly to `main` after significant increments.
 
 Keep direction-setting user input in Markdown planning docs so future agents understand the user's intent without relying on chat history.
-
