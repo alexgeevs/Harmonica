@@ -70,6 +70,13 @@ export type SettingControl = {
     | "song_rating_max_multiplier"
     | "enable_group_rating_multiplier"
     | "default_playlist_length"
+    | "history_influence_enabled"
+    | "skip_penalty_strength"
+    | "cold_start_enabled"
+    | "cold_start_unrated_boost"
+    | "visual_priority_enabled"
+    | "visual_priority_multiplier"
+    | "group_clustering_bias"
   >;
   label: string;
   description: string;
@@ -96,6 +103,13 @@ export type AppSettings = {
   default_playlist_length: number;
   group_rating_min_multiplier: number;
   group_rating_max_multiplier: number;
+  history_influence_enabled: boolean;
+  skip_penalty_strength: number;
+  cold_start_enabled: boolean;
+  cold_start_unrated_boost: number;
+  visual_priority_enabled: boolean;
+  visual_priority_multiplier: number;
+  group_clustering_bias: number;
   controls: SettingControl[];
 };
 

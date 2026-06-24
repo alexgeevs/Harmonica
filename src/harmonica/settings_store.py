@@ -115,12 +115,97 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="enable_group_rating_multiplier",
         label="Use group rating multiplier",
         description=(
-            "Experimental. When enabled, stored group rating multipliers affect queue generation. "
-            "Leave off while group-rating aggregation is still being tuned."
+            "When enabled, song ratings are aggregated into group multipliers so strongly rated "
+            "sources, artists, and themes get more long-run weight."
         ),
         value_type="boolean",
         control="switch",
-        default=False,
+        default=True,
+    ),
+    SettingDefinition(
+        key="history_influence_enabled",
+        label="Use playback history",
+        description=(
+            "When enabled, completed listens and meaningful partial listens affect future repeat "
+            "cooldowns. Very early skips become negative utility signals instead."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="skip_penalty_strength",
+        label="Skip penalty strength",
+        description=(
+            "How strongly very early skips reduce future utility. A 10% skip is treated as a "
+            "bad signal, while a partial listen under 50% is a milder bad signal."
+        ),
+        value_type="number",
+        control="slider",
+        default=0.25,
+        minimum=0.0,
+        maximum=0.75,
+        step=0.05,
+    ),
+    SettingDefinition(
+        key="cold_start_enabled",
+        label="Startup coverage mode",
+        description=(
+            "Boost unrated songs while the library is still being learned, so songs are not "
+            "abandoned before they have had a fair chance."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="cold_start_unrated_boost",
+        label="Unrated song boost",
+        description=(
+            "How much extra weight unrated songs receive during startup coverage mode."
+        ),
+        value_type="number",
+        control="slider",
+        default=2.0,
+        minimum=1.0,
+        maximum=5.0,
+        step=0.1,
+    ),
+    SettingDefinition(
+        key="visual_priority_enabled",
+        label="Prioritize visual tracks in UI",
+        description=(
+            "When generating from the web UI, prefer tracks that have video assets because they "
+            "are easier to review and rate while the interface is open."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="visual_priority_multiplier",
+        label="Visual track boost",
+        description="How much extra weight video-capable tracks receive when the UI is active.",
+        value_type="number",
+        control="slider",
+        default=1.35,
+        minimum=1.0,
+        maximum=3.0,
+        step=0.05,
+    ),
+    SettingDefinition(
+        key="group_clustering_bias",
+        label="Group clustering bias",
+        description=(
+            "Negative values emphasize variety. Positive values allow or encourage nearby songs "
+            "from the same source, useful for listening through a musical consecutively."
+        ),
+        value_type="number",
+        control="slider",
+        default=0.0,
+        minimum=-1.0,
+        maximum=1.0,
+        step=0.05,
     ),
 )
 
@@ -201,4 +286,3 @@ def sanitize_value(definition: SettingDefinition, raw_value: Any) -> float | int
     if isinstance(definition.default, int):
         return int(round(value))
     return value
-

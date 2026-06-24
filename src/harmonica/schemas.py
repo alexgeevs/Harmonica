@@ -91,6 +91,7 @@ class QueueGenerateRequest(BaseModel):
     length: int = Field(default=100, ge=1, le=1000)
     seed: str | None = None
     explain: bool = True
+    ui_active: bool = False
 
 
 class QueueItemRead(BaseModel):
@@ -136,6 +137,13 @@ class SettingsRead(BaseModel):
     default_playlist_length: int
     group_rating_min_multiplier: float
     group_rating_max_multiplier: float
+    history_influence_enabled: bool
+    skip_penalty_strength: float
+    cold_start_enabled: bool
+    cold_start_unrated_boost: float
+    visual_priority_enabled: bool
+    visual_priority_multiplier: float
+    group_clustering_bias: float
     controls: list[SettingControlRead]
 
 

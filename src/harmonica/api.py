@@ -154,6 +154,7 @@ def create_app() -> FastAPI:
             length=payload.length,
             seed=payload.seed,
             write_debug_log=payload.explain,
+            ui_active=payload.ui_active,
         )
         return load_run_response(session, run.id)
 

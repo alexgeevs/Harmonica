@@ -31,7 +31,14 @@ class Settings(BaseSettings):
     song_rating_max_multiplier: float = 2.0
     group_rating_min_multiplier: float = 0.7
     group_rating_max_multiplier: float = 1.4
-    enable_group_rating_multiplier: bool = False
+    enable_group_rating_multiplier: bool = True
+    history_influence_enabled: bool = True
+    skip_penalty_strength: float = 0.25
+    cold_start_enabled: bool = True
+    cold_start_unrated_boost: float = 2.0
+    visual_priority_enabled: bool = True
+    visual_priority_multiplier: float = 1.35
+    group_clustering_bias: float = 0.0
 
     @property
     def db_url(self) -> str:
@@ -53,4 +60,3 @@ def get_settings() -> Settings:
     settings = Settings()
     settings.ensure_dirs()
     return settings
-

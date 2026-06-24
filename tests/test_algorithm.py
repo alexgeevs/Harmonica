@@ -7,6 +7,8 @@ import pytest
 from harmonica.algorithm import (
     AlgorithmGroup,
     AlgorithmTrack,
+    adjust_cooldown_for_repeat_credit,
+    apply_clustering_bias,
     generate_playlist,
     group_sizes,
     linear_recovery,
@@ -103,3 +105,17 @@ def test_linear_recovery_floor_and_horizon() -> None:
     assert linear_recovery(50, 100) == pytest.approx(0.5)
     assert linear_recovery(100, 100) == 1.0
     assert linear_recovery(0, 12, floor=0.05) == pytest.approx(0.05)
+
+
+def test_partial_repeat_credit_softens_cooldown() -> None:
+    assert adjust_cooldown_for_repeat_credit(0.0, 1.0) == pytest.approx(0.0)
+    assert adjust_cooldown_for_repeat_credit(0.0, 0.5) == pytest.approx(0.5)
+    assert adjust_cooldown_for_repeat_credit(0.0, 0.0) == pytest.approx(1.0)
+
+
+def test_positive_clustering_bias_allows_nearby_group_repeats(tmp_path) -> None:
+    config = settings(tmp_path).model_copy(update={"group_clustering_bias": 1.0})
+    assert apply_clustering_bias(0.05, 0, 12, config) > 1.0
+
+    variety_config = settings(tmp_path).model_copy(update={"group_clustering_bias": -1.0})
+    assert apply_clustering_bias(0.5, 0, 12, variety_config) < 0.5

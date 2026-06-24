@@ -31,6 +31,9 @@ class AlgorithmTrack:
     sub_group: str | None = None
     manual_multiplier: float = 1.0
     rating_multiplier: float = 1.0
+    history_multiplier: float = 1.0
+    cold_start_multiplier: float = 1.0
+    has_video: bool = False
 
 
 @dataclass
@@ -94,6 +97,26 @@ def group_sizes(tracks: list[AlgorithmTrack], groups: dict[int, AlgorithmGroup])
     return sizes
 
 
+def adjust_cooldown_for_repeat_credit(cooldown: float, repeat_credit: float) -> float:
+    bounded_credit = min(max(repeat_credit, 0.0), 1.0)
+    return 1.0 - bounded_credit * (1.0 - cooldown)
+
+
+def apply_clustering_bias(
+    cooldown: float,
+    distance: int | None,
+    horizon: int,
+    settings: Settings,
+) -> float:
+    bias = min(max(settings.group_clustering_bias, -1.0), 1.0)
+    if bias == 0 or distance is None or horizon <= 0 or distance >= horizon:
+        return cooldown
+    proximity = max(0.0, 1.0 - (max(distance, 0) / horizon))
+    if bias > 0:
+        return min(2.0, cooldown + (bias * proximity))
+    return max(0.0, cooldown * (1.0 + (bias * 0.5 * proximity)))
+
+
 def score_track(
     track: AlgorithmTrack,
     groups: dict[int, AlgorithmGroup],
@@ -103,9 +126,16 @@ def score_track(
     track_last_played: dict[int, int],
     group_last_played: dict[int, int],
     sub_group_last_played: dict[str, int],
+    track_repeat_credits: dict[int, float] | None = None,
+    group_repeat_credits: dict[int, float] | None = None,
+    sub_group_repeat_credits: dict[str, float] | None = None,
+    ui_active: bool = False,
     disable_group_and_sub_cooldowns: bool = False,
     disable_song_cooldown: bool = False,
 ) -> tuple[float, dict[str, Any]]:
+    track_repeat_credits = track_repeat_credits or {}
+    group_repeat_credits = group_repeat_credits or {}
+    sub_group_repeat_credits = sub_group_repeat_credits or {}
     total_tracks = max(len(track_last_played), 1)
     shares = normalized_membership_shares(track)
     group_count = max(len(groups), 1)
@@ -131,6 +161,11 @@ def score_track(
                 if disable_group_and_sub_cooldowns
                 else linear_recovery(distance, group_horizon, settings.group_cooldown_floor)
             )
+            cooldown = adjust_cooldown_for_repeat_credit(
+                cooldown, group_repeat_credits.get(group_id, 1.0)
+            )
+            if not disable_group_and_sub_cooldowns:
+                cooldown = apply_clustering_bias(cooldown, distance, group_horizon, settings)
             group_weight = group.multiplier * (1.0 + settings.beta * math.log(size))
             contribution = share * (group_weight / size) * cooldown
             base_score += contribution
@@ -153,6 +188,9 @@ def score_track(
     song_cooldown = (
         1.0 if disable_song_cooldown else linear_recovery(song_distance, song_horizon, 0.0)
     )
+    song_cooldown = adjust_cooldown_for_repeat_credit(
+        song_cooldown, track_repeat_credits.get(track.id, 1.0)
+    )
 
     sub_cooldown = 1.0
     if track.sub_group:
@@ -167,11 +205,23 @@ def score_track(
             if disable_group_and_sub_cooldowns
             else linear_recovery(sub_distance, sub_horizon, settings.sub_group_cooldown_floor)
         )
+        sub_cooldown = adjust_cooldown_for_repeat_credit(
+            sub_cooldown, sub_group_repeat_credits.get(track.sub_group, 1.0)
+        )
+
+    visual_multiplier = (
+        settings.visual_priority_multiplier
+        if ui_active and settings.visual_priority_enabled and track.has_video
+        else 1.0
+    )
 
     final_score = (
         base_score
         * track.manual_multiplier
         * track.rating_multiplier
+        * track.history_multiplier
+        * track.cold_start_multiplier
+        * visual_multiplier
         * song_cooldown
         * sub_cooldown
     )
@@ -182,6 +232,9 @@ def score_track(
         "base_score": base_score,
         "manual_multiplier": track.manual_multiplier,
         "rating_multiplier": track.rating_multiplier,
+        "history_multiplier": track.history_multiplier,
+        "cold_start_multiplier": track.cold_start_multiplier,
+        "visual_multiplier": visual_multiplier,
         "song_cooldown": song_cooldown,
         "sub_group_cooldown": sub_cooldown,
         "group_contributions": group_contributions,
@@ -196,6 +249,13 @@ def generate_playlist(
     length: int,
     settings: Settings,
     seed: str | int | None = None,
+    ui_active: bool = False,
+    initial_track_distances: dict[int, int] | None = None,
+    initial_group_distances: dict[int, int] | None = None,
+    initial_sub_group_distances: dict[str, int] | None = None,
+    initial_track_repeat_credits: dict[int, float] | None = None,
+    initial_group_repeat_credits: dict[int, float] | None = None,
+    initial_sub_group_repeat_credits: dict[str, float] | None = None,
 ) -> list[GeneratedItem]:
     if not tracks:
         return []
@@ -203,8 +263,19 @@ def generate_playlist(
     rng = random.Random(seed)
     sizes = group_sizes(tracks, groups)
     track_last_played = {track.id: -10**9 for track in tracks}
-    group_last_played: dict[int, int] = {}
-    sub_group_last_played: dict[str, int] = {}
+    for track_id, distance in (initial_track_distances or {}).items():
+        track_last_played[track_id] = -max(distance, 0)
+    group_last_played = {
+        group_id: -max(distance, 0)
+        for group_id, distance in (initial_group_distances or {}).items()
+    }
+    sub_group_last_played = {
+        sub_group: -max(distance, 0)
+        for sub_group, distance in (initial_sub_group_distances or {}).items()
+    }
+    track_repeat_credits = dict(initial_track_repeat_credits or {})
+    group_repeat_credits = dict(initial_group_repeat_credits or {})
+    sub_group_repeat_credits = dict(initial_sub_group_repeat_credits or {})
     output: list[GeneratedItem] = []
 
     for position in range(length):
@@ -219,6 +290,10 @@ def generate_playlist(
                 track_last_played,
                 group_last_played,
                 sub_group_last_played,
+                track_repeat_credits,
+                group_repeat_credits,
+                sub_group_repeat_credits,
+                ui_active=ui_active,
             )
             for track in tracks
         ]
@@ -235,6 +310,10 @@ def generate_playlist(
                     track_last_played,
                     group_last_played,
                     sub_group_last_played,
+                    track_repeat_credits,
+                    group_repeat_credits,
+                    sub_group_repeat_credits,
+                    ui_active=ui_active,
                     disable_group_and_sub_cooldowns=True,
                 )
                 for track in tracks
@@ -252,6 +331,10 @@ def generate_playlist(
                     track_last_played,
                     group_last_played,
                     sub_group_last_played,
+                    track_repeat_credits,
+                    group_repeat_credits,
+                    sub_group_repeat_credits,
+                    ui_active=ui_active,
                     disable_group_and_sub_cooldowns=True,
                     disable_song_cooldown=True,
                 )
@@ -274,10 +357,13 @@ def generate_playlist(
         )
 
         track_last_played[chosen.id] = position
+        track_repeat_credits[chosen.id] = 1.0
         for group_id in chosen.groups:
             group_last_played[group_id] = position
+            group_repeat_credits[group_id] = 1.0
         if chosen.sub_group:
             sub_group_last_played[chosen.sub_group] = position
+            sub_group_repeat_credits[chosen.sub_group] = 1.0
 
     return output
 
@@ -306,4 +392,3 @@ def write_jsonl_log(path: Path, run_payload: dict[str, Any], items: list[Generat
         handle.write(json.dumps({"event": "playlist_run", **run_payload}) + "\n")
         for item in items:
             handle.write(json.dumps({"event": "playlist_item", **item.explanation}) + "\n")
-

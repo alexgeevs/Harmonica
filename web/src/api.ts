@@ -54,7 +54,7 @@ export const api = {
   generateQueue: (length: number, seed?: string) =>
     request<QueueRun>("/queue/generate", {
       method: "POST",
-      body: JSON.stringify({ length, seed: seed || null, explain: true })
+      body: JSON.stringify({ length, seed: seed || null, explain: true, ui_active: true })
     }),
   recordPlaybackEvent: (event: PlaybackEventCreate) =>
     request("/playback-events", {

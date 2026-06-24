@@ -14,6 +14,7 @@ from harmonica.algorithm import (
     write_jsonl_log,
 )
 from harmonica.config import Settings
+from harmonica.history import cold_start_multiplier, history_multiplier, summarize_history
 from harmonica.models import (
     GroupMembership,
     MediaAsset,
@@ -23,13 +24,13 @@ from harmonica.models import (
     TrackRating,
     WeightGroup,
 )
-from harmonica.ratings import effective_song_multiplier
+from harmonica.ratings import aggregate_group_rating_multipliers, effective_song_multiplier
 
 
 def load_algorithm_inputs(
     session: Session,
     settings: Settings,
-) -> tuple[list[AlgorithmTrack], dict[int, AlgorithmGroup]]:
+) -> tuple[list[AlgorithmTrack], dict[int, AlgorithmGroup], object]:
     tracks = list(
         session.scalars(
             select(Track).options(
@@ -39,17 +40,6 @@ def load_algorithm_inputs(
             )
         )
     )
-    groups = list(session.scalars(select(WeightGroup)))
-    group_map = {
-        group.id: AlgorithmGroup(
-            id=group.id,
-            name=group.name,
-            group_type=group.group_type,
-            multiplier=group.manual_multiplier
-            * (group.rating_multiplier if settings.enable_group_rating_multiplier else 1.0),
-        )
-        for group in groups
-    }
     variant_counts = dict(
         session.execute(
             select(Track.sub_group, func.count(Track.id))
@@ -57,30 +47,61 @@ def load_algorithm_inputs(
             .group_by(Track.sub_group)
         ).all()
     )
+    history_summary = summarize_history(session, tracks, settings)
+    groups = list(session.scalars(select(WeightGroup)))
+    aggregate_group_multipliers = (
+        aggregate_group_rating_multipliers(tracks, variant_counts, settings)
+        if settings.enable_group_rating_multiplier
+        else {}
+    )
+    group_map = {
+        group.id: AlgorithmGroup(
+            id=group.id,
+            name=group.name,
+            group_type=group.group_type,
+            multiplier=group.manual_multiplier
+            * (
+                aggregate_group_multipliers.get(group.id, group.rating_multiplier)
+                if settings.enable_group_rating_multiplier
+                else 1.0
+            ),
+        )
+        for group in groups
+    }
     algorithm_tracks: list[AlgorithmTrack] = []
     for track in tracks:
         asset = preferred_asset(track)
+        signal = history_summary.track_signals.get(track.id)
+        variant_count = variant_counts.get(track.sub_group, 1) if track.sub_group else 1
         algorithm_tracks.append(
             AlgorithmTrack(
-            id=track.id,
-            song_id=track.song_id,
-            title=track.title,
-            artist=track.artist,
-            album=track.album,
-            media_asset_id=asset.id if asset else None,
-            file_path=asset.file_path if asset else None,
-            groups={membership.group_id: membership.share for membership in track.memberships},
-            sub_group=track.sub_group,
-            manual_multiplier=track.manual_multiplier,
-            rating_multiplier=effective_song_multiplier(
-                track,
-                track.ratings,
-                variant_counts.get(track.sub_group, 1) if track.sub_group else 1,
-                settings,
-            ),
+                id=track.id,
+                song_id=track.song_id,
+                title=track.title,
+                artist=track.artist,
+                album=track.album,
+                media_asset_id=asset.id if asset else None,
+                file_path=asset.file_path if asset else None,
+                groups={membership.group_id: membership.share for membership in track.memberships},
+                sub_group=track.sub_group,
+                manual_multiplier=track.manual_multiplier,
+                rating_multiplier=effective_song_multiplier(
+                    track,
+                    track.ratings,
+                    variant_count,
+                    settings,
+                ),
+                history_multiplier=history_multiplier(signal, settings),
+                cold_start_multiplier=cold_start_multiplier(
+                    track,
+                    history_summary,
+                    settings,
+                    variant_count,
+                ),
+                has_video=any(asset.asset_type == "video" for asset in track.assets),
+            )
         )
-        )
-    return algorithm_tracks, group_map
+    return algorithm_tracks, group_map, history_summary
 
 
 def preferred_asset(track: Track) -> MediaAsset | None:
@@ -98,9 +119,33 @@ def generate_and_persist_playlist(
     length: int,
     seed: str | int | None = None,
     write_debug_log: bool = True,
+    ui_active: bool = False,
 ) -> tuple[PlaylistRun, list[GeneratedItem]]:
-    tracks, groups = load_algorithm_inputs(session, settings)
-    items = generate_playlist(tracks, groups, length, settings, seed=seed)
+    tracks, groups, history_summary = load_algorithm_inputs(session, settings)
+    track_distances = {
+        track_id: signal.repeat_distance
+        for track_id, signal in history_summary.track_signals.items()
+        if signal.repeat_distance is not None
+    }
+    track_repeat_credits = {
+        track_id: signal.repeat_credit
+        for track_id, signal in history_summary.track_signals.items()
+        if signal.repeat_distance is not None
+    }
+    items = generate_playlist(
+        tracks,
+        groups,
+        length,
+        settings,
+        seed=seed,
+        ui_active=ui_active,
+        initial_track_distances=track_distances,
+        initial_group_distances=history_summary.group_distances,
+        initial_sub_group_distances=history_summary.sub_group_distances,
+        initial_track_repeat_credits=track_repeat_credits,
+        initial_group_repeat_credits=history_summary.group_repeat_credits,
+        initial_sub_group_repeat_credits=history_summary.sub_group_repeat_credits,
+    )
     run = PlaylistRun(
         seed=str(seed) if seed is not None else None,
         length=length,
@@ -148,4 +193,11 @@ def settings_snapshot(settings: Settings) -> dict[str, object]:
         "song_rating_min_multiplier": settings.song_rating_min_multiplier,
         "song_rating_max_multiplier": settings.song_rating_max_multiplier,
         "enable_group_rating_multiplier": settings.enable_group_rating_multiplier,
+        "history_influence_enabled": settings.history_influence_enabled,
+        "skip_penalty_strength": settings.skip_penalty_strength,
+        "cold_start_enabled": settings.cold_start_enabled,
+        "cold_start_unrated_boost": settings.cold_start_unrated_boost,
+        "visual_priority_enabled": settings.visual_priority_enabled,
+        "visual_priority_multiplier": settings.visual_priority_multiplier,
+        "group_clustering_bias": settings.group_clustering_bias,
     }
