@@ -8,6 +8,8 @@ Harmonica is a local-first music app that aims to maximize the user's listening 
 
 It should eventually feel like a personal, local, customizable alternative to major streaming apps: library management, playback, queue generation, metadata curation, ratings, and useful statistics, without being locked to Spotify, Apple Music, or any one downloader.
 
+Near-term work should push Harmonica toward being a serious local alternative to YouTube or Spotify, not merely a playlist-generator demo.
+
 ## V1 Shape
 
 Build a full thin slice:

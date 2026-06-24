@@ -401,3 +401,15 @@ Future direction:
 - Add explicit queue quality tools and "why this song" explanations.
 - Add clustering-friendly modes for contexts such as listening through a musical consecutively.
 - Build a startup/cold-start algorithm that prioritizes unrated/unheard songs without permanently neglecting songs that have not yet received attention.
+
+## 2026-06-24: Broad Product Pass Expectation
+
+### User Input
+
+The user asked the assistant to do as much as possible before getting back, finish all planned items, and push to main frequently.
+
+The user said the app should be a serious alternative to YouTube or Spotify after this pass.
+
+### Current Interpretation
+
+This next pass should be ambitious and product-oriented, not just a narrow algorithm patch. It should aim to make Harmonica materially closer to a real local music system by adding history-aware generation, skip semantics, group ratings, startup coverage, visual priority, clustering controls, and better UI/API support where feasible.
