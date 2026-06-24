@@ -19,6 +19,7 @@ from harmonica.models import (
     CooldownTag,
     GroupMembership,
     MediaAsset,
+    PlaybackEvent,
     PlaylistRun,
     RatingFactor,
     Track,
@@ -26,20 +27,25 @@ from harmonica.models import (
     TrackRating,
     WeightGroup,
 )
-from harmonica.playlist import generate_and_persist_playlist, settings_snapshot
+from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
 from harmonica.schemas import (
     GroupRead,
+    PlaybackEventCreate,
+    PlaybackEventRead,
     QueueGenerateRequest,
     QueueItemRead,
     QueueRunRead,
     RatingFactorRead,
     ScanRequest,
     ScanResponse,
+    SettingsRead,
+    SettingsUpdate,
     TrackGroupWrite,
     TrackRead,
     TrackUpdate,
 )
+from harmonica.settings_store import get_effective_settings, settings_payload, update_setting_values
 
 SessionDep = Annotated[Session, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -67,17 +73,18 @@ def create_app() -> FastAPI:
     def health(settings: SettingsDep) -> dict[str, Any]:
         return {"ok": True, "app": settings.app_name}
 
-    @app.get("/settings")
-    def read_settings(settings: SettingsDep) -> dict[str, Any]:
-        return {
-            **settings_snapshot(settings),
-            "home": str(settings.home),
-            "host": settings.host,
-            "port": settings.port,
-            "default_playlist_length": settings.default_playlist_length,
-            "group_rating_min_multiplier": settings.group_rating_min_multiplier,
-            "group_rating_max_multiplier": settings.group_rating_max_multiplier,
-        }
+    @app.get("/settings", response_model=SettingsRead)
+    def read_settings(session: SessionDep, settings: SettingsDep) -> SettingsRead:
+        return SettingsRead(**settings_payload(session, settings))
+
+    @app.patch("/settings", response_model=SettingsRead)
+    def update_settings(
+        payload: SettingsUpdate,
+        session: SessionDep,
+        settings: SettingsDep,
+    ) -> SettingsRead:
+        update_setting_values(session, payload.values, settings)
+        return SettingsRead(**settings_payload(session, settings))
 
     @app.get("/rating-factors", response_model=list[RatingFactorRead])
     def list_rating_factors(session: SessionDep) -> list[RatingFactorRead]:
@@ -140,9 +147,10 @@ def create_app() -> FastAPI:
         settings: SettingsDep,
     ) -> QueueRunRead:
         ensure_default_rating_factors(session)
+        effective_settings = get_effective_settings(session, settings)
         run, _items = generate_and_persist_playlist(
             session,
-            settings,
+            effective_settings,
             length=payload.length,
             seed=payload.seed,
             write_debug_log=payload.explain,
@@ -174,6 +182,40 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Media file missing from disk")
         media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         return FileResponse(path, media_type=media_type, filename=path.name)
+
+    @app.post("/playback-events", response_model=PlaybackEventRead)
+    def create_playback_event(
+        payload: PlaybackEventCreate,
+        session: SessionDep,
+    ) -> PlaybackEventRead:
+        if session.get(Track, payload.track_id) is None:
+            raise HTTPException(status_code=404, detail="Track not found")
+        event = PlaybackEvent(
+            event_type=payload.event_type,
+            track_id=payload.track_id,
+            media_asset_id=payload.media_asset_id,
+            playlist_run_id=payload.playlist_run_id,
+            queue_position=payload.queue_position,
+            progress_seconds=payload.progress_seconds,
+            duration_seconds=payload.duration_seconds,
+        )
+        session.add(event)
+        session.commit()
+        session.refresh(event)
+        return playback_event_to_schema(event)
+
+    @app.get("/playback-events", response_model=list[PlaybackEventRead])
+    def list_playback_events(
+        session: SessionDep,
+        limit: int = 100,
+    ) -> list[PlaybackEventRead]:
+        bounded_limit = min(max(limit, 1), 500)
+        events = session.scalars(
+            select(PlaybackEvent)
+            .order_by(PlaybackEvent.created_at.desc())
+            .limit(bounded_limit)
+        ).all()
+        return [playback_event_to_schema(event) for event in events]
 
     return app
 
@@ -280,6 +322,20 @@ def rating_factor_to_schema(factor: RatingFactor) -> RatingFactorRead:
         applies_to_instrumental=factor.applies_to_instrumental,
         applies_to_variants_only=factor.applies_to_variants_only,
         enabled=factor.enabled,
+    )
+
+
+def playback_event_to_schema(event: PlaybackEvent) -> PlaybackEventRead:
+    return PlaybackEventRead(
+        id=event.id,
+        event_type=event.event_type,
+        track_id=event.track_id,
+        media_asset_id=event.media_asset_id,
+        playlist_run_id=event.playlist_run_id,
+        queue_position=event.queue_position,
+        progress_seconds=event.progress_seconds,
+        duration_seconds=event.duration_seconds,
+        created_at=event.created_at.isoformat(),
     )
 
 

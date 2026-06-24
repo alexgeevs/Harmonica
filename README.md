@@ -11,6 +11,8 @@ Harmonica is a music app exploring utility-maximizing recommendations while avoi
 - 0-5 rating factors that affect song multipliers.
 - `.m3u8` export.
 - React web UI for queue generation, browser playback, library editing, and settings.
+- Persistent switches/sliders settings that explain and control algorithm behavior.
+- Playback history events for starts, pauses, skips, and completions.
 
 ## Setup
 

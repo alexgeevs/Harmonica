@@ -1,4 +1,4 @@
-import type { AppSettings, QueueRun, RatingFactor, Track } from "./types";
+import type { AppSettings, PlaybackEventCreate, QueueRun, RatingFactor, Track } from "./types";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -17,6 +17,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   settings: () => request<AppSettings>("/settings"),
+  updateSettings: (values: Record<string, number | boolean>) =>
+    request<AppSettings>("/settings", {
+      method: "PATCH",
+      body: JSON.stringify({ values })
+    }),
   ratingFactors: () => request<RatingFactor[]>("/rating-factors"),
   tracks: () => request<Track[]>("/tracks"),
   updateTrack: (track: Track) =>
@@ -50,6 +55,10 @@ export const api = {
     request<QueueRun>("/queue/generate", {
       method: "POST",
       body: JSON.stringify({ length, seed: seed || null, explain: true })
+    }),
+  recordPlaybackEvent: (event: PlaybackEventCreate) =>
+    request("/playback-events", {
+      method: "POST",
+      body: JSON.stringify(event)
     })
 };
-

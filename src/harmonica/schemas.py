@@ -108,3 +108,58 @@ class QueueRunRead(BaseModel):
     length: int
     items: list[QueueItemRead]
 
+
+class SettingControlRead(BaseModel):
+    key: str
+    label: str
+    description: str
+    value_type: str
+    control: str
+    default: int | float | bool
+    minimum: int | float | None = None
+    maximum: int | float | None = None
+    step: int | float | None = None
+    unit: str | None = None
+    value: int | float | bool
+
+
+class SettingsRead(BaseModel):
+    beta: float
+    group_cooldown_floor: float
+    sub_group_cooldown_floor: float
+    song_rating_min_multiplier: float
+    song_rating_max_multiplier: float
+    enable_group_rating_multiplier: bool
+    home: str
+    host: str
+    port: int
+    default_playlist_length: int
+    group_rating_min_multiplier: float
+    group_rating_max_multiplier: float
+    controls: list[SettingControlRead]
+
+
+class SettingsUpdate(BaseModel):
+    values: dict[str, int | float | bool]
+
+
+class PlaybackEventCreate(BaseModel):
+    event_type: str
+    track_id: int
+    media_asset_id: int | None = None
+    playlist_run_id: int | None = None
+    queue_position: int | None = None
+    progress_seconds: float | None = None
+    duration_seconds: float | None = None
+
+
+class PlaybackEventRead(BaseModel):
+    id: int
+    event_type: str
+    track_id: int
+    media_asset_id: int | None = None
+    playlist_run_id: int | None = None
+    queue_position: int | None = None
+    progress_seconds: float | None = None
+    duration_seconds: float | None = None
+    created_at: str

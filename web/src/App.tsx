@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
-import type { AppSettings, QueueItem, QueueRun, RatingFactor, Track, TrackGroup } from "./types";
+import type { AppSettings, QueueItem, QueueRun, RatingFactor, SettingControl, Track, TrackGroup } from "./types";
 
 type View = "dashboard" | "library" | "settings";
 
@@ -101,7 +101,51 @@ export default function App() {
     }
   }
 
-  function skip() {
+  async function saveSettings(values: Record<string, number | boolean>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await api.updateSettings(values);
+      setSettings(saved);
+      setPlaylistLength(saved.default_playlist_length);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Settings save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function recordPlayback(
+    eventType: "started" | "paused" | "skipped" | "completed",
+    item: QueueItem | null,
+    progressSeconds?: number,
+    durationSeconds?: number
+  ) {
+    if (!item) {
+      return;
+    }
+    void api.recordPlaybackEvent({
+      event_type: eventType,
+      track_id: item.track.id,
+      media_asset_id: item.media_asset_id ?? null,
+      playlist_run_id: queue.id || null,
+      queue_position: item.position,
+      progress_seconds: Number.isFinite(progressSeconds) ? progressSeconds ?? null : null,
+      duration_seconds: Number.isFinite(durationSeconds) ? durationSeconds ?? null : null
+    });
+  }
+
+  function skip(progressSeconds?: number, durationSeconds?: number) {
+    recordPlayback("skipped", currentItem, progressSeconds, durationSeconds);
+    advanceQueue();
+  }
+
+  function complete(progressSeconds?: number, durationSeconds?: number) {
+    recordPlayback("completed", currentItem, progressSeconds, durationSeconds);
+    advanceQueue();
+  }
+
+  function advanceQueue() {
     setCurrentIndex((index) => Math.min(index + 1, Math.max(queue.items.length - 1, 0)));
     setPlaying(true);
   }
@@ -157,7 +201,11 @@ export default function App() {
             onGenerate={() => void generateQueue()}
             onSelectIndex={(index) => setCurrentIndex(index)}
             onPlayingChange={setPlaying}
+            onPlaybackEvent={(eventType, progress, duration) =>
+              recordPlayback(eventType, currentItem, progress, duration)
+            }
             onSkip={skip}
+            onComplete={complete}
           />
         ) : null}
 
@@ -179,7 +227,12 @@ export default function App() {
         ) : null}
 
         {view === "settings" && settings ? (
-          <SettingsView settings={settings} ratingFactors={ratingFactors} />
+          <SettingsView
+            settings={settings}
+            ratingFactors={ratingFactors}
+            busy={busy}
+            onSave={(values) => void saveSettings(values)}
+          />
         ) : null}
       </main>
     </div>
@@ -199,7 +252,13 @@ function Dashboard(props: {
   onGenerate: () => void;
   onSelectIndex: (index: number) => void;
   onPlayingChange: (playing: boolean) => void;
-  onSkip: () => void;
+  onPlaybackEvent: (
+    eventType: "started" | "paused",
+    progressSeconds?: number,
+    durationSeconds?: number
+  ) => void;
+  onSkip: (progressSeconds?: number, durationSeconds?: number) => void;
+  onComplete: (progressSeconds?: number, durationSeconds?: number) => void;
 }) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const asset = props.currentItem?.track.assets.find(
@@ -238,9 +297,25 @@ function Dashboard(props: {
               controls
               autoPlay={props.playing}
               src={mediaUrl}
-              onPlay={() => props.onPlayingChange(true)}
-              onPause={() => props.onPlayingChange(false)}
-              onEnded={props.onSkip}
+              onPlay={(event) => {
+                props.onPlayingChange(true);
+                props.onPlaybackEvent(
+                  "started",
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration
+                );
+              }}
+              onPause={(event) => {
+                props.onPlayingChange(false);
+                props.onPlaybackEvent(
+                  "paused",
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration
+                );
+              }}
+              onEnded={(event) =>
+                props.onComplete(event.currentTarget.currentTime, event.currentTarget.duration)
+              }
             />
           ) : mediaUrl ? (
             <audio
@@ -251,9 +326,25 @@ function Dashboard(props: {
               controls
               autoPlay={props.playing}
               src={mediaUrl}
-              onPlay={() => props.onPlayingChange(true)}
-              onPause={() => props.onPlayingChange(false)}
-              onEnded={props.onSkip}
+              onPlay={(event) => {
+                props.onPlayingChange(true);
+                props.onPlaybackEvent(
+                  "started",
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration
+                );
+              }}
+              onPause={(event) => {
+                props.onPlayingChange(false);
+                props.onPlaybackEvent(
+                  "paused",
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration
+                );
+              }}
+              onEnded={(event) =>
+                props.onComplete(event.currentTarget.currentTime, event.currentTarget.duration)
+              }
             />
           ) : (
             <div className="empty-player">
@@ -269,7 +360,14 @@ function Dashboard(props: {
           >
             {props.playing ? <Pause size={20} /> : <Play size={20} />}
           </button>
-          <button className="icon-button" title="Skip" onClick={props.onSkip}>
+          <button
+            className="icon-button"
+            title="Skip"
+            onClick={() => {
+              const media = mediaRef.current;
+              props.onSkip(media?.currentTime, media?.duration);
+            }}
+          >
             <SkipForward size={20} />
           </button>
           {props.queue.id ? (
@@ -565,48 +663,109 @@ function StarRating(props: {
   );
 }
 
-function SettingsView(props: { settings: AppSettings; ratingFactors: RatingFactor[] }) {
+function SettingsView(props: {
+  settings: AppSettings;
+  ratingFactors: RatingFactor[];
+  busy: boolean;
+  onSave: (values: Record<string, number | boolean>) => void;
+}) {
+  const [draft, setDraft] = useState<Record<string, number | boolean>>(() =>
+    settingsToDraft(props.settings)
+  );
+
+  useEffect(() => {
+    setDraft(settingsToDraft(props.settings));
+  }, [props.settings]);
+
+  function updateControl(control: SettingControl, value: number | boolean) {
+    setDraft((current) => ({ ...current, [control.key]: value }));
+  }
+
   return (
     <section className="settings-layout">
-      <dl>
-        <div>
-          <dt>Home</dt>
-          <dd>{props.settings.home}</dd>
-        </div>
-        <div>
-          <dt>Beta</dt>
-          <dd>{props.settings.beta}</dd>
-        </div>
-        <div>
-          <dt>Group cooldown floor</dt>
-          <dd>{props.settings.group_cooldown_floor}</dd>
-        </div>
-        <div>
-          <dt>Subgroup cooldown floor</dt>
-          <dd>{props.settings.sub_group_cooldown_floor}</dd>
-        </div>
-        <div>
-          <dt>Song rating range</dt>
-          <dd>
-            {props.settings.song_rating_min_multiplier}x to{" "}
-            {props.settings.song_rating_max_multiplier}x
-          </dd>
-        </div>
-        <div>
-          <dt>Group rating scaffolding</dt>
-          <dd>{props.settings.enable_group_rating_multiplier ? "Enabled" : "Stored only"}</dd>
-        </div>
-      </dl>
-      <div className="factor-list">
-        {props.ratingFactors.map((factor) => (
-          <div key={factor.key}>
-            <span>{factor.label}</span>
-            <small>{factor.weight.toFixed(2)}</small>
-          </div>
+      <div className="settings-controls">
+        {props.settings.controls.map((control) => (
+          <SettingControlRow
+            key={control.key}
+            control={control}
+            value={draft[control.key]}
+            onChange={(value) => updateControl(control, value)}
+          />
         ))}
+        <button className="primary save-button" disabled={props.busy} onClick={() => props.onSave(draft)}>
+          <Save size={18} />
+          Save settings
+        </button>
+      </div>
+      <div className="settings-side">
+        <div className="settings-note">
+          <h3>Local daemon</h3>
+          <p>{props.settings.home}</p>
+          <small>
+            Settings are stored locally and used by the queue generator. Existing generated queues
+            keep the settings snapshot they were created with.
+          </small>
+        </div>
+        <div className="factor-list">
+          {props.ratingFactors.map((factor) => (
+            <div key={factor.key}>
+              <span>{factor.label}</span>
+              <small>{factor.weight.toFixed(2)}</small>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
+}
+
+function SettingControlRow(props: {
+  control: SettingControl;
+  value: number | boolean;
+  onChange: (value: number | boolean) => void;
+}) {
+  const control = props.control;
+  const numberValue = typeof props.value === "number" ? props.value : Number(control.default);
+
+  return (
+    <div className="setting-control">
+      <div className="setting-copy">
+        <h3>{control.label}</h3>
+        <p>{control.description}</p>
+      </div>
+      {control.control === "switch" ? (
+        <button
+          className={props.value ? "switch-control on" : "switch-control"}
+          onClick={() => props.onChange(!props.value)}
+          type="button"
+        >
+          <span />
+          {props.value ? "On" : "Off"}
+        </button>
+      ) : (
+        <div className="range-control">
+          <input
+            type={control.control === "slider" ? "range" : "number"}
+            min={control.minimum ?? undefined}
+            max={control.maximum ?? undefined}
+            step={control.step ?? undefined}
+            value={numberValue}
+            onChange={(event) => props.onChange(Number(event.target.value))}
+          />
+          <strong>
+            {Number(numberValue).toFixed(control.step && control.step < 1 ? 2 : 0)}
+            {control.unit ? ` ${control.unit}` : ""}
+          </strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function settingsToDraft(settings: AppSettings): Record<string, number | boolean> {
+  return Object.fromEntries(
+    settings.controls.map((control) => [control.key, settings[control.key]])
+  ) as Record<string, number | boolean>;
 }
 
 function displayArtist(track?: Track | null) {

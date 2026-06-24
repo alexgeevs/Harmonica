@@ -193,3 +193,35 @@ class PlaylistItem(Base):
     run: Mapped[PlaylistRun] = relationship(back_populates="items")
     track: Mapped[Track] = relationship()
     media_asset: Mapped[MediaAsset | None] = relationship()
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(120), primary_key=True)
+    value_json: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, onupdate=now_utc
+    )
+
+
+class PlaybackEvent(Base):
+    __tablename__ = "playback_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(40), index=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    media_asset_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_assets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    playlist_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("playlist_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    queue_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    progress_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+    track: Mapped[Track] = relationship()
+    media_asset: Mapped[MediaAsset | None] = relationship()
+    playlist_run: Mapped[PlaylistRun | None] = relationship()

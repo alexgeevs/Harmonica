@@ -518,40 +518,117 @@ input {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
   gap: 16px;
   margin: 20px;
   padding: 16px;
 }
 
-.settings-layout dl,
+.settings-controls,
+.settings-side,
 .factor-list {
   display: grid;
   gap: 10px;
   margin: 0;
 }
 
-.settings-layout dl div,
+.setting-control,
+.settings-note,
 .factor-list div {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
   padding: 10px;
   border-radius: 6px;
   background: #eef4f1;
 }
 
-.settings-layout dt,
-.factor-list span {
-  color: #3f4c49;
+.setting-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 240px);
+  align-items: center;
+  gap: 16px;
+}
+
+.setting-copy h3,
+.settings-note h3,
+.setting-copy p,
+.settings-note p,
+.settings-note small {
+  margin: 0;
+}
+
+.setting-copy h3,
+.settings-note h3 {
+  font-size: 15px;
+}
+
+.setting-copy p,
+.settings-note small {
+  display: block;
+  margin-top: 4px;
+  color: #596561;
+  font-size: 13px;
+}
+
+.range-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px;
+  align-items: center;
+  gap: 10px;
+}
+
+.range-control input[type="range"] {
+  padding: 0;
+}
+
+.range-control strong {
+  color: #206a5d;
+  font-size: 13px;
+  text-align: right;
+}
+
+.switch-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  justify-self: end;
+  width: 116px;
+  min-height: 40px;
+  padding: 4px 10px 4px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: #d7dfdb;
+  color: #43504c;
   font-weight: 800;
 }
 
-.settings-layout dd {
-  margin: 0;
-  color: #596561;
+.switch-control span {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.switch-control.on {
+  background: #206a5d;
+  color: #ffffff;
+}
+
+.settings-note p {
+  margin-top: 4px;
+  color: #206a5d;
   overflow-wrap: anywhere;
-  text-align: right;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.factor-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.factor-list span {
+  color: #3f4c49;
+  font-weight: 800;
 }
 
 .factor-list small {
@@ -584,6 +661,14 @@ input {
   .library-layout,
   .settings-layout {
     grid-template-columns: 1fr;
+  }
+
+  .setting-control {
+    grid-template-columns: 1fr;
+  }
+
+  .switch-control {
+    justify-self: start;
   }
 }
 

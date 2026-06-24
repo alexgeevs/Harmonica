@@ -11,6 +11,7 @@ from harmonica.db import SessionLocal, init_db
 from harmonica.playlist import export_m3u8, generate_and_persist_playlist
 from harmonica.scanner import scan_library
 from harmonica.serialization import export_library, import_library
+from harmonica.settings_store import get_effective_settings
 
 app = typer.Typer(help="Harmonica local music app.")
 
@@ -72,9 +73,10 @@ def generate(
     init_db()
     with SessionLocal() as session:
         ensure_default_rating_factors(session)
+        effective_settings = get_effective_settings(session, settings)
         run, items = generate_and_persist_playlist(
             session,
-            settings,
+            effective_settings,
             length=length,
             seed=seed,
             write_debug_log=explain,
