@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from harmonica.bootstrap import ensure_default_rating_factors
 from harmonica.config import Settings, get_settings
-from harmonica.db import get_session, init_db
+from harmonica.db import SessionLocal, get_session, init_db
 from harmonica.models import (
     CooldownTag,
     GroupMembership,
@@ -46,7 +47,14 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 def create_app() -> FastAPI:
     init_db()
-    app = FastAPI(title="Harmonica", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        with SessionLocal() as session:
+            ensure_default_rating_factors(session)
+        yield
+
+    app = FastAPI(title="Harmonica", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -54,11 +62,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    @app.on_event("startup")
-    def startup() -> None:
-        with next(get_session()) as session:
-            ensure_default_rating_factors(session)
 
     @app.get("/health")
     def health(settings: SettingsDep) -> dict[str, Any]:

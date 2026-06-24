@@ -27,13 +27,13 @@ def rating_to_song_multiplier(
 
 
 def factor_applies(track: Track, factor: RatingFactor, variant_count: int) -> bool:
-    if not factor.enabled:
+    if factor.enabled is False:
         return False
-    if track.has_lyrics and not factor.applies_to_lyrics:
+    if track.has_lyrics and factor.applies_to_lyrics is False:
         return False
-    if not track.has_lyrics and not factor.applies_to_instrumental:
+    if not track.has_lyrics and factor.applies_to_instrumental is False:
         return False
-    if factor.applies_to_variants_only and variant_count <= 1:
+    if factor.applies_to_variants_only is True and variant_count <= 1:
         return False
     return True
 
@@ -50,7 +50,7 @@ def effective_rating(
             continue
         if not factor_applies(track, rating.factor, variant_count):
             continue
-        weight = max(rating.factor.weight, 0.0)
+        weight = max(rating.factor.weight if rating.factor.weight is not None else 1.0, 0.0)
         weighted_sum += min(max(rating.value, 0.0), 5.0) * weight
         total_weight += weight
     if total_weight <= 0:
@@ -65,4 +65,3 @@ def effective_song_multiplier(
     settings: Settings,
 ) -> float:
     return rating_to_song_multiplier(effective_rating(track, ratings, variant_count), settings)
-
