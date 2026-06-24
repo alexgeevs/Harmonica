@@ -13,6 +13,13 @@ Harmonica is a music app exploring utility-maximizing recommendations while avoi
 - React web UI for queue generation, browser playback, library editing, and settings.
 - Persistent switches/sliders settings that explain and control algorithm behavior.
 - Playback history events for starts, pauses, skips, and completions.
+- History-aware generation with skip-depth semantics.
+- Group rating aggregation from member track ratings.
+- Startup coverage boosts for unrated tracks.
+- Visual-track priority when generating from the web UI.
+- Clustering bias controls for variety vs source/musical run-through behavior.
+- Stats and queue explanation panels.
+- Agent-friendly JSON import/export API for metadata curation workflows.
 
 ## Setup
 
@@ -36,6 +43,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 The API defaults to `http://127.0.0.1:8765`.
+
+Useful API endpoints:
+
+- `GET /settings` and `PATCH /settings`
+- `POST /queue/generate`
+- `GET /stats/summary`
+- `GET /library/export-json`
+- `POST /library/import-json`
 
 ## Web UI
 
