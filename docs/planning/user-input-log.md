@@ -316,3 +316,31 @@ Settings should become a real tuning interface for the app and algorithm:
 - a restrained settings icon entry point from the main dashboard, not a read-only summary page.
 
 The current implementation is a thin slice and foundation, not the final product experience. Future work should close the gap between "working scaffold" and "personal Spotify-like local music system."
+
+## 2026-06-24: Editable Settings, Playback History, And Future Rating Regression
+
+### User Input
+
+The user asked to implement settings now. Settings should be changeable and should explain what each thing means.
+
+The user also asked to save playback history.
+
+The user added a side-note for the future: ratings should eventually weight more recent weightings more heavily, but should also regress to the mean during a listening session. If songs in a session are consistently rated higher than before by more than an outlier-level standard deviation threshold, the app should internally regress those ratings toward the mean. The user explicitly said not to add this yet, only to add it as a later to-do.
+
+The user also said they like the current UI colour scheme and want it kept.
+
+### Current Interpretation
+
+Implement now:
+
+- persistent settings storage;
+- settings controls with explanations;
+- settings values that affect queue generation;
+- playback event history from the web player.
+- preserve the existing UI colour scheme.
+
+Do not implement yet:
+
+- recency-weighted rating aggregation;
+- session-level rating anomaly detection;
+- regression-to-mean correction for unusually high or low session ratings.

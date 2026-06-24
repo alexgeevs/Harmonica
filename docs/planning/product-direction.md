@@ -29,6 +29,10 @@ The UI should use switches, sliders, steppers, segmented controls, and selectors
 
 The dashboard should stay focused. Settings should remain reachable through a settings icon or secondary view rather than becoming the main surface.
 
+## UI Direction
+
+Preserve the current colour scheme unless the user later asks for a redesign.
+
 ## What Matters Most
 
 - The algorithm is central.
@@ -82,6 +86,7 @@ Future scoring:
 
 - Group ratings should aggregate from track ratings and influence groups, likely capped around `0.7x` to `1.4x`.
 - This should be coded as scaffolding but not enabled in v1 scoring.
+- Rating aggregation should eventually weight recent ratings more heavily, but detect session-level rating drift and regress toward the mean when a session looks like an outlier. This is a future to-do, not a current feature.
 
 ## Media And Codec Direction
 
@@ -109,6 +114,7 @@ Transcoding is not a v1 feature. Future tooling may keep storage-efficient versi
 - LAN access and authentication.
 - Focus/sleep/entertainment playlist profiles.
 - Full switches-and-sliders settings editor with persistent algorithm tuning.
+- Recency-weighted rating aggregation with session outlier detection and regression to the mean.
 - Rich statistics dashboard.
 - Similarity/vector cloud based on ratings and metadata.
 - Native iOS app or deeper phone integration.
