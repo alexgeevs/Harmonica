@@ -97,11 +97,16 @@ Notes:
 
 ## Suggested rollout
 
-- **Phase 1 (backend, additive):** `configs` + `config_tracks` + claim-by-passphrase; per-config song
-  inclusion in generation; document LAN bind + mDNS + DHCP reservation.
-- **Phase 2 (web):** device claims a config by passphrase; library/queue respect the included songs.
-- **Phase 3 (Android):** chosen route; local media folder; delta sync; native volume/headphone read
-  (routes B/C).
+- **Phase 1 (backend, additive) — DONE.** `device_configs` + `device_config_tracks` tables;
+  `GET/POST /configs`, `POST /configs/claim`, `PATCH /configs/{id}`; PBKDF2 passphrase hashing;
+  per-config song inclusion in `POST /queue/generate` via `config_id`; settings snapshot per config.
+  Tested in `tests/test_api.py`.
+- **Phase 2 (web) — TODO.** A "connect / claim config" screen; library and queue respect the
+  config's included songs; a per-device settings view.
+- **Phase 3 (Android) — STARTED (chose native Kotlin).** Scaffold in `../android/` (Compose UI,
+  Retrofit client to the daemon, Media3 playback, `AudioManager` volume/output-device read). Still
+  to do: local media folder + offline delta sync; rating/curation screens; background service;
+  mDNS discovery. Authored without an Android SDK, so it needs a build pass in Android Studio.
 
-Phases 1–2 are buildable now on the existing stack. Phase 3 depends on the route chosen and is a
-separate, larger project.
+The daemon must bind to the LAN (`harmonica serve --host 0.0.0.0`) for other devices to reach it;
+give the host a DHCP reservation or use mDNS so the address is stable.
