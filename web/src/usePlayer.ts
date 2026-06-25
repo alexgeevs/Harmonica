@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import type { QueueItem, QueueRun } from "./types";
 
-const SESSION_KEY = "harmonica.session.v1";
+const SESSION_KEY = "harmonica.session.v2";
 const VOLUME_KEY = "harmonica.volume.v1";
 
 type StoredSession = {
