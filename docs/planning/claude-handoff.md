@@ -134,21 +134,35 @@ Coordinate before editing the same files, especially:
 - `src/harmonica/api.py`
 - `src/harmonica/schemas.py`
 
+## Progress (2026-06-25, Claude pass)
+
+Done and on `main`:
+
+- Persistent listening session: a single app-wide audio engine that keeps playing across views,
+  a persistent bottom transport bar (seek, time, volume, prev/next), session restored across
+  refresh via `localStorage`, reliable progress feeding history.
+- Queue management: reorder, remove, jump-to, and saved sessions (list/load/rename/delete).
+- Faceted Library browsing (source/artist/theme/variant families) with inline ratings and an
+  applicability-aware track editor.
+- Human-language "Why this song" derived from the score breakdown, and an Insights dashboard
+  (coverage, completion rate, biggest groups, most played).
+- Keyboard transport (Space play/pause, Shift+←/→ prev/next).
+- Backend (Codex, landed by Claude): saved/named queues API (`GET/PATCH/DELETE /playlist-runs`),
+  a real cold-start coverage guarantee (restricts the candidate pool to unplayed+unrated first,
+  then blocks third plays until coverage completes), and dub/cover subgroup anti-clustering.
+- Dev ergonomics: `scripts/seed_demo_library.py` builds a realistic overlapping demo library
+  (browser-playable WAVs); fixed the Vite proxy so `/stats` and `/playback-events` work.
+
 ## Current Best Next Step
 
-The next high-impact product step is persistent listening sessions and queue management:
-
-- A current listening session that survives refresh/restart.
-- Save generated queues and resume them.
-- Reorder/remove queue items.
-- Stronger now-playing state.
-- More reliable playback progress tracking.
-- Feed session state into history and stats.
-
-After that, build the agent curation review workflow:
-
-- Export library JSON for a curation agent.
-- Import proposed changes as a draft.
-- Show a review screen of changed groups/subgroups/tags/ratings/assets.
-- Accept/reject changes safely.
+1. **Video review for visual tracks.** The audio engine is audio-only today; the queue plays the
+   audio asset even when a video asset exists. To honor "watch the visual version and rate visuals",
+   add a way to play the video asset in a `<video>` surface from now-playing. Best built once the
+   real library (with actual video files) lands.
+2. **Agent curation review workflow**: export library JSON for a curation agent, import proposed
+   changes as a draft, show a diff/review screen of changed groups/subgroups/tags/ratings/assets,
+   and accept/reject safely. (Codex to expose dry-run/diff endpoints; Claude to design the review UI.)
+3. **Real-library hardening**: scan the user's ~250-song batch, verify codecs/containers are
+   browser-playable (transcode policy stays out of the app), and tune cold-start/clustering against
+   real overlap and dub families.
 
