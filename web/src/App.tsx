@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  ClipboardCheck,
   Clock,
   Download,
   Library as LibraryIcon,
@@ -24,6 +25,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, savedQueuesSupported } from "./api";
 import { displayArtist, formatTime, pct, whyReasons } from "./format";
+import CurateView from "./CurateView";
 import { matchPreset, PRESETS, type Preset } from "./presets";
 import { usePlayer, type PlayerApi } from "./usePlayer";
 import type {
@@ -39,11 +41,12 @@ import type {
   WhyReason
 } from "./types";
 
-type View = "queue" | "library" | "stats" | "settings";
+type View = "queue" | "library" | "curate" | "stats" | "settings";
 
 const VIEW_TITLES: Record<View, string> = {
   queue: "Listen",
   library: "Library",
+  curate: "Curate",
   stats: "Insights",
   settings: "Settings"
 };
@@ -256,6 +259,8 @@ export default function App() {
             />
           ) : null}
 
+          {view === "curate" ? <CurateView tracks={tracks} onApplied={refreshAll} /> : null}
+
           {view === "stats" && stats ? <StatsView stats={stats} tracks={tracks} events={events} /> : null}
 
           {view === "settings" && settings ? (
@@ -279,6 +284,7 @@ function Sidebar(props: { view: View; onView: (view: View) => void; trackCount: 
   const items: { key: View; label: string; icon: JSX.Element }[] = [
     { key: "queue", label: "Listen", icon: <ListMusic size={18} /> },
     { key: "library", label: "Library", icon: <LibraryIcon size={18} /> },
+    { key: "curate", label: "Curate", icon: <ClipboardCheck size={18} /> },
     { key: "stats", label: "Insights", icon: <BarChart3 size={18} /> },
     { key: "settings", label: "Settings", icon: <SettingsIcon size={18} /> }
   ];

@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  LibraryExport,
   PlaybackEvent,
   PlaybackEventCreate,
   QueueRun,
@@ -86,6 +87,14 @@ export const api = {
       if (!response.ok && response.status !== 404) {
         throw new Error(`Delete failed: ${response.status}`);
       }
+    }),
+  updateTrackFields: (id: number, fields: Record<string, unknown>) =>
+    request<Track>(`/tracks/${id}`, { method: "PATCH", body: JSON.stringify(fields) }),
+  exportLibrary: () => request<LibraryExport>("/library/export-json"),
+  importLibrary: (payload: LibraryExport) =>
+    request<{ ok: boolean }>("/library/import-json", {
+      method: "POST",
+      body: JSON.stringify({ payload })
     })
 };
 

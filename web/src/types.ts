@@ -166,3 +166,27 @@ export type WhyReason = {
   text: string;
   tone: "boost" | "suppress" | "neutral";
 };
+
+// Library export/import payloads (GET/POST /library/*-json), used by the
+// curation review workflow.
+export type LibraryGroupRef = { name: string; group_type: string; share?: number | null };
+
+export type LibraryTrackPayload = {
+  song_id: string;
+  title: string;
+  artist?: string | null;
+  album?: string | null;
+  has_lyrics: boolean;
+  sub_group?: string | null;
+  manual_multiplier: number;
+  groups: LibraryGroupRef[];
+  cooldown_tags: string[];
+  ratings: Record<string, number | null>;
+  assets?: unknown[];
+};
+
+export type LibraryExport = {
+  rating_factors?: unknown[];
+  groups?: { name: string; group_type: string; manual_multiplier?: number; rating_multiplier?: number }[];
+  tracks: LibraryTrackPayload[];
+};
