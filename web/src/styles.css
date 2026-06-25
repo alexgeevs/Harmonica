@@ -413,6 +413,67 @@ p {
   width: 90px;
 }
 
+.loudness-meter {
+  width: 46px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.loudness-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #6fcaa9;
+  transition: width 0.1s linear;
+}
+
+.loudness-meter[data-hot="true"] .loudness-fill {
+  background: #e6b34d;
+}
+
+/* health banners */
+
+.health-banners {
+  display: grid;
+  gap: 6px;
+  padding: 10px 24px 0;
+}
+
+.health-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.health-banner svg {
+  flex: 0 0 auto;
+}
+
+.health-banner em {
+  color: inherit;
+  opacity: 0.7;
+  font-style: normal;
+}
+
+.health-banner.warn {
+  background: #f6ecdb;
+  color: #7a5a25;
+}
+
+.health-banner.break {
+  background: #e7eef5;
+  color: #335068;
+}
+
+.health-banner .link {
+  margin-left: auto;
+}
+
 /* ------------------------------------------------------------- queue view */
 
 .queue-view {

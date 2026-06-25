@@ -80,6 +80,10 @@ export type SettingControl = {
     | "visual_priority_enabled"
     | "visual_priority_multiplier"
     | "group_clustering_bias"
+    | "avoid_consecutive_compressed"
+    | "compressed_break_reminder"
+    | "loudness_warning_enabled"
+    | "loudness_warning_level"
   >;
   label: string;
   description: string;
@@ -113,6 +117,10 @@ export type AppSettings = {
   visual_priority_enabled: boolean;
   visual_priority_multiplier: number;
   group_clustering_bias: number;
+  avoid_consecutive_compressed: boolean;
+  compressed_break_reminder: boolean;
+  loudness_warning_enabled: boolean;
+  loudness_warning_level: number;
   controls: SettingControl[];
 };
 
@@ -124,6 +132,9 @@ export type PlaybackEventCreate = {
   queue_position?: number | null;
   progress_seconds?: number | null;
   duration_seconds?: number | null;
+  avg_level?: number | null;
+  peak_level?: number | null;
+  output_gain?: number | null;
 };
 
 export type StatsSummary = {
@@ -148,6 +159,9 @@ export type PlaybackEvent = {
   queue_position?: number | null;
   progress_seconds?: number | null;
   duration_seconds?: number | null;
+  avg_level?: number | null;
+  peak_level?: number | null;
+  output_gain?: number | null;
   created_at: string;
 };
 

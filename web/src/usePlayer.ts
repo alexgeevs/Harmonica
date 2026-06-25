@@ -64,6 +64,9 @@ export function usePlayer() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState<number>(loadVolume());
   const [muted, setMuted] = useState(false);
+  // Relative loudness (0..1, estimate — see schema-proposal.md), for the meter/warnings.
+  const [level, setLevel] = useState(0);
+  const [sustainedLevel, setSustainedLevel] = useState(0);
 
   // Refs mirror state so the once-bound audio listeners never read stale values.
   const queueRef = useRef(queue);
@@ -75,9 +78,22 @@ export function usePlayer() {
   const clipStartRef = useRef<number | null>(null);
   const clipEndRef = useRef<number | null>(null);
   const finishingRef = useRef(false);
+  // Web Audio metering state.
+  const meterRef = useRef<{
+    ctx: AudioContext;
+    analyser: AnalyserNode;
+    data: Float32Array<ArrayBuffer>;
+  } | null>(null);
+  const meterFailedRef = useRef(false);
+  const avgSumRef = useRef(0);
+  const avgCountRef = useRef(0);
+  const peakRef = useRef(0);
+  const sustainedRef = useRef(0);
+  const gainRef = useRef(1);
   queueRef.current = queue;
   indexRef.current = index;
   runIdRef.current = runId;
+  gainRef.current = muted ? 0 : volume;
 
   const currentItem = queue[index] ?? null;
   const currentUrl = currentItem?.media_url ?? null;
@@ -90,6 +106,7 @@ export function usePlayer() {
       if (!item) {
         return;
       }
+      const avg = avgCountRef.current > 0 ? avgSumRef.current / avgCountRef.current : null;
       void api
         .recordPlaybackEvent({
           event_type: type,
@@ -98,7 +115,10 @@ export function usePlayer() {
           playlist_run_id: runIdRef.current || null,
           queue_position: item.position,
           progress_seconds: Number.isFinite(progress) ? progress ?? null : null,
-          duration_seconds: Number.isFinite(dur) ? dur ?? null : null
+          duration_seconds: Number.isFinite(dur) ? dur ?? null : null,
+          avg_level: avg,
+          peak_level: peakRef.current > 0 ? peakRef.current : null,
+          output_gain: gainRef.current
         })
         .catch(() => {
           /* history is best-effort; never block playback on it */
@@ -106,6 +126,31 @@ export function usePlayer() {
     },
     []
   );
+
+  // Lazily build the Web Audio graph on the first user-gesture play. A
+  // MediaElementSource taps the element's audio; failure leaves playback untouched.
+  const ensureMeter = useCallback(() => {
+    if (meterRef.current || meterFailedRef.current) {
+      return;
+    }
+    const element = audioRef.current;
+    if (!element) {
+      return;
+    }
+    try {
+      const Ctor: typeof AudioContext =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctor();
+      const source = ctx.createMediaElementSource(element);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(ctx.destination);
+      source.connect(analyser);
+      meterRef.current = { ctx, analyser, data: new Float32Array(analyser.fftSize) };
+    } catch {
+      meterFailedRef.current = true;
+    }
+  }, []);
 
   const saveSession = useCallback(() => {
     const audio = audioRef.current;
@@ -242,6 +287,10 @@ export function usePlayer() {
       return;
     }
     finishingRef.current = false;
+    // Reset per-track loudness accumulators.
+    avgSumRef.current = 0;
+    avgCountRef.current = 0;
+    peakRef.current = 0;
     audio.src = currentUrl;
     audio.load();
     // Resume a restored mid-track position if there is one, otherwise honor the
@@ -283,18 +332,72 @@ export function usePlayer() {
     };
   }, [saveSession]);
 
-  // --- Controls -------------------------------------------------------------
-  const loadQueue = useCallback((run: QueueRun, opts: { autoplay?: boolean } = {}) => {
-    pendingSeekRef.current = 0;
-    startedKeyRef.current = null;
-    wantsPlayRef.current = opts.autoplay ?? true;
-    setQueue(run.items);
-    setRunId(run.id || null);
-    setIndex(0);
+  // Loudness metering loop. Reads the analyser each frame, accumulates a per-track
+  // average + peak, and maintains a slow EWMA used for sustained-loudness warnings.
+  useEffect(() => {
+    let raf = 0;
+    let frame = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const meter = meterRef.current;
+      const element = audioRef.current;
+      if (!meter || !element || element.paused) {
+        return;
+      }
+      meter.analyser.getFloatTimeDomainData(meter.data);
+      let sumSquares = 0;
+      let peak = 0;
+      for (let i = 0; i < meter.data.length; i += 1) {
+        const sample = meter.data[i];
+        sumSquares += sample * sample;
+        const amp = Math.abs(sample);
+        if (amp > peak) {
+          peak = amp;
+        }
+      }
+      const rms = Math.sqrt(sumSquares / meter.data.length);
+      // Map RMS to a perceptual-ish 0..1 "loudness" estimate (music RMS is well
+      // below full scale). This is relative, not calibrated SPL.
+      const loud = Math.min(1, rms * 3.2);
+      avgSumRef.current += loud;
+      avgCountRef.current += 1;
+      if (peak > peakRef.current) {
+        peakRef.current = peak;
+      }
+      sustainedRef.current = sustainedRef.current * 0.99 + loud * 0.01;
+      frame += 1;
+      if (frame % 6 === 0) {
+        setLevel(loud);
+        setSustainedLevel(sustainedRef.current);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, []);
+
+  // --- Controls -------------------------------------------------------------
+  // Build/resume the audio graph; must run inside a user gesture (play/generate).
+  const startMeter = useCallback(() => {
+    ensureMeter();
+    void meterRef.current?.ctx.resume?.();
+  }, [ensureMeter]);
+
+  const loadQueue = useCallback(
+    (run: QueueRun, opts: { autoplay?: boolean } = {}) => {
+      startMeter();
+      pendingSeekRef.current = 0;
+      startedKeyRef.current = null;
+      wantsPlayRef.current = opts.autoplay ?? true;
+      setQueue(run.items);
+      setRunId(run.id || null);
+      setIndex(0);
+    },
+    [startMeter]
+  );
 
   const playAt = useCallback(
     (target: number) => {
+      startMeter();
       const sameTrack = target === indexRef.current;
       wantsPlayRef.current = true;
       if (sameTrack) {
@@ -303,7 +406,7 @@ export function usePlayer() {
       }
       goToIndex(target, { recordSkip: true, play: true });
     },
-    [goToIndex]
+    [goToIndex, startMeter]
   );
 
   const togglePlay = useCallback(() => {
@@ -312,13 +415,14 @@ export function usePlayer() {
       return;
     }
     if (audio.paused) {
+      startMeter();
       wantsPlayRef.current = true;
       void audio.play().catch(() => setIsPlaying(false));
     } else {
       wantsPlayRef.current = false;
       audio.pause();
     }
-  }, [currentUrl]);
+  }, [currentUrl, startMeter]);
 
   const next = useCallback(() => goToIndex(indexRef.current + 1, { recordSkip: true, play: true }), [
     goToIndex
@@ -443,6 +547,8 @@ export function usePlayer() {
       duration,
       volume,
       muted,
+      level,
+      sustainedLevel,
       loadQueue,
       playAt,
       togglePlay,
@@ -466,6 +572,8 @@ export function usePlayer() {
       duration,
       volume,
       muted,
+      level,
+      sustainedLevel,
       loadQueue,
       playAt,
       togglePlay,

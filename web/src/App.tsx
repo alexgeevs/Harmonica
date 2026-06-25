@@ -70,6 +70,30 @@ export default function App() {
   const currentIsVideo =
     !player.currentItem?.track.audio_only && selectedAsset(player.currentItem)?.asset_type === "video";
 
+  // Hearing health: is the playing asset compressed (lossy)? Warnings are stricter for it.
+  const currentCompressed = selectedAsset(player.currentItem)?.is_lossless === false;
+  const loudnessThreshold = (settings?.loudness_warning_level ?? 0.7) - (currentCompressed ? 0.1 : 0);
+  const loudnessWarn =
+    Boolean(settings?.loudness_warning_enabled) && player.isPlaying && player.sustainedLevel > loudnessThreshold;
+
+  const compressedRunRef = useRef(0);
+  const [showBreak, setShowBreak] = useState(false);
+  useEffect(() => {
+    if (!player.currentKey) {
+      return;
+    }
+    if (currentCompressed) {
+      compressedRunRef.current += 1;
+      if (settings?.compressed_break_reminder && compressedRunRef.current >= 8) {
+        setShowBreak(true);
+      }
+    } else {
+      compressedRunRef.current = 0;
+      setShowBreak(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.currentKey]);
+
   useEffect(() => {
     void refreshAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -250,6 +274,35 @@ export default function App() {
           </div>
         </header>
 
+        {loudnessWarn || showBreak ? (
+          <div className="health-banners">
+            {loudnessWarn ? (
+              <div className="health-banner warn">
+                <Volume2 size={16} />
+                <span>
+                  Sustained loudness looks high{currentCompressed ? " for compressed audio" : ""}. Consider
+                  turning it down to protect your hearing. <em>(relative estimate)</em>
+                </span>
+              </div>
+            ) : null}
+            {showBreak ? (
+              <div className="health-banner break">
+                <Clock size={16} />
+                <span>You've had a long run of compressed tracks — a short break can ease listening fatigue.</span>
+                <button
+                  className="link"
+                  onClick={() => {
+                    setShowBreak(false);
+                    compressedRunRef.current = 0;
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="view-scroll">
           {view === "queue" ? (
             <QueueView
@@ -392,6 +445,13 @@ function PlayerBar(props: { player: PlayerApi }) {
       </div>
 
       <div className="player-right">
+        <div
+          className="loudness-meter"
+          title="Relative loudness (estimate, not calibrated dB)"
+          data-hot={player.sustainedLevel > 0.75 ? "true" : "false"}
+        >
+          <div className="loudness-fill" style={{ width: `${Math.round(player.level * 100)}%` }} />
+        </div>
         {player.runId ? (
           <a className="icon-button ghost" title="Export .m3u8" href={`/playlist-runs/${player.runId}/m3u8`}>
             <Download size={18} />
@@ -1257,6 +1317,7 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
   const completionRate = decided > 0 ? pct(stats.completed_count, decided) : 0;
   const topGroups = useMemo(() => topGroupsByCount(props.tracks), [props.tracks]);
   const mostPlayed = useMemo(() => mostPlayedTracks(props.events, props.tracks), [props.events, props.tracks]);
+  const health = useMemo(() => listeningHealth(props.events), [props.events]);
 
   return (
     <section className="stats-view">
@@ -1265,7 +1326,7 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
         <StatCard label="Coverage" value={`${pct(stats.rated_track_count, stats.track_count)}%`} hint={`${stats.rated_track_count} rated`} />
         <StatCard label="Heard at least once" value={`${pct(playedIds.size, stats.track_count)}%`} hint={`${playedIds.size} tracks`} />
         <StatCard label="Visual tracks" value={stats.video_track_count} hint="with video" />
-        <StatCard label="Groups" value={stats.group_count} hint="weight groups" />
+        <StatCard label="This week" value={formatClock(health.weekSeconds)} hint="listening time" />
         <StatCard label="Completion rate" value={`${completionRate}%`} hint={`${stats.completed_count} finished`} />
       </div>
 
@@ -1305,6 +1366,27 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
             <p className="stat-note">Nothing played yet — generate a queue and press play.</p>
           ) : (
             <BarList rows={mostPlayed} />
+          )}
+        </div>
+
+        <div className="stat-panel">
+          <h4>Listening health</h4>
+          {health.samples === 0 ? (
+            <p className="stat-note">
+              Loudness is measured live while you listen. Play a few tracks and your average and peak levels
+              will appear here.
+            </p>
+          ) : (
+            <>
+              <CoverageBar label="Average loudness" value={Math.round(health.avg * 100)} total={100} tone={health.avg > 0.75 ? "suppress" : "neutral"} />
+              <CoverageBar label="Peak loudness" value={Math.round(health.peak * 100)} total={100} tone={health.peak > 0.92 ? "suppress" : "neutral"} />
+              <CoverageBar label="Weekly exposure" value={Math.min(health.dosePct, 100)} total={100} tone={health.dosePct > 100 ? "suppress" : "boost"} />
+              <p className="stat-note">
+                Relative estimates, not calibrated dB — browsers can't read true sound pressure. WHO suggests
+                ~80&nbsp;dB for 40&nbsp;h/week as a safe ceiling; each +3&nbsp;dB halves the safe time. Treat
+                these as a nudge, not a measurement.
+              </p>
+            </>
           )}
         </div>
       </div>
@@ -1391,6 +1473,16 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
     title: "Visuals",
     note: "Prioritising tracks with video while you're here to watch.",
     keys: ["visual_priority_enabled", "visual_priority_multiplier"]
+  },
+  {
+    title: "Hearing health",
+    note: "Looking after your ears and easing listening fatigue.",
+    keys: [
+      "loudness_warning_enabled",
+      "loudness_warning_level",
+      "compressed_break_reminder",
+      "avoid_consecutive_compressed"
+    ]
   }
 ];
 
@@ -1611,6 +1703,37 @@ function mostPlayedTracks(events: PlaybackEvent[], tracks: Track[]): { label: st
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([id, value]) => ({ label: titleById.get(id) ?? `Track ${id}`, value }));
+}
+
+function listeningHealth(events: PlaybackEvent[]) {
+  // Use terminal events (completed/skipped) so listen time isn't double-counted.
+  const terminal = events.filter((e) => e.event_type === "completed" || e.event_type === "skipped");
+  const loud = terminal.filter((e) => e.avg_level != null);
+  const avg = loud.length ? loud.reduce((sum, e) => sum + (e.avg_level ?? 0), 0) / loud.length : 0;
+  const peak = terminal.reduce((max, e) => Math.max(max, e.peak_level ?? 0), 0);
+  const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  let weekSeconds = 0;
+  let doseSeconds = 0;
+  for (const e of terminal) {
+    const at = Date.parse(e.created_at);
+    if (!Number.isFinite(at) || at < weekAgo) {
+      continue;
+    }
+    const secs = Math.max(0, Math.min(e.progress_seconds ?? 0, e.duration_seconds ?? (e.progress_seconds ?? 0)));
+    weekSeconds += secs;
+    doseSeconds += (e.avg_level ?? 0) * secs;
+  }
+  // Rough relative allowance: 40 h at level 0.5 ≈ a full week. Not calibrated dB.
+  const dosePct = Math.round((doseSeconds / (0.5 * 40 * 3600)) * 100);
+  return { samples: loud.length, avg, peak, weekSeconds, dosePct };
+}
+
+function formatClock(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
 function isFactorApplicable(factor: RatingFactor, track: Track): boolean {
