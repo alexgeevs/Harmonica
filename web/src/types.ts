@@ -27,6 +27,9 @@ export type Track = {
   has_lyrics: boolean;
   sub_group?: string | null;
   manual_multiplier: number;
+  clip_start_seconds?: number | null;
+  clip_end_seconds?: number | null;
+  audio_only?: boolean;
   assets: MediaAsset[];
   groups: TrackGroup[];
   cooldown_tags: string[];

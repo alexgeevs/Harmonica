@@ -29,6 +29,7 @@ from harmonica.models import (
     TrackRating,
     WeightGroup,
     ensure_additive_playlist_run_columns,
+    ensure_additive_track_columns,
 )
 from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
     from harmonica.db import engine
 
     ensure_additive_playlist_run_columns(engine)
+    ensure_additive_track_columns(engine)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -396,6 +398,9 @@ def track_to_schema(track: Track) -> TrackRead:
         has_lyrics=track.has_lyrics,
         sub_group=track.sub_group,
         manual_multiplier=track.manual_multiplier,
+        clip_start_seconds=track.clip_start_seconds,
+        clip_end_seconds=track.clip_end_seconds,
+        audio_only=track.audio_only,
         assets=[
             {
                 "id": asset.id,
@@ -469,7 +474,17 @@ def playback_event_to_schema(event: PlaybackEvent) -> PlaybackEventRead:
 
 def apply_track_update(session: Session, track: Track, payload: TrackUpdate) -> None:
     fields = payload.model_dump(exclude_unset=True)
-    for field in ["title", "artist", "album", "has_lyrics", "sub_group", "manual_multiplier"]:
+    for field in [
+        "title",
+        "artist",
+        "album",
+        "has_lyrics",
+        "sub_group",
+        "manual_multiplier",
+        "clip_start_seconds",
+        "clip_end_seconds",
+        "audio_only",
+    ]:
         if field in fields:
             setattr(track, field, fields[field])
     if payload.groups is not None:

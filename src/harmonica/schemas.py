@@ -51,6 +51,9 @@ class TrackRead(BaseModel):
     has_lyrics: bool
     sub_group: str | None = None
     manual_multiplier: float
+    clip_start_seconds: float | None = None
+    clip_end_seconds: float | None = None
+    audio_only: bool = False
     assets: list[MediaAssetRead] = Field(default_factory=list)
     groups: list[TrackGroupRead] = Field(default_factory=list)
     cooldown_tags: list[str] = Field(default_factory=list)
@@ -70,6 +73,9 @@ class TrackUpdate(BaseModel):
     has_lyrics: bool | None = None
     sub_group: str | None = None
     manual_multiplier: float | None = None
+    clip_start_seconds: float | None = None
+    clip_end_seconds: float | None = None
+    audio_only: bool | None = None
     groups: list[TrackGroupWrite] | None = None
     cooldown_tags: list[str] | None = None
     ratings: dict[str, float | None] | None = None

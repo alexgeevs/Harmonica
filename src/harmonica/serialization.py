@@ -88,6 +88,12 @@ def import_library_payload(session: Session, payload: dict[str, Any]) -> None:
         track.has_lyrics = bool(track_payload.get("has_lyrics", True))
         track.sub_group = track_payload.get("sub_group")
         track.manual_multiplier = float(track_payload.get("manual_multiplier", 1.0))
+        if "clip_start_seconds" in track_payload:
+            track.clip_start_seconds = track_payload.get("clip_start_seconds")
+        if "clip_end_seconds" in track_payload:
+            track.clip_end_seconds = track_payload.get("clip_end_seconds")
+        if "audio_only" in track_payload:
+            track.audio_only = bool(track_payload.get("audio_only"))
 
         for asset_payload in track_payload.get("assets", []):
             upsert_asset(session, track, asset_payload)
@@ -140,6 +146,9 @@ def track_to_payload(track: Track) -> dict[str, Any]:
         "has_lyrics": track.has_lyrics,
         "sub_group": track.sub_group,
         "manual_multiplier": track.manual_multiplier,
+        "clip_start_seconds": track.clip_start_seconds,
+        "clip_end_seconds": track.clip_end_seconds,
+        "audio_only": track.audio_only,
         "assets": [
             {
                 "file_path": asset.file_path,

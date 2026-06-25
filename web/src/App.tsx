@@ -67,7 +67,8 @@ export default function App() {
 
   const videoStageRef = useRef<HTMLDivElement>(null);
   const videoParkRef = useRef<HTMLDivElement>(null);
-  const currentIsVideo = selectedAsset(player.currentItem)?.asset_type === "video";
+  const currentIsVideo =
+    !player.currentItem?.track.audio_only && selectedAsset(player.currentItem)?.asset_type === "video";
 
   useEffect(() => {
     void refreshAll();
@@ -257,6 +258,8 @@ export default function App() {
               tracks={tracks}
               ratingFactors={ratingFactors}
               busy={busy}
+              currentTrackId={player.currentItem?.track.id ?? null}
+              currentTime={player.currentTime}
               onSave={saveTrack}
               onRescan={refreshAll}
             />
@@ -329,7 +332,12 @@ function PlayerBar(props: { player: PlayerApi }) {
   const item = player.currentItem;
   const track = item?.track ?? null;
   const hasVideo = track?.assets.some((asset) => asset.asset_type === "video") ?? false;
-  const progress = player.duration > 0 ? player.currentTime / player.duration : 0;
+  // Progress is shown within the trim window so a clipped song reads 0 → full.
+  const clipStart = track?.clip_start_seconds ?? 0;
+  const windowEnd = track?.clip_end_seconds ?? player.duration;
+  const windowDuration = Math.max(windowEnd - clipStart, 0);
+  const elapsed = Math.max(player.currentTime - clipStart, 0);
+  const progress = windowDuration > 0 ? Math.min(elapsed / windowDuration, 1) : 0;
 
   return (
     <footer className={`player-bar ${item ? "" : "empty"}`}>
@@ -356,9 +364,13 @@ function PlayerBar(props: { player: PlayerApi }) {
           </button>
         </div>
         <div className="scrubber">
-          <span>{formatTime(player.currentTime)}</span>
-          <Seekbar value={progress} onSeek={(ratio) => player.seek(ratio * (player.duration || 0))} disabled={!item} />
-          <span>{formatTime(player.duration)}</span>
+          <span>{formatTime(elapsed)}</span>
+          <Seekbar
+            value={progress}
+            onSeek={(ratio) => player.seek(clipStart + ratio * windowDuration)}
+            disabled={!item}
+          />
+          <span>{formatTime(windowDuration)}</span>
         </div>
       </div>
 
@@ -717,6 +729,8 @@ function LibraryView(props: {
   tracks: Track[];
   ratingFactors: RatingFactor[];
   busy: boolean;
+  currentTrackId: number | null;
+  currentTime: number;
   onSave: (track: Track) => Promise<Track>;
   onRescan: () => void;
 }) {
@@ -887,6 +901,8 @@ function LibraryView(props: {
           track={selected}
           factors={props.ratingFactors}
           busy={props.busy}
+          isCurrent={props.currentTrackId === selected.id}
+          currentTime={props.currentTime}
           onSave={async (draft) => setSelected(await props.onSave(draft))}
           onClose={() => setSelected(null)}
         />
@@ -957,6 +973,8 @@ function TrackEditor(props: {
   track: Track;
   factors: RatingFactor[];
   busy: boolean;
+  isCurrent: boolean;
+  currentTime: number;
   onSave: (track: Track) => void;
   onClose: () => void;
 }) {
@@ -966,6 +984,8 @@ function TrackEditor(props: {
   function update<K extends keyof Track>(key: K, value: Track[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
+
+  const hasVideoAsset = draft.assets.some((asset) => asset.asset_type === "video");
 
   const applicable = useMemo(
     () => props.factors.filter((factor) => isFactorApplicable(factor, draft)),
@@ -1047,6 +1067,39 @@ function TrackEditor(props: {
       </div>
 
       <div className="editor-section">
+        <h5>Playback</h5>
+        {hasVideoAsset ? (
+          <label className="check-line">
+            <input
+              type="checkbox"
+              checked={draft.audio_only ?? false}
+              onChange={(e) => update("audio_only", e.target.checked)}
+            />
+            Audio only — hide the video, keep the sound
+          </label>
+        ) : null}
+        <div className="trim-grid">
+          <TrimField
+            label="Trim in"
+            value={draft.clip_start_seconds ?? null}
+            isCurrent={props.isCurrent}
+            currentTime={props.currentTime}
+            onChange={(value) => update("clip_start_seconds", value)}
+          />
+          <TrimField
+            label="Trim out"
+            value={draft.clip_end_seconds ?? null}
+            isCurrent={props.isCurrent}
+            currentTime={props.currentTime}
+            onChange={(value) => update("clip_end_seconds", value)}
+          />
+        </div>
+        <small className="trim-note">
+          Non-destructive — playback just skips the intro/outro. The unused parts stay on disk for now.
+        </small>
+      </div>
+
+      <div className="editor-section">
         <h5>Media</h5>
         <div className="asset-list">
           {draft.assets.map((asset) => (
@@ -1064,6 +1117,48 @@ function TrackEditor(props: {
         <Save size={16} /> Save changes
       </button>
     </aside>
+  );
+}
+
+function TrimField(props: {
+  label: string;
+  value: number | null;
+  isCurrent: boolean;
+  currentTime: number;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <label className="trim-field">
+      {props.label}
+      <div className="trim-input">
+        <input
+          type="number"
+          min={0}
+          step={0.5}
+          placeholder="—"
+          value={props.value ?? ""}
+          onChange={(event) =>
+            props.onChange(event.target.value === "" ? null : Number(event.target.value))
+          }
+        />
+        {props.isCurrent ? (
+          <button
+            type="button"
+            className="mini-text"
+            title="Set to the current playback position"
+            onClick={() => props.onChange(Math.round(props.currentTime * 10) / 10)}
+          >
+            now
+          </button>
+        ) : null}
+        {props.value != null ? (
+          <button type="button" className="mini-text ghost" title="Clear" onClick={() => props.onChange(null)}>
+            <X size={12} />
+          </button>
+        ) : null}
+      </div>
+      <small>{props.value != null ? formatTime(props.value) : "not set"}</small>
+    </label>
   );
 }
 

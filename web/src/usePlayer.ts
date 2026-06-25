@@ -72,6 +72,9 @@ export function usePlayer() {
   const wantsPlayRef = useRef(false);
   const pendingSeekRef = useRef<number>(restored.current?.currentTime ?? 0);
   const startedKeyRef = useRef<string | null>(null);
+  const clipStartRef = useRef<number | null>(null);
+  const clipEndRef = useRef<number | null>(null);
+  const finishingRef = useRef(false);
   queueRef.current = queue;
   indexRef.current = index;
   runIdRef.current = runId;
@@ -79,6 +82,8 @@ export function usePlayer() {
   const currentItem = queue[index] ?? null;
   const currentUrl = currentItem?.media_url ?? null;
   const currentKey = currentItem ? itemKey(currentItem) : null;
+  clipStartRef.current = currentItem?.track.clip_start_seconds ?? null;
+  clipEndRef.current = currentItem?.track.clip_end_seconds ?? null;
 
   const recordEvent = useCallback(
     (type: PlaybackEventType, item: QueueItem | null, progress?: number, dur?: number) => {
@@ -148,7 +153,26 @@ export function usePlayer() {
     }
     audio.volume = volume;
 
-    const onTime = () => setCurrentTime(audio.currentTime);
+    const finishTrack = () => {
+      if (finishingRef.current) {
+        return;
+      }
+      finishingRef.current = true;
+      const item = queueRef.current[indexRef.current] ?? null;
+      recordEvent("completed", item, audio.currentTime, audio.duration);
+      startedKeyRef.current = null;
+      wantsPlayRef.current = true;
+      goToIndex(indexRef.current + 1, { play: true });
+    };
+
+    const onTime = () => {
+      setCurrentTime(audio.currentTime);
+      // Honor a trim-out point: treat reaching clip_end like the track ending.
+      const clipEnd = clipEndRef.current;
+      if (clipEnd != null && audio.currentTime >= clipEnd) {
+        finishTrack();
+      }
+    };
     const onMeta = () => setDuration(audio.duration || 0);
     const onPlay = () => {
       setIsPlaying(true);
@@ -168,13 +192,7 @@ export function usePlayer() {
       }
       saveSession();
     };
-    const onEnded = () => {
-      const item = queueRef.current[indexRef.current] ?? null;
-      recordEvent("completed", item, audio.duration, audio.duration);
-      startedKeyRef.current = null;
-      wantsPlayRef.current = true;
-      goToIndex(indexRef.current + 1, { play: true });
-    };
+    const onEnded = () => finishTrack();
 
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onMeta);
@@ -223,9 +241,12 @@ export function usePlayer() {
       setIsPlaying(false);
       return;
     }
+    finishingRef.current = false;
     audio.src = currentUrl;
     audio.load();
-    const seekTo = pendingSeekRef.current;
+    // Resume a restored mid-track position if there is one, otherwise honor the
+    // track's trim-in point so YouTube intros are skipped.
+    const seekTo = pendingSeekRef.current > 0 ? pendingSeekRef.current : clipStartRef.current ?? 0;
     pendingSeekRef.current = 0;
     const applySeek = () => {
       if (seekTo > 0) {

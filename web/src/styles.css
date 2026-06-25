@@ -1291,6 +1291,57 @@ input:focus {
   color: var(--muted);
 }
 
+.trim-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.trim-field {
+  gap: 4px;
+}
+
+.trim-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trim-input input {
+  min-width: 0;
+}
+
+.mini-text {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mini-text:hover {
+  background: #e2ebe5;
+}
+
+.mini-text.ghost {
+  color: var(--muted);
+}
+
+.trim-field small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.trim-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .asset-list {
   display: grid;
   gap: 6px;

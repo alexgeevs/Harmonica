@@ -45,6 +45,9 @@ export const api = {
         has_lyrics: track.has_lyrics,
         sub_group: track.sub_group,
         manual_multiplier: track.manual_multiplier,
+        clip_start_seconds: track.clip_start_seconds ?? null,
+        clip_end_seconds: track.clip_end_seconds ?? null,
+        audio_only: track.audio_only ?? false,
         groups: track.groups.map((group) => ({
           name: group.name,
           group_type: group.group_type,

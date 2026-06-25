@@ -33,6 +33,11 @@ class Track(Base):
     has_lyrics: Mapped[bool] = mapped_column(Boolean, default=True)
     sub_group: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     manual_multiplier: Mapped[float] = mapped_column(Float, default=1.0)
+    # Optional non-destructive trim window (seconds) to skip YouTube intros/outros.
+    clip_start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    clip_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # When true, play the audio track only and show artwork instead of the video.
+    audio_only: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
@@ -239,3 +244,20 @@ def ensure_additive_playlist_run_columns(engine: Engine) -> None:
         }
         if "name" not in columns:
             connection.exec_driver_sql("ALTER TABLE playlist_runs ADD COLUMN name VARCHAR(255)")
+
+
+def ensure_additive_track_columns(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+    additions = {
+        "clip_start_seconds": "ALTER TABLE tracks ADD COLUMN clip_start_seconds FLOAT",
+        "clip_end_seconds": "ALTER TABLE tracks ADD COLUMN clip_end_seconds FLOAT",
+        "audio_only": "ALTER TABLE tracks ADD COLUMN audio_only BOOLEAN DEFAULT 0",
+    }
+    with engine.begin() as connection:
+        columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(tracks)").all()
+        }
+        for name, statement in additions.items():
+            if name not in columns:
+                connection.exec_driver_sql(statement)
