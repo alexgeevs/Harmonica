@@ -15,6 +15,9 @@ pnpm-debug.log*
 !.env.example
 .harmonica/
 
+# Local media/library storage (local songs + working DB; managed outside git)
+/Storage/
+
 # Dependencies and build output
 node_modules/
 dist/
