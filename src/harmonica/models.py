@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from harmonica.db import Base
@@ -164,6 +165,7 @@ class PlaylistRun(Base):
     __tablename__ = "playlist_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     seed: Mapped[str | None] = mapped_column(String(120), nullable=True)
     length: Mapped[int] = mapped_column(Integer)
     settings_json: Mapped[str] = mapped_column(Text, default="{}")
@@ -225,3 +227,15 @@ class PlaybackEvent(Base):
     track: Mapped[Track] = relationship()
     media_asset: Mapped[MediaAsset | None] = relationship()
     playlist_run: Mapped[PlaylistRun | None] = relationship()
+
+
+def ensure_additive_playlist_run_columns(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as connection:
+        columns = {
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(playlist_runs)").all()
+        }
+        if "name" not in columns:
+            connection.exec_driver_sql("ALTER TABLE playlist_runs ADD COLUMN name VARCHAR(255)")

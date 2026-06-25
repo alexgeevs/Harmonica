@@ -34,6 +34,8 @@ class AlgorithmTrack:
     history_multiplier: float = 1.0
     cold_start_multiplier: float = 1.0
     has_video: bool = False
+    repeat_count: float = 0.0
+    is_rated: bool = False
 
 
 @dataclass
@@ -86,6 +88,50 @@ def weighted_choice(
         if cumulative >= threshold:
             return items[index], index
     return items[-1], len(items) - 1
+
+
+def weighted_choice_from_indices(
+    rng: random.Random,
+    items: list[AlgorithmTrack],
+    scores: list[float],
+    indices: list[int],
+) -> tuple[AlgorithmTrack, int]:
+    indexed_items = [items[index] for index in indices]
+    indexed_scores = [scores[index] for index in indices]
+    chosen, local_index = weighted_choice(rng, indexed_items, indexed_scores)
+    return chosen, indices[local_index]
+
+
+def cold_start_candidate_indices(
+    tracks: list[AlgorithmTrack],
+    track_repeat_counts: dict[int, float],
+    settings: Settings,
+    cold_start_active: bool,
+) -> tuple[list[int] | None, str]:
+    if not settings.cold_start_enabled or not cold_start_active:
+        return None, "off"
+
+    first_coverage = [
+        index
+        for index, track in enumerate(tracks)
+        if track_repeat_counts.get(track.id, 0.0) < 1.0 and not track.is_rated
+    ]
+    if first_coverage:
+        return first_coverage, "first_coverage"
+
+    played_twice_count = sum(
+        1 for track in tracks if track_repeat_counts.get(track.id, 0.0) >= 2.0
+    )
+    if played_twice_count < (len(tracks) / 2):
+        second_coverage = [
+            index
+            for index, track in enumerate(tracks)
+            if track_repeat_counts.get(track.id, 0.0) < 2.0
+        ]
+        if second_coverage:
+            return second_coverage, "second_coverage"
+
+    return None, "complete"
 
 
 def group_sizes(tracks: list[AlgorithmTrack], groups: dict[int, AlgorithmGroup]) -> dict[int, int]:
@@ -256,6 +302,8 @@ def generate_playlist(
     initial_track_repeat_credits: dict[int, float] | None = None,
     initial_group_repeat_credits: dict[int, float] | None = None,
     initial_sub_group_repeat_credits: dict[str, float] | None = None,
+    initial_track_repeat_counts: dict[int, float] | None = None,
+    cold_start_active: bool = False,
 ) -> list[GeneratedItem]:
     if not tracks:
         return []
@@ -276,10 +324,23 @@ def generate_playlist(
     track_repeat_credits = dict(initial_track_repeat_credits or {})
     group_repeat_credits = dict(initial_group_repeat_credits or {})
     sub_group_repeat_credits = dict(initial_sub_group_repeat_credits or {})
+    track_repeat_counts = {
+        track.id: max(track.repeat_count, 0.0)
+        for track in tracks
+    }
+    for track_id, repeat_count in (initial_track_repeat_counts or {}).items():
+        track_repeat_counts[track_id] = max(repeat_count, 0.0)
     output: list[GeneratedItem] = []
 
     for position in range(length):
         fallback = "normal"
+        candidate_indices, cold_start_pool = cold_start_candidate_indices(
+            tracks,
+            track_repeat_counts,
+            settings,
+            cold_start_active,
+        )
+        choice_indices = candidate_indices or list(range(len(tracks)))
         scored = [
             score_track(
                 track,
@@ -298,7 +359,7 @@ def generate_playlist(
             for track in tracks
         ]
         scores = [score for score, _ in scored]
-        if sum(scores) <= 0:
+        if sum(scores[index] for index in choice_indices) <= 0:
             fallback = "ignored_group_and_subgroup_cooldowns"
             scored = [
                 score_track(
@@ -319,7 +380,7 @@ def generate_playlist(
                 for track in tracks
             ]
             scores = [score for score, _ in scored]
-        if sum(scores) <= 0:
+        if sum(scores[index] for index in choice_indices) <= 0:
             fallback = "ignored_all_cooldowns"
             scored = [
                 score_track(
@@ -342,9 +403,16 @@ def generate_playlist(
             ]
             scores = [score for score, _ in scored]
 
-        chosen, chosen_index = weighted_choice(rng, tracks, scores)
+        chosen, chosen_index = weighted_choice_from_indices(
+            rng,
+            tracks,
+            scores,
+            choice_indices,
+        )
         explanation = scored[chosen_index][1]
         explanation["fallback"] = fallback
+        explanation["cold_start_pool"] = cold_start_pool
+        explanation["eligible_candidate_count"] = len(choice_indices)
         explanation["position"] = position
         explanation["top_candidates"] = top_candidates(tracks, scored)
         output.append(
@@ -358,6 +426,7 @@ def generate_playlist(
 
         track_last_played[chosen.id] = position
         track_repeat_credits[chosen.id] = 1.0
+        track_repeat_counts[chosen.id] = track_repeat_counts.get(chosen.id, 0.0) + 1.0
         for group_id in chosen.groups:
             group_last_played[group_id] = position
             group_repeat_credits[group_id] = 1.0

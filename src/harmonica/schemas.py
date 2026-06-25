@@ -110,6 +110,20 @@ class QueueRunRead(BaseModel):
     items: list[QueueItemRead]
 
 
+class PlaylistRunSummary(BaseModel):
+    id: int
+    name: str | None = None
+    seed: str | None = None
+    length: int
+    item_count: int
+    created_at: str
+    preview_titles: list[str] = Field(default_factory=list)
+
+
+class PlaylistRunRename(BaseModel):
+    name: str | None = None
+
+
 class SettingControlRead(BaseModel):
     key: str
     label: str

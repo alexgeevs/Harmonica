@@ -119,3 +119,176 @@ def test_positive_clustering_bias_allows_nearby_group_repeats(tmp_path) -> None:
 
     variety_config = settings(tmp_path).model_copy(update={"group_clustering_bias": -1.0})
     assert apply_clustering_bias(0.5, 0, 12, variety_config) < 0.5
+
+
+def test_cold_start_covers_unrated_unplayed_tracks_before_thirds(tmp_path) -> None:
+    groups = {1: AlgorithmGroup(1, "All songs", "source")}
+    tracks = [
+        AlgorithmTrack(
+            1,
+            "overplayed",
+            "Overplayed",
+            None,
+            None,
+            None,
+            None,
+            {1: None},
+            manual_multiplier=1000.0,
+            repeat_count=2.0,
+            is_rated=True,
+        ),
+        AlgorithmTrack(
+            2,
+            "known_once",
+            "Known Once",
+            None,
+            None,
+            None,
+            None,
+            {1: None},
+            repeat_count=1.0,
+            is_rated=True,
+        ),
+        *[
+            AlgorithmTrack(
+                track_id,
+                f"unplayed_{track_id}",
+                f"Unplayed {track_id}",
+                None,
+                None,
+                None,
+                None,
+                {1: None},
+            )
+            for track_id in range(3, 9)
+        ],
+    ]
+
+    items = generate_playlist(
+        tracks,
+        groups,
+        length=7,
+        settings=settings(tmp_path),
+        seed="cold-start-first-pass",
+        cold_start_active=True,
+    )
+    first_pass_ids = {item.track.id for item in items[:6]}
+
+    assert first_pass_ids == set(range(3, 9))
+    assert items[0].explanation["cold_start_pool"] == "first_coverage"
+    assert items[6].track.id != 1
+    assert items[6].explanation["cold_start_pool"] == "second_coverage"
+
+
+def test_cold_start_blocks_third_play_until_second_coverage_advances(tmp_path) -> None:
+    groups = {1: AlgorithmGroup(1, "All songs", "source")}
+    tracks = [
+        AlgorithmTrack(
+            1,
+            "overplayed",
+            "Overplayed",
+            None,
+            None,
+            None,
+            None,
+            {1: None},
+            manual_multiplier=1000.0,
+            repeat_count=2.0,
+            is_rated=True,
+        ),
+        *[
+            AlgorithmTrack(
+                track_id,
+                f"played_once_{track_id}",
+                f"Played Once {track_id}",
+                None,
+                None,
+                None,
+                None,
+                {1: None},
+                repeat_count=1.0,
+                is_rated=True,
+            )
+            for track_id in range(2, 8)
+        ],
+    ]
+
+    items = generate_playlist(
+        tracks,
+        groups,
+        length=1,
+        settings=settings(tmp_path),
+        seed="cold-start-second-pass",
+        cold_start_active=True,
+    )
+
+    assert items[0].track.id != 1
+    assert items[0].explanation["cold_start_pool"] == "second_coverage"
+
+
+def test_sub_group_cooldown_suppresses_dub_and_cover_families(tmp_path) -> None:
+    groups = {1: AlgorithmGroup(1, "All songs", "source")}
+    config = settings(tmp_path)
+
+    for family in ["stars", "evensong", "hold_the_line", "follow_me_down"]:
+        sibling = AlgorithmTrack(
+            1,
+            f"{family}_dub",
+            f"{family} dub",
+            None,
+            None,
+            None,
+            None,
+            {1: None},
+            sub_group=family,
+        )
+        unrelated = AlgorithmTrack(
+            2,
+            f"{family}_other",
+            f"{family} other",
+            None,
+            None,
+            None,
+            None,
+            {1: None},
+            sub_group=f"{family}_unrelated",
+        )
+        filler = [
+            AlgorithmTrack(
+                track_id,
+                f"{family}_filler_{track_id}",
+                f"{family} filler {track_id}",
+                None,
+                None,
+                None,
+                None,
+                {1: None},
+            )
+            for track_id in range(3, 13)
+        ]
+        tracks = [sibling, unrelated, *filler]
+        sizes = group_sizes(tracks, groups)
+        last_played = {track.id: -10**9 for track in tracks}
+
+        sibling_score = score_track(
+            sibling,
+            groups,
+            sizes,
+            config,
+            current_index=1,
+            track_last_played=last_played,
+            group_last_played={},
+            sub_group_last_played={family: 0},
+        )[0]
+        unrelated_score = score_track(
+            unrelated,
+            groups,
+            sizes,
+            config,
+            current_index=1,
+            track_last_played=last_played,
+            group_last_played={},
+            sub_group_last_played={family: 0},
+        )[0]
+
+        assert sibling_score < unrelated_score * 0.15

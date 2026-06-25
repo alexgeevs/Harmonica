@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy import delete, select
@@ -21,12 +21,14 @@ from harmonica.models import (
     GroupMembership,
     MediaAsset,
     PlaybackEvent,
+    PlaylistItem,
     PlaylistRun,
     RatingFactor,
     Track,
     TrackCooldownTag,
     TrackRating,
     WeightGroup,
+    ensure_additive_playlist_run_columns,
 )
 from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
@@ -35,6 +37,8 @@ from harmonica.schemas import (
     LibraryImportRequest,
     PlaybackEventCreate,
     PlaybackEventRead,
+    PlaylistRunRename,
+    PlaylistRunSummary,
     QueueGenerateRequest,
     QueueItemRead,
     QueueRunRead,
@@ -57,6 +61,9 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 def create_app() -> FastAPI:
     init_db()
+    from harmonica.db import engine
+
+    ensure_additive_playlist_run_columns(engine)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -162,9 +169,44 @@ def create_app() -> FastAPI:
         )
         return load_run_response(session, run.id)
 
+    @app.get("/playlist-runs", response_model=list[PlaylistRunSummary])
+    def list_playlist_runs(session: SessionDep, limit: int = 50) -> list[PlaylistRunSummary]:
+        bounded_limit = min(max(limit, 1), 200)
+        runs = session.scalars(
+            run_summary_query()
+            .order_by(PlaylistRun.created_at.desc(), PlaylistRun.id.desc())
+            .limit(bounded_limit)
+        ).all()
+        return [playlist_run_to_summary(run) for run in runs]
+
     @app.get("/playlist-runs/{run_id}", response_model=QueueRunRead)
     def read_playlist_run(run_id: int, session: SessionDep) -> QueueRunRead:
         return load_run_response(session, run_id)
+
+    @app.patch("/playlist-runs/{run_id}", response_model=PlaylistRunSummary)
+    def rename_playlist_run(
+        run_id: int,
+        payload: PlaylistRunRename,
+        session: SessionDep,
+    ) -> PlaylistRunSummary:
+        run = session.scalar(run_summary_query().where(PlaylistRun.id == run_id))
+        if run is None:
+            raise HTTPException(status_code=404, detail="Playlist run not found")
+        run.name = clean_playlist_run_name(payload.name)
+        session.commit()
+        run = session.scalar(run_summary_query().where(PlaylistRun.id == run_id))
+        if run is None:
+            raise HTTPException(status_code=404, detail="Playlist run not found after rename")
+        return playlist_run_to_summary(run)
+
+    @app.delete("/playlist-runs/{run_id}", status_code=204)
+    def delete_playlist_run(run_id: int, session: SessionDep) -> Response:
+        run = session.get(PlaylistRun, run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Playlist run not found")
+        session.delete(run)
+        session.commit()
+        return Response(status_code=204)
 
     @app.get("/playlist-runs/{run_id}/m3u8")
     def export_run_m3u8(run_id: int, session: SessionDep) -> PlainTextResponse:
@@ -292,6 +334,12 @@ def run_query():
     )
 
 
+def run_summary_query():
+    return select(PlaylistRun).options(
+        selectinload(PlaylistRun.items).selectinload(PlaylistItem.track),
+    )
+
+
 def load_run_response(session: Session, run_id: int) -> QueueRunRead:
     run = session.scalar(run_query().where(PlaylistRun.id == run_id))
     if run is None:
@@ -312,6 +360,30 @@ def load_run_response(session: Session, run_id: int) -> QueueRunRead:
             for item in run.items
         ],
     )
+
+
+def playlist_run_to_summary(run: PlaylistRun) -> PlaylistRunSummary:
+    sorted_items = sorted(run.items, key=lambda item: item.position)
+    return PlaylistRunSummary(
+        id=run.id,
+        name=run.name,
+        seed=run.seed,
+        length=run.length,
+        item_count=len(sorted_items),
+        created_at=run.created_at.isoformat(),
+        preview_titles=[
+            item.track.title
+            for item in sorted_items[:4]
+            if item.track is not None
+        ],
+    )
+
+
+def clean_playlist_run_name(name: str | None) -> str | None:
+    if name is None:
+        return None
+    cleaned = name.strip()
+    return cleaned or None
 
 
 def track_to_schema(track: Track) -> TrackRead:

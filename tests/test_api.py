@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from harmonica.api import create_app
 from harmonica.db import SessionLocal
-from harmonica.models import Track
+from harmonica.models import PlaylistItem, PlaylistRun, Track
 
 
 def test_api_smoke() -> None:
@@ -66,3 +68,88 @@ def test_library_export_is_agent_friendly_json() -> None:
         assert response.status_code == 200
         payload = response.json()
         assert set(payload) >= {"rating_factors", "groups", "tracks"}
+
+
+def test_playlist_runs_can_be_listed_renamed_and_deleted() -> None:
+    with TestClient(create_app()) as client:
+        with SessionLocal() as session:
+            tracks = [
+                get_or_create_track(
+                    session,
+                    song_id=f"api_playlist_summary_{index}",
+                    title=f"Queue Preview {index}",
+                )
+                for index in range(5)
+            ]
+            older_run = PlaylistRun(
+                name=None,
+                seed="api-summary-old",
+                length=1,
+                created_at=datetime(2099, 1, 1, tzinfo=UTC),
+            )
+            newer_run = PlaylistRun(
+                name="Draft queue",
+                seed="api-summary-new",
+                length=5,
+                created_at=datetime(2099, 1, 2, tzinfo=UTC),
+            )
+            session.add_all([older_run, newer_run])
+            session.flush()
+            session.add(
+                PlaylistItem(
+                    run=older_run,
+                    track_id=tracks[0].id,
+                    position=0,
+                    score=1.0,
+                )
+            )
+            for index, track in enumerate(tracks):
+                session.add(
+                    PlaylistItem(
+                        run=newer_run,
+                        track_id=track.id,
+                        position=index,
+                        score=1.0,
+                    )
+                )
+            session.commit()
+            older_run_id = older_run.id
+            newer_run_id = newer_run.id
+
+        response = client.get("/playlist-runs", params={"limit": 1})
+        assert response.status_code == 200
+        payload = response.json()
+        assert len(payload) == 1
+        assert payload[0]["id"] == newer_run_id
+        assert payload[0]["name"] == "Draft queue"
+        assert payload[0]["seed"] == "api-summary-new"
+        assert payload[0]["length"] == 5
+        assert payload[0]["item_count"] == 5
+        assert payload[0]["preview_titles"] == [
+            "Queue Preview 0",
+            "Queue Preview 1",
+            "Queue Preview 2",
+            "Queue Preview 3",
+        ]
+
+        rename = client.patch(f"/playlist-runs/{newer_run_id}", json={"name": "Evening queue"})
+        assert rename.status_code == 200
+        assert rename.json()["name"] == "Evening queue"
+
+        full_run = client.get(f"/playlist-runs/{newer_run_id}")
+        assert full_run.status_code == 200
+        assert len(full_run.json()["items"]) == 5
+
+        delete = client.delete(f"/playlist-runs/{newer_run_id}")
+        assert delete.status_code == 204
+        assert client.get(f"/playlist-runs/{newer_run_id}").status_code == 404
+        assert client.delete(f"/playlist-runs/{older_run_id}").status_code == 204
+
+
+def get_or_create_track(session, song_id: str, title: str) -> Track:
+    track = session.scalar(select(Track).where(Track.song_id == song_id))
+    if track is None:
+        track = Track(song_id=song_id, title=title)
+        session.add(track)
+        session.flush()
+    return track

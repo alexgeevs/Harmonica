@@ -14,6 +14,7 @@ from harmonica.algorithm import (
     write_jsonl_log,
 )
 from harmonica.config import Settings
+from harmonica.db import engine
 from harmonica.history import cold_start_multiplier, history_multiplier, summarize_history
 from harmonica.models import (
     GroupMembership,
@@ -23,6 +24,7 @@ from harmonica.models import (
     Track,
     TrackRating,
     WeightGroup,
+    ensure_additive_playlist_run_columns,
 )
 from harmonica.ratings import aggregate_group_rating_multipliers, effective_song_multiplier
 
@@ -73,6 +75,7 @@ def load_algorithm_inputs(
         asset = preferred_asset(track)
         signal = history_summary.track_signals.get(track.id)
         variant_count = variant_counts.get(track.sub_group, 1) if track.sub_group else 1
+        is_rated = track.id in history_summary.rated_track_ids
         algorithm_tracks.append(
             AlgorithmTrack(
                 id=track.id,
@@ -99,6 +102,8 @@ def load_algorithm_inputs(
                     variant_count,
                 ),
                 has_video=any(asset.asset_type == "video" for asset in track.assets),
+                repeat_count=signal.repeat_count if signal else 0.0,
+                is_rated=is_rated,
             )
         )
     return algorithm_tracks, group_map, history_summary
@@ -121,6 +126,7 @@ def generate_and_persist_playlist(
     write_debug_log: bool = True,
     ui_active: bool = False,
 ) -> tuple[PlaylistRun, list[GeneratedItem]]:
+    ensure_additive_playlist_run_columns(engine)
     tracks, groups, history_summary = load_algorithm_inputs(session, settings)
     track_distances = {
         track_id: signal.repeat_distance
@@ -131,6 +137,10 @@ def generate_and_persist_playlist(
         track_id: signal.repeat_credit
         for track_id, signal in history_summary.track_signals.items()
         if signal.repeat_distance is not None
+    }
+    track_repeat_counts = {
+        track_id: signal.repeat_count
+        for track_id, signal in history_summary.track_signals.items()
     }
     items = generate_playlist(
         tracks,
@@ -145,6 +155,8 @@ def generate_and_persist_playlist(
         initial_track_repeat_credits=track_repeat_credits,
         initial_group_repeat_credits=history_summary.group_repeat_credits,
         initial_sub_group_repeat_credits=history_summary.sub_group_repeat_credits,
+        initial_track_repeat_counts=track_repeat_counts,
+        cold_start_active=history_summary.cold_start_active,
     )
     run = PlaylistRun(
         seed=str(seed) if seed is not None else None,
