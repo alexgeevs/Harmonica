@@ -28,6 +28,7 @@ from harmonica.models import (
     TrackCooldownTag,
     TrackRating,
     WeightGroup,
+    ensure_additive_playback_event_columns,
     ensure_additive_playlist_run_columns,
     ensure_additive_track_columns,
 )
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
 
     ensure_additive_playlist_run_columns(engine)
     ensure_additive_track_columns(engine)
+    ensure_additive_playback_event_columns(engine)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -247,6 +249,9 @@ def create_app() -> FastAPI:
             queue_position=payload.queue_position,
             progress_seconds=payload.progress_seconds,
             duration_seconds=payload.duration_seconds,
+            avg_level=payload.avg_level,
+            peak_level=payload.peak_level,
+            output_gain=payload.output_gain,
         )
         session.add(event)
         session.commit()
@@ -468,6 +473,9 @@ def playback_event_to_schema(event: PlaybackEvent) -> PlaybackEventRead:
         queue_position=event.queue_position,
         progress_seconds=event.progress_seconds,
         duration_seconds=event.duration_seconds,
+        avg_level=event.avg_level,
+        peak_level=event.peak_level,
+        output_gain=event.output_gain,
         created_at=event.created_at.isoformat(),
     )
 

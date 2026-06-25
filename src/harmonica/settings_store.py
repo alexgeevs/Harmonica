@@ -207,6 +207,53 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         maximum=1.0,
         step=0.05,
     ),
+    SettingDefinition(
+        key="avoid_consecutive_compressed",
+        label="Spread out compressed songs",
+        description=(
+            "When the library mixes lossless and lossy (compressed) audio, gently avoid playing "
+            "two compressed songs back to back. Has no effect when everything is compressed."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="compressed_break_reminder",
+        label="Break reminder for compressed songs",
+        description=(
+            "Suggest a short listening break after a run of compressed (lossy) songs, which can "
+            "be more fatiguing. Conservative by default; turn off if you find it intrusive."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="loudness_warning_enabled",
+        label="Loudness warnings",
+        description=(
+            "Watch the audio level while you listen and warn when sustained loudness looks high "
+            "for your hearing. This is a relative estimate, not a calibrated dB measurement."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="loudness_warning_level",
+        label="Loudness warning sensitivity",
+        description=(
+            "How loud (relative, 0–1) sustained playback may get before Harmonica nudges you. "
+            "Lower is more cautious."
+        ),
+        value_type="number",
+        control="slider",
+        default=0.7,
+        minimum=0.3,
+        maximum=1.0,
+        step=0.05,
+    ),
 )
 
 SETTING_MAP = {definition.key: definition for definition in SETTING_DEFINITIONS}

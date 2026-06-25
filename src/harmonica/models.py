@@ -227,7 +227,13 @@ class PlaybackEvent(Base):
     queue_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     progress_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    # Hearing-health telemetry (normalized 0..1; see docs/planning/schema-proposal.md).
+    avg_level: Mapped[float | None] = mapped_column(Float, nullable=True)
+    peak_level: Mapped[float | None] = mapped_column(Float, nullable=True)
+    output_gain: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, index=True
+    )
 
     track: Mapped[Track] = relationship()
     media_asset: Mapped[MediaAsset | None] = relationship()
@@ -257,6 +263,23 @@ def ensure_additive_track_columns(engine: Engine) -> None:
     with engine.begin() as connection:
         columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(tracks)").all()
+        }
+        for name, statement in additions.items():
+            if name not in columns:
+                connection.exec_driver_sql(statement)
+
+
+def ensure_additive_playback_event_columns(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+    additions = {
+        "avg_level": "ALTER TABLE playback_events ADD COLUMN avg_level FLOAT",
+        "peak_level": "ALTER TABLE playback_events ADD COLUMN peak_level FLOAT",
+        "output_gain": "ALTER TABLE playback_events ADD COLUMN output_gain FLOAT",
+    }
+    with engine.begin() as connection:
+        columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(playback_events)").all()
         }
         for name, statement in additions.items():
             if name not in columns:

@@ -36,6 +36,7 @@ class AlgorithmTrack:
     has_video: bool = False
     repeat_count: float = 0.0
     is_rated: bool = False
+    is_compressed: bool = False
 
 
 @dataclass
@@ -331,6 +332,7 @@ def generate_playlist(
     for track_id, repeat_count in (initial_track_repeat_counts or {}).items():
         track_repeat_counts[track_id] = max(repeat_count, 0.0)
     output: list[GeneratedItem] = []
+    prev_compressed = False
 
     for position in range(length):
         fallback = "normal"
@@ -403,10 +405,20 @@ def generate_playlist(
             ]
             scores = [score for score, _ in scored]
 
+        # Soft-bias away from two compressed (lossy) songs in a row when the library
+        # has a lossless/lossy mix. Applied only to selection weighting, not the stored
+        # score, and uniform when everything is compressed (so it can't break generation).
+        selection_scores = scores
+        if settings.avoid_consecutive_compressed and prev_compressed:
+            selection_scores = [
+                (score * 0.5 if tracks[i].is_compressed else score)
+                for i, score in enumerate(scores)
+            ]
+
         chosen, chosen_index = weighted_choice_from_indices(
             rng,
             tracks,
-            scores,
+            selection_scores,
             choice_indices,
         )
         explanation = scored[chosen_index][1]
@@ -433,6 +445,7 @@ def generate_playlist(
         if chosen.sub_group:
             sub_group_last_played[chosen.sub_group] = position
             sub_group_repeat_credits[chosen.sub_group] = 1.0
+        prev_compressed = chosen.is_compressed
 
     return output
 

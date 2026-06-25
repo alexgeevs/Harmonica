@@ -104,6 +104,8 @@ def load_algorithm_inputs(
                 has_video=any(asset.asset_type == "video" for asset in track.assets),
                 repeat_count=signal.repeat_count if signal else 0.0,
                 is_rated=is_rated,
+                # Compressed = the asset we'd actually play is lossy (or unknown).
+                is_compressed=bool(asset) and not asset.is_lossless,
             )
         )
     return algorithm_tracks, group_map, history_summary

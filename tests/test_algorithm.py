@@ -292,3 +292,56 @@ def test_sub_group_cooldown_suppresses_dub_and_cover_families(tmp_path) -> None:
         )[0]
 
         assert sibling_score < unrelated_score * 0.15
+
+
+def test_avoid_consecutive_compressed_reduces_runs(tmp_path) -> None:
+    tracks = [
+        AlgorithmTrack(
+            id=index,
+            song_id=f"s{index}",
+            title=f"T{index}",
+            artist=None,
+            album=None,
+            media_asset_id=index,
+            file_path=None,
+            is_compressed=index < 8,
+        )
+        for index in range(16)
+    ]
+
+    def consecutive_compressed(items) -> int:
+        count = 0
+        previous = None
+        for item in items:
+            current = item.track.is_compressed
+            if previous and current:
+                count += 1
+            previous = current
+        return count
+
+    off_settings = Settings(home=tmp_path, avoid_consecutive_compressed=False)
+    on_settings = Settings(home=tmp_path, avoid_consecutive_compressed=True)
+    off = generate_playlist(tracks, {}, 60, off_settings, seed="x")
+    on = generate_playlist(tracks, {}, 60, on_settings, seed="x")
+    # Soft bias: fewer back-to-back compressed songs, never an outright ban.
+    assert consecutive_compressed(on) < consecutive_compressed(off)
+
+
+def test_avoid_consecutive_compressed_is_noop_when_all_compressed(tmp_path) -> None:
+    tracks = [
+        AlgorithmTrack(
+            id=index,
+            song_id=f"s{index}",
+            title=f"T{index}",
+            artist=None,
+            album=None,
+            media_asset_id=index,
+            file_path=None,
+            is_compressed=True,
+        )
+        for index in range(12)
+    ]
+    all_compressed = Settings(home=tmp_path, avoid_consecutive_compressed=True)
+    items = generate_playlist(tracks, {}, 40, all_compressed, seed="y")
+    # Generation must still fill the queue when every track is compressed.
+    assert len(items) == 40

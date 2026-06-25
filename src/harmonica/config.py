@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     visual_priority_enabled: bool = True
     visual_priority_multiplier: float = 1.35
     group_clustering_bias: float = 0.0
+    # Hearing health & compression awareness.
+    avoid_consecutive_compressed: bool = True
+    compressed_break_reminder: bool = True
+    loudness_warning_enabled: bool = True
+    loudness_warning_level: float = 0.7
 
     @property
     def db_url(self) -> str:

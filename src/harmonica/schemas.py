@@ -164,6 +164,10 @@ class SettingsRead(BaseModel):
     visual_priority_enabled: bool
     visual_priority_multiplier: float
     group_clustering_bias: float
+    avoid_consecutive_compressed: bool
+    compressed_break_reminder: bool
+    loudness_warning_enabled: bool
+    loudness_warning_level: float
     controls: list[SettingControlRead]
 
 
@@ -179,6 +183,9 @@ class PlaybackEventCreate(BaseModel):
     queue_position: int | None = None
     progress_seconds: float | None = None
     duration_seconds: float | None = None
+    avg_level: float | None = None
+    peak_level: float | None = None
+    output_gain: float | None = None
 
 
 class PlaybackEventRead(BaseModel):
@@ -190,6 +197,9 @@ class PlaybackEventRead(BaseModel):
     queue_position: int | None = None
     progress_seconds: float | None = None
     duration_seconds: float | None = None
+    avg_level: float | None = None
+    peak_level: float | None = None
+    output_gain: float | None = None
     created_at: str
 
 
