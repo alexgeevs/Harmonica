@@ -989,6 +989,33 @@ input:focus {
   opacity: 0.7;
 }
 
+.facet-item {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.facet-item .facet {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.facet-ops {
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.facet-item:hover .facet-ops {
+  opacity: 1;
+}
+
+.facet-item.busy {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .library-main {
   display: grid;
   gap: 14px;

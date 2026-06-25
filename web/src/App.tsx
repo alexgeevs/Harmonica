@@ -3,9 +3,11 @@ import {
   ClipboardCheck,
   Clock,
   Download,
+  GitMerge,
   Library as LibraryIcon,
   ListMusic,
   Pause,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -723,7 +725,46 @@ function LibraryView(props: {
   const [scanPath, setScanPath] = useState("");
   const [scanning, setScanning] = useState(false);
 
+  const [groupBusy, setGroupBusy] = useState<string | null>(null);
   const facets = useMemo(() => buildFacets(props.tracks), [props.tracks]);
+
+  // Reassign every track in `from` to `to` (rename when `to` is new, merge when it
+  // already exists). De-dupes so a track never lists the same group twice.
+  async function reassignGroup(from: string, to: string, groupType: string) {
+    const clean = to.trim();
+    if (!clean || clean === from) {
+      return;
+    }
+    const affected = props.tracks.filter((track) => track.groups.some((group) => group.name === from));
+    setGroupBusy(from);
+    try {
+      for (const track of affected) {
+        const seen = new Set<string>();
+        const groups = track.groups
+          .map((group) => (group.name === from ? { ...group, name: clean, group_type: groupType } : group))
+          .filter((group) => (seen.has(group.name) ? false : (seen.add(group.name), true)))
+          .map((group) => ({ name: group.name, group_type: group.group_type, share: group.share ?? null }));
+        await api.updateTrackFields(track.id, { groups });
+      }
+      props.onRescan();
+    } finally {
+      setGroupBusy(null);
+    }
+  }
+
+  function renameGroup(name: string, type: string) {
+    const next = window.prompt(`Rename group "${name}" to:`, name);
+    if (next) {
+      void reassignGroup(name, next, type);
+    }
+  }
+
+  function mergeGroup(name: string, type: string) {
+    const target = window.prompt(`Merge "${name}" into which group? (type the exact target name)`);
+    if (target) {
+      void reassignGroup(name, target, type);
+    }
+  }
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -766,9 +807,9 @@ function LibraryView(props: {
         <button className={facet === "all" ? "facet active" : "facet"} onClick={() => setFacet("all")}>
           All tracks <b>{props.tracks.length}</b>
         </button>
-        <FacetGroup title="Sources" facets={facets.source} active={facet} onPick={setFacet} />
-        <FacetGroup title="Artists" facets={facets.artist} active={facet} onPick={setFacet} />
-        <FacetGroup title="Themes" facets={facets.theme} active={facet} onPick={setFacet} />
+        <FacetGroup title="Sources" facets={facets.source} active={facet} busy={groupBusy} onPick={setFacet} onRename={renameGroup} onMerge={mergeGroup} />
+        <FacetGroup title="Artists" facets={facets.artist} active={facet} busy={groupBusy} onPick={setFacet} onRename={renameGroup} onMerge={mergeGroup} />
+        <FacetGroup title="Themes" facets={facets.theme} active={facet} busy={groupBusy} onPick={setFacet} onRename={renameGroup} onMerge={mergeGroup} />
         <FacetGroup title="Variant families" facets={facets.variant} active={facet} onPick={setFacet} />
       </aside>
 
@@ -837,21 +878,41 @@ function LibraryView(props: {
   );
 }
 
-function FacetGroup(props: { title: string; facets: Facet[]; active: string; onPick: (key: string) => void }) {
+function FacetGroup(props: {
+  title: string;
+  facets: Facet[];
+  active: string;
+  busy?: string | null;
+  onPick: (key: string) => void;
+  onRename?: (name: string, type: string) => void;
+  onMerge?: (name: string, type: string) => void;
+}) {
   if (props.facets.length === 0) {
     return null;
   }
+  const editable = Boolean(props.onRename && props.onMerge);
   return (
     <div className="facet-group">
       <h5>{props.title}</h5>
       {props.facets.map((entry) => (
-        <button
-          key={entry.key}
-          className={props.active === entry.key ? "facet active" : "facet"}
-          onClick={() => props.onPick(entry.key)}
-        >
-          {entry.label} <b>{entry.count}</b>
-        </button>
+        <div key={entry.key} className={`facet-item ${props.busy === entry.label ? "busy" : ""}`}>
+          <button
+            className={props.active === entry.key ? "facet active" : "facet"}
+            onClick={() => props.onPick(entry.key)}
+          >
+            {entry.label} <b>{entry.count}</b>
+          </button>
+          {editable ? (
+            <div className="facet-ops">
+              <button className="mini" title="Rename group" onClick={() => props.onRename!(entry.label, entry.type)}>
+                <Pencil size={12} />
+              </button>
+              <button className="mini" title="Merge into another group" onClick={() => props.onMerge!(entry.label, entry.type)}>
+                <GitMerge size={12} />
+              </button>
+            </div>
+          ) : null}
+        </div>
       ))}
     </div>
   );
