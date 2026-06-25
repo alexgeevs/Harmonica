@@ -21,7 +21,7 @@ import {
   VolumeX,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, savedQueuesSupported } from "./api";
 import { displayArtist, formatTime, pct, whyReasons } from "./format";
 import { matchPreset, PRESETS, type Preset } from "./presets";
@@ -60,10 +60,29 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const videoStageRef = useRef<HTMLDivElement>(null);
+  const videoParkRef = useRef<HTMLDivElement>(null);
+  const currentIsVideo = selectedAsset(player.currentItem)?.asset_type === "video";
+
   useEffect(() => {
     void refreshAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep the single <video> element mounted while moving it between the now-playing
+  // stage (when watching a visual track on the Listen view) and a hidden park (so
+  // audio keeps playing everywhere else). appendChild moves it without reloading.
+  useEffect(() => {
+    const element = player.mediaEl;
+    if (!element) {
+      return;
+    }
+    const onStage = view === "queue" && currentIsVideo && videoStageRef.current;
+    const target = onStage ? videoStageRef.current : videoParkRef.current;
+    if (target && element.parentElement !== target) {
+      target.appendChild(element);
+    }
+  }, [view, currentIsVideo, player.mediaEl, player.currentKey]);
 
   // Keyboard transport — the hallmark of a real player. Ignored while typing.
   useEffect(() => {
@@ -217,6 +236,8 @@ export default function App() {
               busy={busy}
               defaultLength={settings?.default_playlist_length ?? 50}
               savedRuns={savedRuns}
+              currentIsVideo={currentIsVideo}
+              videoStageRef={videoStageRef}
               onGenerate={generateQueue}
               onLoadRun={loadSavedRun}
               onRefreshSaved={refreshSavedRuns}
@@ -244,6 +265,8 @@ export default function App() {
       </main>
 
       <PlayerBar player={player} />
+      {/* The single <video> element lives here whenever it isn't on the now-playing stage. */}
+      <div ref={videoParkRef} className="video-park" aria-hidden />
     </div>
   );
 }
@@ -390,6 +413,8 @@ function QueueView(props: {
   busy: boolean;
   defaultLength: number;
   savedRuns: RunSummary[] | null;
+  currentIsVideo: boolean;
+  videoStageRef: React.RefObject<HTMLDivElement>;
   onGenerate: (length: number, seed: string) => void;
   onLoadRun: (id: number) => void;
   onRefreshSaved: () => void;
@@ -417,14 +442,18 @@ function QueueView(props: {
   return (
     <section className="queue-view">
       <div className="now-column">
-        <div className="now-card">
-          <div className="now-art" style={artStyle(item?.track.id ?? 0)}>
-            {item?.track.assets.some((asset) => asset.asset_type === "video") ? (
-              <Video size={42} />
-            ) : (
-              <ListMusic size={42} />
-            )}
-          </div>
+        <div className={`now-card ${props.currentIsVideo ? "has-video" : ""}`}>
+          {props.currentIsVideo ? (
+            <div className="now-stage" ref={props.videoStageRef} />
+          ) : (
+            <div className="now-art" style={artStyle(item?.track.id ?? 0)}>
+              {item?.track.assets.some((asset) => asset.asset_type === "video") ? (
+                <Video size={42} />
+              ) : (
+                <ListMusic size={42} />
+              )}
+            </div>
+          )}
           <div className="now-info">
             <p className="now-eyebrow">
               {item ? `Now playing · ${player.index + 1} of ${player.queue.length}` : "Nothing queued"}
@@ -539,6 +568,11 @@ function QueueRow(props: {
         </span>
       </button>
       <div className="queue-tags">
+        {!item.media_url ? (
+          <span className="tag soon" title="Media still downloading">
+            soon
+          </span>
+        ) : null}
         {item.track.assets.some((asset) => asset.asset_type === "video") ? (
           <span className="tag video" title="Has video">
             <Video size={12} />
@@ -1372,6 +1406,13 @@ function artStyle(seed: number): React.CSSProperties {
   return {
     background: `linear-gradient(135deg, hsl(${hue} 42% 32%), hsl(${hue2} 38% 22%))`
   };
+}
+
+function selectedAsset(item: QueueItem | null) {
+  if (!item) {
+    return null;
+  }
+  return item.track.assets.find((asset) => asset.id === item.media_asset_id) ?? null;
 }
 
 function message(err: unknown, fallback: string): string {

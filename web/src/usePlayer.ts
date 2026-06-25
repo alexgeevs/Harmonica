@@ -41,9 +41,15 @@ function loadVolume(): number {
  * Harmonica's skip semantics, and persists the listening session across refresh.
  */
 export function usePlayer() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  if (audioRef.current === null && typeof Audio !== "undefined") {
-    audioRef.current = new Audio();
+  // A <video> element (not <audio>) so visual tracks can be watched; it plays
+  // audio-only sources just as well. It is reparented across views by the app
+  // shell so playback never stops when you switch screens.
+  const audioRef = useRef<HTMLVideoElement | null>(null);
+  if (audioRef.current === null && typeof document !== "undefined") {
+    const element = document.createElement("video");
+    element.preload = "metadata";
+    element.setAttribute("playsinline", "");
+    audioRef.current = element;
   }
 
   const restored = useRef<StoredSession | null>(loadSession());
@@ -184,7 +190,8 @@ export function usePlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load the source whenever the *current track* changes (not on mere reorder).
+  // Load the source whenever the *current track* changes (keyed on the track
+  // identity, so reordering the queue never reloads the playing track).
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -193,9 +200,24 @@ export function usePlayer() {
     if (!currentUrl) {
       audio.removeAttribute("src");
       audio.load();
-      setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
+      // Some tracks may have no media yet (e.g. still downloading). When playing
+      // forward, jump to the next item that actually has a file rather than stall.
+      if (wantsPlayRef.current) {
+        const items = queueRef.current;
+        let next = indexRef.current + 1;
+        while (next < items.length && !items[next]?.media_url) {
+          next += 1;
+        }
+        if (next < items.length) {
+          startedKeyRef.current = null;
+          setIndex(next);
+          return;
+        }
+        wantsPlayRef.current = false;
+      }
+      setIsPlaying(false);
       return;
     }
     audio.src = currentUrl;
@@ -218,7 +240,7 @@ export function usePlayer() {
     }
     return () => audio.removeEventListener("loadedmetadata", applySeek);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl]);
+  }, [currentKey]);
 
   // Persist the session whenever its durable parts change, and on a slow heartbeat.
   useEffect(() => {
@@ -386,6 +408,7 @@ export function usePlayer() {
 
   return useMemo(
     () => ({
+      mediaEl: audioRef.current,
       queue,
       index,
       currentItem,
