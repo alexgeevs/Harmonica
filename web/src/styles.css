@@ -1379,14 +1379,99 @@ input:focus {
 
 .settings-view {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
   gap: 18px;
   align-items: start;
+}
+
+.settings-main {
+  display: grid;
+  gap: 18px;
 }
 
 .settings-controls {
   display: grid;
   gap: 10px;
+}
+
+.preset-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.preset-head h4 {
+  font-size: 16px;
+}
+
+.preset-head p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.preset {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel-soft);
+  text-align: left;
+}
+
+.preset:hover {
+  border-color: var(--accent-soft);
+}
+
+.preset.active {
+  border-color: var(--accent);
+  background: #e7f1ec;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.preset strong {
+  font-size: 14px;
+}
+
+.preset small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preset-active {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preset-active.custom {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.settings-section {
+  display: grid;
+  gap: 10px;
+}
+
+.section-head h4 {
+  font-size: 15px;
+}
+
+.section-head p {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .setting-control {

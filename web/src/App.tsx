@@ -24,6 +24,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { api, savedQueuesSupported } from "./api";
 import { displayArtist, formatTime, pct, whyReasons } from "./format";
+import { matchPreset, PRESETS, type Preset } from "./presets";
 import { usePlayer, type PlayerApi } from "./usePlayer";
 import type {
   AppSettings,
@@ -1083,6 +1084,40 @@ function BarList(props: { rows: { label: string; value: number }[] }) {
 // Settings view
 // ---------------------------------------------------------------------------
 
+const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
+  {
+    title: "Recommendation core",
+    note: "How strongly groups and your ratings shape the queue.",
+    keys: [
+      "beta",
+      "default_playlist_length",
+      "enable_group_rating_multiplier",
+      "song_rating_min_multiplier",
+      "song_rating_max_multiplier"
+    ]
+  },
+  {
+    title: "Anti-repetition & variety",
+    note: "How quickly a just-played song, group, or variant is allowed back.",
+    keys: ["group_cooldown_floor", "sub_group_cooldown_floor", "group_clustering_bias"]
+  },
+  {
+    title: "History & feedback",
+    note: "How your plays and skips steer the next session.",
+    keys: ["history_influence_enabled", "skip_penalty_strength"]
+  },
+  {
+    title: "Coverage (cold start)",
+    note: "Making sure every song gets a fair first hearing.",
+    keys: ["cold_start_enabled", "cold_start_unrated_boost"]
+  },
+  {
+    title: "Visuals",
+    note: "Prioritising tracks with video while you're here to watch.",
+    keys: ["visual_priority_enabled", "visual_priority_multiplier"]
+  }
+];
+
 function SettingsView(props: {
   settings: AppSettings;
   ratingFactors: RatingFactor[];
@@ -1096,20 +1131,89 @@ function SettingsView(props: {
     () => props.settings.controls.some((control) => draft[control.key] !== props.settings[control.key]),
     [draft, props.settings]
   );
+  const activePreset = useMemo(() => matchPreset(draft), [draft]);
+
+  const controlsByKey = useMemo(
+    () => new Map(props.settings.controls.map((control) => [control.key as string, control])),
+    [props.settings.controls]
+  );
+  const known = new Set(SETTING_SECTIONS.flatMap((section) => section.keys));
+  const extraKeys = props.settings.controls.map((c) => c.key as string).filter((key) => !known.has(key));
+
+  function applyPreset(preset: Preset) {
+    const next = { ...draft, ...preset.values };
+    setDraft(next);
+    props.onSave(next);
+  }
+
+  function renderControls(keys: string[]) {
+    return keys
+      .map((key) => controlsByKey.get(key))
+      .filter((control): control is SettingControl => Boolean(control))
+      .map((control) => (
+        <SettingControlRow
+          key={control.key}
+          control={control}
+          value={draft[control.key]}
+          onChange={(value) => setDraft((current) => ({ ...current, [control.key]: value }))}
+        />
+      ));
+  }
 
   return (
     <section className="settings-view">
-      <div className="settings-controls">
-        {props.settings.controls.map((control) => (
-          <SettingControlRow
-            key={control.key}
-            control={control}
-            value={draft[control.key]}
-            onChange={(value) => setDraft((current) => ({ ...current, [control.key]: value }))}
-          />
+      <div className="settings-main">
+        <div className="preset-card">
+          <div className="preset-head">
+            <h4>Listening presets</h4>
+            <p>One tap tunes every control below. You can still fine-tune afterwards.</p>
+          </div>
+          <div className="preset-grid">
+            {PRESETS.map((preset) => (
+              <button
+                key={preset.key}
+                className={`preset ${activePreset === preset.key ? "active" : ""}`}
+                onClick={() => applyPreset(preset)}
+                title={preset.description}
+              >
+                <strong>{preset.name}</strong>
+                <small>{preset.tagline}</small>
+              </button>
+            ))}
+          </div>
+          {activePreset ? (
+            <p className="preset-active">
+              {PRESETS.find((preset) => preset.key === activePreset)?.description}
+            </p>
+          ) : (
+            <p className="preset-active custom">Custom mix — tweak any control, or pick a preset to reset.</p>
+          )}
+        </div>
+
+        {SETTING_SECTIONS.map((section) => (
+          <div key={section.title} className="settings-section">
+            <div className="section-head">
+              <h4>{section.title}</h4>
+              <p>{section.note}</p>
+            </div>
+            <div className="settings-controls">{renderControls(section.keys)}</div>
+          </div>
         ))}
+
+        {extraKeys.length ? (
+          <div className="settings-section">
+            <div className="section-head">
+              <h4>More</h4>
+            </div>
+            <div className="settings-controls">{renderControls(extraKeys)}</div>
+          </div>
+        ) : null}
       </div>
+
       <div className="settings-side">
+        <button className="primary save-button" disabled={props.busy || !dirty} onClick={() => props.onSave(draft)}>
+          <Save size={16} /> {dirty ? "Save settings" : "Saved"}
+        </button>
         <div className="settings-note">
           <h4>How settings apply</h4>
           <p>
@@ -1126,9 +1230,6 @@ function SettingsView(props: {
             </div>
           ))}
         </div>
-        <button className="primary save-button" disabled={props.busy || !dirty} onClick={() => props.onSave(draft)}>
-          <Save size={16} /> {dirty ? "Save settings" : "Saved"}
-        </button>
       </div>
     </section>
   );
