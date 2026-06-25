@@ -1,8 +1,10 @@
 import type {
   AppSettings,
+  PlaybackEvent,
   PlaybackEventCreate,
   QueueRun,
   RatingFactor,
+  RunSummary,
   StatsSummary,
   Track
 } from "./types";
@@ -68,5 +70,31 @@ export const api = {
     request("/playback-events", {
       method: "POST",
       body: JSON.stringify(event)
+    }),
+  playbackEvents: (limit = 200) =>
+    request<PlaybackEvent[]>(`/playback-events?limit=${limit}`),
+  getRun: (id: number) => request<QueueRun>(`/playlist-runs/${id}`),
+  // Saved-queue endpoints are additive on the backend; callers should tolerate 404.
+  listRuns: (limit = 50) => request<RunSummary[]>(`/playlist-runs?limit=${limit}`),
+  renameRun: (id: number, name: string) =>
+    request<RunSummary>(`/playlist-runs/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name })
+    }),
+  deleteRun: (id: number) =>
+    fetch(`/playlist-runs/${id}`, { method: "DELETE" }).then((response) => {
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`Delete failed: ${response.status}`);
+      }
     })
 };
+
+/** True when the saved-queues backend endpoints are available. */
+export async function savedQueuesSupported(): Promise<boolean> {
+  try {
+    await api.listRuns(1);
+    return true;
+  } catch {
+    return false;
+  }
+}

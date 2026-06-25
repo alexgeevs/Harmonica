@@ -135,3 +135,34 @@ export type StatsSummary = {
   early_skip_count: number;
   partial_skip_count: number;
 };
+
+export type PlaybackEvent = {
+  id: number;
+  event_type: "started" | "paused" | "skipped" | "completed" | string;
+  track_id: number;
+  media_asset_id?: number | null;
+  playlist_run_id?: number | null;
+  queue_position?: number | null;
+  progress_seconds?: number | null;
+  duration_seconds?: number | null;
+  created_at: string;
+};
+
+// Summary of a saved/persisted playlist run (GET /playlist-runs).
+// Backend support is additive; the UI degrades gracefully if absent.
+export type RunSummary = {
+  id: number;
+  name?: string | null;
+  seed?: string | null;
+  length: number;
+  item_count: number;
+  created_at: string;
+  preview_titles: string[];
+};
+
+// A plain-language reason describing why a track was queued.
+export type WhyReason = {
+  icon: "group" | "star" | "spark" | "video" | "cooldown" | "history" | "variant";
+  text: string;
+  tone: "boost" | "suppress" | "neutral";
+};

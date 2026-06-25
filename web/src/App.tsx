@@ -1,100 +1,129 @@
 import {
   BarChart3,
+  Clock,
   Download,
-  Library,
+  GripVertical,
+  Library as LibraryIcon,
+  ListMusic,
   Pause,
   Play,
+  Plus,
   RefreshCw,
   Save,
   Search,
-  Settings,
+  Settings as SettingsIcon,
+  SkipBack,
   SkipForward,
-  SlidersHorizontal,
+  Sparkles,
   Star,
+  Trash2,
+  Video,
+  Volume2,
+  VolumeX,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { useEffect, useMemo, useState } from "react";
+import { api, savedQueuesSupported } from "./api";
+import { displayArtist, formatTime, pct, whyReasons } from "./format";
+import { usePlayer, type PlayerApi } from "./usePlayer";
 import type {
   AppSettings,
+  PlaybackEvent,
   QueueItem,
-  QueueRun,
   RatingFactor,
+  RunSummary,
   SettingControl,
   StatsSummary,
   Track,
-  TrackGroup
+  TrackGroup,
+  WhyReason
 } from "./types";
 
-type View = "dashboard" | "library" | "stats" | "settings";
+type View = "queue" | "library" | "stats" | "settings";
 
-const emptyQueue: QueueRun = { id: 0, length: 0, items: [] };
+const VIEW_TITLES: Record<View, string> = {
+  queue: "Listen",
+  library: "Library",
+  stats: "Insights",
+  settings: "Settings"
+};
 
 export default function App() {
-  const [view, setView] = useState<View>("dashboard");
+  const player = usePlayer();
+  const [view, setView] = useState<View>("queue");
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [ratingFactors, setRatingFactors] = useState<RatingFactor[]>([]);
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
-  const [queue, setQueue] = useState<QueueRun>(emptyQueue);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [playlistLength, setPlaylistLength] = useState(100);
-  const [seed, setSeed] = useState("");
-  const [scanPath, setScanPath] = useState("");
-  const [search, setSearch] = useState("");
-  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [events, setEvents] = useState<PlaybackEvent[]>([]);
+  const [savedRuns, setSavedRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(false);
-
-  const currentItem = queue.items[currentIndex] ?? null;
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     void refreshAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function refreshAll() {
     setError(null);
-    const [nextSettings, nextFactors, nextTracks, nextStats] = await Promise.all([
-      api.settings(),
-      api.ratingFactors(),
-      api.tracks(),
-      api.stats()
-    ]);
-    setSettings(nextSettings);
-    setRatingFactors(nextFactors);
-    setTracks(nextTracks);
-    setStats(nextStats);
-    setPlaylistLength(nextSettings.default_playlist_length);
+    try {
+      const [nextSettings, nextFactors, nextTracks, nextStats] = await Promise.all([
+        api.settings(),
+        api.ratingFactors(),
+        api.tracks(),
+        api.stats()
+      ]);
+      setSettings(nextSettings);
+      setRatingFactors(nextFactors);
+      setTracks(nextTracks);
+      setStats(nextStats);
+      void api.playbackEvents(300).then(setEvents).catch(() => undefined);
+      void refreshSavedRuns();
+    } catch (err) {
+      setError(message(err, "Could not reach the Harmonica backend. Is it running?"));
+    }
   }
 
-  async function generateQueue() {
+  async function refreshSavedRuns() {
+    if (!(await savedQueuesSupported())) {
+      setSavedRuns(null);
+      return;
+    }
+    try {
+      setSavedRuns(await api.listRuns(40));
+    } catch {
+      setSavedRuns(null);
+    }
+  }
+
+  async function refreshStats() {
+    void api.stats().then(setStats).catch(() => undefined);
+    void api.playbackEvents(300).then(setEvents).catch(() => undefined);
+  }
+
+  async function generateQueue(length: number, seed: string) {
     setBusy(true);
     setError(null);
     try {
-      const nextQueue = await api.generateQueue(playlistLength, seed.trim() || undefined);
-      setQueue(nextQueue);
-      setCurrentIndex(0);
-      setPlaying(false);
+      const run = await api.generateQueue(length, seed.trim() || undefined);
+      player.loadQueue(run, { autoplay: true });
+      void refreshSavedRuns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not generate queue");
+      setError(message(err, "Could not generate a queue"));
     } finally {
       setBusy(false);
     }
   }
 
-  async function scanLibrary() {
-    if (!scanPath.trim()) {
-      return;
-    }
+  async function loadSavedRun(id: number) {
     setBusy(true);
-    setError(null);
     try {
-      await api.scan(scanPath.trim());
-      const nextTracks = await api.tracks();
-      setTracks(nextTracks);
+      const run = await api.getRun(id);
+      player.loadQueue(run, { autoplay: false });
+      setView("queue");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Scan failed");
+      setError(message(err, "Could not load that queue"));
     } finally {
       setBusy(false);
     }
@@ -106,9 +135,11 @@ export default function App() {
     try {
       const saved = await api.updateTrack(track);
       setTracks((current) => current.map((item) => (item.id === saved.id ? saved : item)));
-      setSelectedTrack(saved);
+      void refreshStats();
+      return saved;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setError(message(err, "Could not save the track"));
+      return track;
     } finally {
       setBusy(false);
     }
@@ -118,607 +149,854 @@ export default function App() {
     setBusy(true);
     setError(null);
     try {
-      const saved = await api.updateSettings(values);
-      setSettings(saved);
-      setPlaylistLength(saved.default_playlist_length);
+      setSettings(await api.updateSettings(values));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Settings save failed");
+      setError(message(err, "Could not save settings"));
     } finally {
       setBusy(false);
     }
   }
 
-  function recordPlayback(
-    eventType: "started" | "paused" | "skipped" | "completed",
-    item: QueueItem | null,
-    progressSeconds?: number,
-    durationSeconds?: number
-  ) {
-    if (!item) {
-      return;
-    }
-    void api.recordPlaybackEvent({
-      event_type: eventType,
-      track_id: item.track.id,
-      media_asset_id: item.media_asset_id ?? null,
-      playlist_run_id: queue.id || null,
-      queue_position: item.position,
-      progress_seconds: Number.isFinite(progressSeconds) ? progressSeconds ?? null : null,
-      duration_seconds: Number.isFinite(durationSeconds) ? durationSeconds ?? null : null
-    });
-  }
-
-  function skip(progressSeconds?: number, durationSeconds?: number) {
-    recordPlayback("skipped", currentItem, progressSeconds, durationSeconds);
-    advanceQueue();
-  }
-
-  function complete(progressSeconds?: number, durationSeconds?: number) {
-    recordPlayback("completed", currentItem, progressSeconds, durationSeconds);
-    advanceQueue();
-  }
-
-  function advanceQueue() {
-    setCurrentIndex((index) => Math.min(index + 1, Math.max(queue.items.length - 1, 0)));
-    setPlaying(true);
-  }
-
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">H</div>
-          <div>
-            <h1>Harmonica</h1>
-            <p>{tracks.length} tracks</p>
-          </div>
-        </div>
-        <nav className="nav-buttons">
-          <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>
-            <Play size={18} />
-            Queue
-          </button>
-          <button className={view === "library" ? "active" : ""} onClick={() => setView("library")}>
-            <Library size={18} />
-            Library
-          </button>
-          <button className={view === "stats" ? "active" : ""} onClick={() => setView("stats")}>
-            <BarChart3 size={18} />
-            Stats
-          </button>
-          <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>
-            <Settings size={18} />
-            Settings
-          </button>
-        </nav>
-      </aside>
+      <Sidebar view={view} onView={setView} trackCount={tracks.length} />
 
       <main className="workspace">
         <header className="topbar">
-          <div>
-            <h2>
-              {view === "dashboard"
-                ? "Queue"
-                : view === "library"
-                  ? "Library"
-                  : view === "stats"
-                    ? "Stats"
-                    : "Settings"}
-            </h2>
-            {error ? <p className="error-text">{error}</p> : null}
+          <h2>{VIEW_TITLES[view]}</h2>
+          <div className="topbar-actions">
+            {error ? <span className="error-text">{error}</span> : null}
+            <button className="icon-button" title="Refresh" onClick={() => void refreshAll()}>
+              <RefreshCw size={18} />
+            </button>
           </div>
-          <button className="icon-button" title="Refresh" onClick={() => void refreshAll()}>
-            <RefreshCw size={18} />
-          </button>
         </header>
 
-        {view === "dashboard" ? (
-          <Dashboard
-            currentItem={currentItem}
-            queue={queue}
-            currentIndex={currentIndex}
-            playlistLength={playlistLength}
-            seed={seed}
-            busy={busy}
-            playing={playing}
-            onLengthChange={setPlaylistLength}
-            onSeedChange={setSeed}
-            onGenerate={() => void generateQueue()}
-            onSelectIndex={(index) => setCurrentIndex(index)}
-            onPlayingChange={setPlaying}
-            onPlaybackEvent={(eventType, progress, duration) =>
-              recordPlayback(eventType, currentItem, progress, duration)
-            }
-            onSkip={skip}
-            onComplete={complete}
-          />
-        ) : null}
+        <div className="view-scroll">
+          {view === "queue" ? (
+            <QueueView
+              player={player}
+              busy={busy}
+              defaultLength={settings?.default_playlist_length ?? 50}
+              savedRuns={savedRuns}
+              onGenerate={generateQueue}
+              onLoadRun={loadSavedRun}
+              onRefreshSaved={refreshSavedRuns}
+            />
+          ) : null}
 
-        {view === "library" ? (
-          <LibraryView
-            tracks={tracks}
-            scanPath={scanPath}
-            search={search}
-            selectedTrack={selectedTrack}
-            ratingFactors={ratingFactors}
-            busy={busy}
-            onScanPathChange={setScanPath}
-            onSearchChange={setSearch}
-            onScan={() => void scanLibrary()}
-            onSelectTrack={setSelectedTrack}
-            onSave={(track) => void saveTrack(track)}
-            onCloseEditor={() => setSelectedTrack(null)}
-          />
-        ) : null}
+          {view === "library" ? (
+            <LibraryView
+              tracks={tracks}
+              ratingFactors={ratingFactors}
+              busy={busy}
+              onSave={saveTrack}
+              onRescan={refreshAll}
+            />
+          ) : null}
 
-        {view === "stats" && stats ? <StatsView stats={stats} /> : null}
+          {view === "stats" && stats ? <StatsView stats={stats} tracks={tracks} events={events} /> : null}
 
-        {view === "settings" && settings ? (
-          <SettingsView
-            settings={settings}
-            ratingFactors={ratingFactors}
-            busy={busy}
-            onSave={(values) => void saveSettings(values)}
-          />
-        ) : null}
+          {view === "settings" && settings ? (
+            <SettingsView settings={settings} ratingFactors={ratingFactors} busy={busy} onSave={saveSettings} />
+          ) : null}
+        </div>
       </main>
+
+      <PlayerBar player={player} />
     </div>
   );
 }
 
-function Dashboard(props: {
-  currentItem: QueueItem | null;
-  queue: QueueRun;
-  currentIndex: number;
-  playlistLength: number;
-  seed: string;
-  busy: boolean;
-  playing: boolean;
-  onLengthChange: (value: number) => void;
-  onSeedChange: (value: string) => void;
-  onGenerate: () => void;
-  onSelectIndex: (index: number) => void;
-  onPlayingChange: (playing: boolean) => void;
-  onPlaybackEvent: (
-    eventType: "started" | "paused",
-    progressSeconds?: number,
-    durationSeconds?: number
-  ) => void;
-  onSkip: (progressSeconds?: number, durationSeconds?: number) => void;
-  onComplete: (progressSeconds?: number, durationSeconds?: number) => void;
-}) {
-  const mediaRef = useRef<HTMLMediaElement | null>(null);
-  const asset = props.currentItem?.track.assets.find(
-    (candidate) => candidate.id === props.currentItem?.media_asset_id
-  );
-  const mediaUrl = props.currentItem?.media_url ?? null;
-  const isVideo = asset?.asset_type === "video";
+// ---------------------------------------------------------------------------
+// Sidebar
+// ---------------------------------------------------------------------------
 
-  function togglePlayback() {
-    const media = mediaRef.current;
-    if (!media) {
-      return;
-    }
-    if (props.playing) {
-      media.pause();
-      return;
-    }
-    void media.play();
-  }
+function Sidebar(props: { view: View; onView: (view: View) => void; trackCount: number }) {
+  const items: { key: View; label: string; icon: JSX.Element }[] = [
+    { key: "queue", label: "Listen", icon: <ListMusic size={18} /> },
+    { key: "library", label: "Library", icon: <LibraryIcon size={18} /> },
+    { key: "stats", label: "Insights", icon: <BarChart3 size={18} /> },
+    { key: "settings", label: "Settings", icon: <SettingsIcon size={18} /> }
+  ];
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <div className="brand-mark">H</div>
+        <div>
+          <h1>Harmonica</h1>
+          <p>{props.trackCount} tracks</p>
+        </div>
+      </div>
+      <nav className="nav-buttons">
+        {items.map((item) => (
+          <button
+            key={item.key}
+            className={props.view === item.key ? "active" : ""}
+            onClick={() => props.onView(item.key)}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      <div className="sidebar-foot">
+        <Sparkles size={14} />
+        <span>Tuned to play what you love without wearing it out.</span>
+      </div>
+    </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Persistent player bar
+// ---------------------------------------------------------------------------
+
+function PlayerBar(props: { player: PlayerApi }) {
+  const { player } = props;
+  const item = player.currentItem;
+  const track = item?.track ?? null;
+  const hasVideo = track?.assets.some((asset) => asset.asset_type === "video") ?? false;
+  const progress = player.duration > 0 ? player.currentTime / player.duration : 0;
 
   return (
-    <section className="dashboard-grid">
-      <div className="player-surface">
-        <div className="now-playing">
-          <p>{props.currentItem ? `#${props.currentIndex + 1}` : "No queue"}</p>
-          <h3>{props.currentItem?.track.title ?? "Generate a queue"}</h3>
-          <span>{displayArtist(props.currentItem?.track)}</span>
+    <footer className={`player-bar ${item ? "" : "empty"}`}>
+      <div className="player-meta">
+        <div className="player-art" style={artStyle(track?.id ?? 0)}>
+          {hasVideo ? <Video size={18} /> : <ListMusic size={18} />}
         </div>
-        <div className="media-frame">
-          {mediaUrl && isVideo ? (
-            <video
-              ref={(node) => {
-                mediaRef.current = node;
-              }}
-              key={mediaUrl}
-              controls
-              autoPlay={props.playing}
-              src={mediaUrl}
-              onPlay={(event) => {
-                props.onPlayingChange(true);
-                props.onPlaybackEvent(
-                  "started",
-                  event.currentTarget.currentTime,
-                  event.currentTarget.duration
-                );
-              }}
-              onPause={(event) => {
-                props.onPlayingChange(false);
-                props.onPlaybackEvent(
-                  "paused",
-                  event.currentTarget.currentTime,
-                  event.currentTarget.duration
-                );
-              }}
-              onEnded={(event) =>
-                props.onComplete(event.currentTarget.currentTime, event.currentTarget.duration)
-              }
-            />
-          ) : mediaUrl ? (
-            <audio
-              ref={(node) => {
-                mediaRef.current = node;
-              }}
-              key={mediaUrl}
-              controls
-              autoPlay={props.playing}
-              src={mediaUrl}
-              onPlay={(event) => {
-                props.onPlayingChange(true);
-                props.onPlaybackEvent(
-                  "started",
-                  event.currentTarget.currentTime,
-                  event.currentTarget.duration
-                );
-              }}
-              onPause={(event) => {
-                props.onPlayingChange(false);
-                props.onPlaybackEvent(
-                  "paused",
-                  event.currentTarget.currentTime,
-                  event.currentTarget.duration
-                );
-              }}
-              onEnded={(event) =>
-                props.onComplete(event.currentTarget.currentTime, event.currentTarget.duration)
-              }
-            />
-          ) : (
-            <div className="empty-player">
-              <Play size={42} />
-            </div>
-          )}
+        <div className="player-titles">
+          <strong title={track?.title}>{track?.title ?? "Nothing playing"}</strong>
+          <span>{track ? displayArtist(track) : "Generate a queue to start listening"}</span>
         </div>
-        <div className="transport">
-          <button
-            className="icon-button"
-            title={props.playing ? "Pause" : "Play"}
-            onClick={togglePlayback}
-          >
-            {props.playing ? <Pause size={20} /> : <Play size={20} />}
-          </button>
-          <button
-            className="icon-button"
-            title="Skip"
-            onClick={() => {
-              const media = mediaRef.current;
-              props.onSkip(media?.currentTime, media?.duration);
-            }}
-          >
-            <SkipForward size={20} />
-          </button>
-          {props.queue.id ? (
-            <a className="icon-button" title="Export .m3u8" href={`/playlist-runs/${props.queue.id}/m3u8`}>
-              <Download size={20} />
-            </a>
-          ) : null}
-        </div>
-        {props.currentItem ? <WhyThisSong item={props.currentItem} /> : null}
       </div>
 
-      <div className="queue-panel">
-        <div className="queue-controls">
-          <label>
-            Length
-            <input
-              type="number"
-              min={1}
-              max={1000}
-              value={props.playlistLength}
-              onChange={(event) => props.onLengthChange(Number(event.target.value))}
-            />
-          </label>
-          <label>
-            Seed
-            <input value={props.seed} onChange={(event) => props.onSeedChange(event.target.value)} />
-          </label>
-          <button className="primary" onClick={props.onGenerate} disabled={props.busy}>
-            <RefreshCw size={18} />
-            Generate
+      <div className="player-center">
+        <div className="player-controls">
+          <button className="icon-button ghost" title="Previous" onClick={player.previous} disabled={!item}>
+            <SkipBack size={18} />
+          </button>
+          <button className="play-button" title={player.isPlaying ? "Pause" : "Play"} onClick={player.togglePlay} disabled={!item}>
+            {player.isPlaying ? <Pause size={20} /> : <Play size={20} />}
+          </button>
+          <button className="icon-button ghost" title="Next" onClick={player.next} disabled={!item}>
+            <SkipForward size={18} />
           </button>
         </div>
-        <ol className="queue-list">
-          {props.queue.items.map((item, index) => (
-            <li
-              key={`${item.position}-${item.track.id}`}
-              className={index === props.currentIndex ? "selected" : ""}
-            >
-              <button onClick={() => props.onSelectIndex(index)}>
-                <span>{item.track.title}</span>
-                <small>{displayArtist(item.track)}</small>
-                <b>{item.score.toFixed(4)}</b>
-              </button>
-            </li>
-          ))}
-        </ol>
+        <div className="scrubber">
+          <span>{formatTime(player.currentTime)}</span>
+          <Seekbar value={progress} onSeek={(ratio) => player.seek(ratio * (player.duration || 0))} disabled={!item} />
+          <span>{formatTime(player.duration)}</span>
+        </div>
       </div>
+
+      <div className="player-right">
+        {player.runId ? (
+          <a className="icon-button ghost" title="Export .m3u8" href={`/playlist-runs/${player.runId}/m3u8`}>
+            <Download size={18} />
+          </a>
+        ) : null}
+        <button className="icon-button ghost" title={player.muted ? "Unmute" : "Mute"} onClick={player.toggleMute} disabled={!item}>
+          {player.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </button>
+        <Seekbar
+          className="volume"
+          value={player.muted ? 0 : player.volume}
+          onSeek={(ratio) => player.setVolume(ratio)}
+          disabled={!item}
+        />
+      </div>
+    </footer>
+  );
+}
+
+function Seekbar(props: {
+  value: number;
+  onSeek: (ratio: number) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const clamped = Math.min(Math.max(props.value, 0), 1);
+  function handle(event: React.MouseEvent<HTMLDivElement>) {
+    if (props.disabled) {
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientX - rect.left) / rect.width;
+    props.onSeek(Math.min(Math.max(ratio, 0), 1));
+  }
+  return (
+    <div
+      className={`seekbar ${props.className ?? ""} ${props.disabled ? "disabled" : ""}`}
+      onClick={handle}
+      role="slider"
+      aria-valuenow={Math.round(clamped * 100)}
+    >
+      <div className="seekbar-track">
+        <div className="seekbar-fill" style={{ width: `${clamped * 100}%` }}>
+          <span className="seekbar-thumb" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Queue view
+// ---------------------------------------------------------------------------
+
+function QueueView(props: {
+  player: PlayerApi;
+  busy: boolean;
+  defaultLength: number;
+  savedRuns: RunSummary[] | null;
+  onGenerate: (length: number, seed: string) => void;
+  onLoadRun: (id: number) => void;
+  onRefreshSaved: () => void;
+}) {
+  const { player } = props;
+  const [length, setLength] = useState(props.defaultLength);
+  const [seed, setSeed] = useState("");
+  const item = player.currentItem;
+
+  useEffect(() => setLength(props.defaultLength), [props.defaultLength]);
+
+  return (
+    <section className="queue-view">
+      <div className="now-column">
+        <div className="now-card">
+          <div className="now-art" style={artStyle(item?.track.id ?? 0)}>
+            {item?.track.assets.some((asset) => asset.asset_type === "video") ? (
+              <Video size={42} />
+            ) : (
+              <ListMusic size={42} />
+            )}
+          </div>
+          <div className="now-info">
+            <p className="now-eyebrow">
+              {item ? `Now playing · ${player.index + 1} of ${player.queue.length}` : "Nothing queued"}
+            </p>
+            <h3>{item?.track.title ?? "Generate a queue"}</h3>
+            <span>{item ? displayArtist(item.track) : "Harmonica builds a fresh listening session for you."}</span>
+            {item ? <ChipRow groups={item.track.groups} subGroup={item.track.sub_group} /> : null}
+          </div>
+        </div>
+
+        {item ? <WhyThisSong item={item} /> : null}
+
+        <div className="generate-card">
+          <h4>Build a session</h4>
+          <div className="generate-row">
+            <label>
+              Length
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={length}
+                onChange={(event) => setLength(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Seed <span className="hint">optional</span>
+              <input value={seed} placeholder="reproducible" onChange={(event) => setSeed(event.target.value)} />
+            </label>
+            <button className="primary" disabled={props.busy} onClick={() => props.onGenerate(length, seed)}>
+              <RefreshCw size={16} />
+              Generate
+            </button>
+          </div>
+          <SavedRuns runs={props.savedRuns} onLoad={props.onLoadRun} onRefresh={props.onRefreshSaved} />
+        </div>
+      </div>
+
+      <QueuePanel player={player} />
     </section>
   );
 }
 
-function WhyThisSong(props: { item: QueueItem }) {
-  const explanation = props.item.explanation;
-  const groupContributions = Array.isArray(explanation.group_contributions)
-    ? explanation.group_contributions
-    : [];
-  return (
-    <div className="why-panel">
-      <h4>Why this song</h4>
-      <div className="why-metrics">
-        <span>Score {formatMetric(explanation.score)}</span>
-        <span>Rating {formatMetric(explanation.rating_multiplier)}x</span>
-        <span>History {formatMetric(explanation.history_multiplier)}x</span>
-        <span>Startup {formatMetric(explanation.cold_start_multiplier)}x</span>
-        <span>Visual {formatMetric(explanation.visual_multiplier)}x</span>
+function QueuePanel(props: { player: PlayerApi }) {
+  const { player } = props;
+  if (player.queue.length === 0) {
+    return (
+      <div className="queue-panel empty-queue">
+        <ListMusic size={34} />
+        <p>Your queue is empty</p>
+        <small>Generate a session and it will appear here, ready to reorder, trim, and play.</small>
       </div>
-      {groupContributions.length ? (
-        <ul>
-          {groupContributions.slice(0, 3).map((group, index) => (
-            <li key={`${String((group as { name?: string }).name)}-${index}`}>
-              <span>{String((group as { name?: string }).name ?? "Group")}</span>
-              <b>{formatMetric((group as { contribution?: number }).contribution)}</b>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+    );
+  }
+  return (
+    <div className="queue-panel">
+      <div className="queue-head">
+        <h4>Up next</h4>
+        <span>{player.queue.length - player.index - 1} remaining</span>
+      </div>
+      <ol className="queue-list">
+        {player.queue.map((entry, i) => (
+          <QueueRow
+            key={`${entry.position}-${entry.track.id}`}
+            item={entry}
+            isCurrent={i === player.index}
+            isPast={i < player.index}
+            onPlay={() => player.playAt(i)}
+            onRemove={() => player.removeAt(i)}
+            onUp={i > 0 ? () => player.moveItem(i, i - 1) : undefined}
+            onDown={i < player.queue.length - 1 ? () => player.moveItem(i, i + 1) : undefined}
+            isPlaying={i === player.index && player.isPlaying}
+          />
+        ))}
+      </ol>
     </div>
   );
 }
 
+function QueueRow(props: {
+  item: QueueItem;
+  isCurrent: boolean;
+  isPast: boolean;
+  isPlaying: boolean;
+  onPlay: () => void;
+  onRemove: () => void;
+  onUp?: () => void;
+  onDown?: () => void;
+}) {
+  const { item } = props;
+  return (
+    <li className={`queue-row ${props.isCurrent ? "current" : ""} ${props.isPast ? "past" : ""}`}>
+      <button className="queue-play" onClick={props.onPlay} title="Play">
+        <span className="queue-art" style={artStyle(item.track.id)}>
+          {props.isCurrent && props.isPlaying ? <Pause size={14} /> : <Play size={14} />}
+        </span>
+        <span className="queue-text">
+          <strong>{item.track.title}</strong>
+          <small>{displayArtist(item.track) || "—"}</small>
+        </span>
+      </button>
+      <div className="queue-tags">
+        {item.track.assets.some((asset) => asset.asset_type === "video") ? (
+          <span className="tag video" title="Has video">
+            <Video size={12} />
+          </span>
+        ) : null}
+        {item.track.sub_group ? <span className="tag variant" title={`Variant family: ${item.track.sub_group}`}>var</span> : null}
+      </div>
+      <div className="queue-actions">
+        <button className="mini" title="Move up" onClick={props.onUp} disabled={!props.onUp}>
+          ▲
+        </button>
+        <button className="mini" title="Move down" onClick={props.onDown} disabled={!props.onDown}>
+          ▼
+        </button>
+        <button className="mini danger" title="Remove" onClick={props.onRemove}>
+          <X size={13} />
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function WhyThisSong(props: { item: QueueItem }) {
+  const reasons = whyReasons(props.item);
+  return (
+    <div className="why-card">
+      <h4>
+        <Sparkles size={15} /> Why this song
+      </h4>
+      <ul>
+        {reasons.map((reason, index) => (
+          <li key={index} className={`why-${reason.tone}`}>
+            <WhyIcon reason={reason} />
+            <span>{reason.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function WhyIcon(props: { reason: WhyReason }) {
+  switch (props.reason.icon) {
+    case "star":
+      return <Star size={14} />;
+    case "spark":
+      return <Sparkles size={14} />;
+    case "video":
+      return <Video size={14} />;
+    case "history":
+      return <Clock size={14} />;
+    case "variant":
+      return <ListMusic size={14} />;
+    case "cooldown":
+      return <Clock size={14} />;
+    default:
+      return <LibraryIcon size={14} />;
+  }
+}
+
+function SavedRuns(props: { runs: RunSummary[] | null; onLoad: (id: number) => void; onRefresh: () => void }) {
+  if (props.runs === null) {
+    return null;
+  }
+  if (props.runs.length === 0) {
+    return <p className="saved-empty">Saved sessions will show up here once you generate a few.</p>;
+  }
+  return (
+    <div className="saved-runs">
+      <div className="saved-head">
+        <h5>Saved sessions</h5>
+        <button className="link" onClick={props.onRefresh}>
+          Refresh
+        </button>
+      </div>
+      <ul>
+        {props.runs.slice(0, 6).map((run) => (
+          <li key={run.id}>
+            <button onClick={() => props.onLoad(run.id)}>
+              <strong>{run.name || `Session #${run.id}`}</strong>
+              <small>
+                {run.item_count} tracks · {run.preview_titles.slice(0, 2).join(", ") || "—"}
+              </small>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ChipRow(props: { groups: TrackGroup[]; subGroup?: string | null }) {
+  return (
+    <div className="chip-row">
+      {props.groups.slice(0, 4).map((group) => (
+        <span key={group.id} className={`chip type-${group.group_type}`}>
+          {group.name}
+        </span>
+      ))}
+      {props.subGroup ? <span className="chip variant">↺ {props.subGroup}</span> : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Library view
+// ---------------------------------------------------------------------------
+
+type Facet = { key: string; label: string; type: string; count: number };
+
 function LibraryView(props: {
   tracks: Track[];
-  scanPath: string;
-  search: string;
-  selectedTrack: Track | null;
   ratingFactors: RatingFactor[];
   busy: boolean;
-  onScanPathChange: (value: string) => void;
-  onSearchChange: (value: string) => void;
-  onScan: () => void;
-  onSelectTrack: (track: Track) => void;
-  onSave: (track: Track) => void;
-  onCloseEditor: () => void;
+  onSave: (track: Track) => Promise<Track>;
+  onRescan: () => void;
 }) {
+  const [search, setSearch] = useState("");
+  const [facet, setFacet] = useState<string>("all");
+  const [selected, setSelected] = useState<Track | null>(null);
+  const [scanPath, setScanPath] = useState("");
+  const [scanning, setScanning] = useState(false);
+
+  const facets = useMemo(() => buildFacets(props.tracks), [props.tracks]);
+
   const filtered = useMemo(() => {
-    const needle = props.search.trim().toLowerCase();
-    if (!needle) {
-      return props.tracks;
-    }
-    return props.tracks.filter((track) =>
-      [track.title, track.artist, track.album, track.song_id]
+    const needle = search.trim().toLowerCase();
+    return props.tracks.filter((track) => {
+      if (facet !== "all") {
+        const [type, name] = facet.split("::");
+        if (type === "variant") {
+          if (track.sub_group !== name) {
+            return false;
+          }
+        } else if (!track.groups.some((group) => group.group_type === type && group.name === name)) {
+          return false;
+        }
+      }
+      if (!needle) {
+        return true;
+      }
+      return [track.title, track.artist, track.album, track.sub_group, ...track.groups.map((g) => g.name)]
         .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(needle))
-    );
-  }, [props.search, props.tracks]);
+        .some((value) => value!.toLowerCase().includes(needle));
+    });
+  }, [props.tracks, search, facet]);
+
+  async function scan() {
+    if (!scanPath.trim()) {
+      return;
+    }
+    setScanning(true);
+    try {
+      await api.scan(scanPath.trim());
+      props.onRescan();
+    } finally {
+      setScanning(false);
+    }
+  }
 
   return (
-    <section className="library-layout">
-      <div className="library-list">
-        <div className="toolbar">
-          <label className="scan-input">
-            <span>Folder</span>
-            <input
-              value={props.scanPath}
-              onChange={(event) => props.onScanPathChange(event.target.value)}
-              placeholder="/Music"
-            />
-          </label>
-          <button className="primary" disabled={props.busy} onClick={props.onScan}>
-            <RefreshCw size={18} />
-            Scan
-          </button>
+    <section className="library-view">
+      <aside className="facet-rail">
+        <button className={facet === "all" ? "facet active" : "facet"} onClick={() => setFacet("all")}>
+          All tracks <b>{props.tracks.length}</b>
+        </button>
+        <FacetGroup title="Sources" facets={facets.source} active={facet} onPick={setFacet} />
+        <FacetGroup title="Artists" facets={facets.artist} active={facet} onPick={setFacet} />
+        <FacetGroup title="Themes" facets={facets.theme} active={facet} onPick={setFacet} />
+        <FacetGroup title="Variant families" facets={facets.variant} active={facet} onPick={setFacet} />
+      </aside>
+
+      <div className="library-main">
+        <div className="library-toolbar">
           <label className="search-box">
-            <Search size={18} />
-            <input
-              value={props.search}
-              onChange={(event) => props.onSearchChange(event.target.value)}
-              placeholder="Search"
-            />
+            <Search size={16} />
+            <input value={search} placeholder="Search title, artist, group…" onChange={(e) => setSearch(e.target.value)} />
           </label>
+          <div className="scan-box">
+            <input value={scanPath} placeholder="Scan a folder…" onChange={(e) => setScanPath(e.target.value)} />
+            <button className="primary" disabled={scanning} onClick={() => void scan()}>
+              <Plus size={16} /> Scan
+            </button>
+          </div>
         </div>
 
-        <div className="track-table" role="table">
-          <div className="track-row header" role="row">
-            <span>Title</span>
-            <span>Artist</span>
-            <span>Groups</span>
-            <span>Assets</span>
-          </div>
-          {filtered.map((track) => (
-            <button
-              className="track-row"
-              role="row"
-              key={track.id}
-              onClick={() => props.onSelectTrack(track)}
-            >
-              <span>{track.title}</span>
-              <span>{track.artist ?? ""}</span>
-              <span>{track.groups.map((group) => group.name).join(", ")}</span>
-              <span>{track.assets.length}</span>
-            </button>
-          ))}
+        <div className="track-list">
+          {filtered.length === 0 ? (
+            <div className="track-empty">No tracks match this view.</div>
+          ) : (
+            filtered.map((track) => (
+              <button
+                key={track.id}
+                className={`track-card ${selected?.id === track.id ? "active" : ""}`}
+                onClick={() => setSelected(track)}
+              >
+                <span className="track-art" style={artStyle(track.id)}>
+                  {track.assets.some((asset) => asset.asset_type === "video") ? <Video size={16} /> : <ListMusic size={16} />}
+                </span>
+                <span className="track-main">
+                  <strong>{track.title}</strong>
+                  <small>{displayArtist(track) || "—"}</small>
+                </span>
+                <span className="track-groups">
+                  {track.groups.slice(0, 3).map((group) => (
+                    <span key={group.id} className={`chip type-${group.group_type}`}>
+                      {group.name}
+                    </span>
+                  ))}
+                  {track.sub_group ? <span className="chip variant">↺</span> : null}
+                </span>
+                <MiniRating value={track.ratings.overall ?? null} />
+              </button>
+            ))
+          )}
         </div>
       </div>
 
-      {props.selectedTrack ? (
+      {selected ? (
         <TrackEditor
-          track={props.selectedTrack}
+          key={selected.id}
+          track={selected}
           factors={props.ratingFactors}
-          onSave={props.onSave}
-          onClose={props.onCloseEditor}
+          busy={props.busy}
+          onSave={async (draft) => setSelected(await props.onSave(draft))}
+          onClose={() => setSelected(null)}
         />
       ) : (
         <div className="editor-empty">
-          <SlidersHorizontal size={34} />
+          <Star size={30} />
+          <p>Select a track to edit details and ratings.</p>
         </div>
       )}
     </section>
   );
 }
 
+function FacetGroup(props: { title: string; facets: Facet[]; active: string; onPick: (key: string) => void }) {
+  if (props.facets.length === 0) {
+    return null;
+  }
+  return (
+    <div className="facet-group">
+      <h5>{props.title}</h5>
+      {props.facets.map((entry) => (
+        <button
+          key={entry.key}
+          className={props.active === entry.key ? "facet active" : "facet"}
+          onClick={() => props.onPick(entry.key)}
+        >
+          {entry.label} <b>{entry.count}</b>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MiniRating(props: { value: number | null }) {
+  if (props.value == null) {
+    return <span className="mini-rating unrated">Unrated</span>;
+  }
+  return (
+    <span className="mini-rating" title={`Overall ${props.value}/5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star key={n} size={12} fill={n <= props.value! ? "currentColor" : "none"} />
+      ))}
+    </span>
+  );
+}
+
 function TrackEditor(props: {
   track: Track;
   factors: RatingFactor[];
+  busy: boolean;
   onSave: (track: Track) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<Track>(props.track);
-
-  useEffect(() => {
-    setDraft(props.track);
-  }, [props.track]);
+  useEffect(() => setDraft(props.track), [props.track]);
 
   function update<K extends keyof Track>(key: K, value: Track[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  function updateGroups(value: string) {
-    const groups: TrackGroup[] = value
-      .split(";")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((name) => ({ id: 0, name, group_type: "other", share: null }));
-    update("groups", groups);
-  }
-
-  function updateTags(value: string) {
-    update(
-      "cooldown_tags",
-      value
-        .split(";")
-        .map((part) => part.trim())
-        .filter(Boolean)
-    );
-  }
+  const applicable = useMemo(
+    () => props.factors.filter((factor) => isFactorApplicable(factor, draft)),
+    [props.factors, draft]
+  );
 
   return (
     <aside className="track-editor">
       <div className="editor-header">
-        <h3>{draft.title}</h3>
-        <button className="icon-button" title="Close" onClick={props.onClose}>
+        <div>
+          <h3>{draft.title}</h3>
+          <small>{displayArtist(draft) || "Unknown artist"}</small>
+        </div>
+        <button className="icon-button ghost" title="Close" onClick={props.onClose}>
           <X size={18} />
         </button>
       </div>
-      <div className="editor-grid">
-        <label>
-          Title
-          <input value={draft.title} onChange={(event) => update("title", event.target.value)} />
-        </label>
-        <label>
-          Artist
-          <input value={draft.artist ?? ""} onChange={(event) => update("artist", event.target.value)} />
-        </label>
-        <label>
-          Album
-          <input value={draft.album ?? ""} onChange={(event) => update("album", event.target.value)} />
-        </label>
-        <label>
-          Subgroup
-          <input
-            value={draft.sub_group ?? ""}
-            onChange={(event) => update("sub_group", event.target.value || null)}
-          />
-        </label>
-        <label>
-          Multiplier
-          <input
-            type="number"
-            step="0.05"
-            value={draft.manual_multiplier}
-            onChange={(event) => update("manual_multiplier", Number(event.target.value))}
-          />
-        </label>
-        <label className="check-line">
-          <input
-            type="checkbox"
-            checked={draft.has_lyrics}
-            onChange={(event) => update("has_lyrics", event.target.checked)}
-          />
-          Lyrics
-        </label>
-        <label className="wide">
-          Groups
-          <input
-            value={draft.groups.map((group) => group.name).join("; ")}
-            onChange={(event) => updateGroups(event.target.value)}
-          />
-        </label>
-        <label className="wide">
-          Cooldown tags
-          <input
-            value={draft.cooldown_tags.join("; ")}
-            onChange={(event) => updateTags(event.target.value)}
-          />
-        </label>
+
+      <div className="editor-section">
+        <h5>Ratings</h5>
+        <div className="rating-grid">
+          {applicable.map((factor) => (
+            <StarRating
+              key={factor.key}
+              label={factor.label}
+              value={draft.ratings[factor.key] ?? null}
+              onChange={(value) =>
+                setDraft((current) => ({ ...current, ratings: { ...current.ratings, [factor.key]: value } }))
+              }
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="rating-grid">
-        {props.factors.map((factor) => (
-          <StarRating
-            key={factor.key}
-            label={factor.label}
-            value={draft.ratings[factor.key] ?? null}
-            onChange={(value) =>
-              setDraft((current) => ({
-                ...current,
-                ratings: { ...current.ratings, [factor.key]: value }
-              }))
-            }
-          />
-        ))}
+      <div className="editor-section">
+        <h5>Details</h5>
+        <div className="editor-grid">
+          <label>
+            Title
+            <input value={draft.title} onChange={(e) => update("title", e.target.value)} />
+          </label>
+          <label>
+            Artist
+            <input value={draft.artist ?? ""} onChange={(e) => update("artist", e.target.value)} />
+          </label>
+          <label>
+            Album
+            <input value={draft.album ?? ""} onChange={(e) => update("album", e.target.value)} />
+          </label>
+          <label>
+            Variant family
+            <input
+              value={draft.sub_group ?? ""}
+              placeholder="e.g. dubs of one song"
+              onChange={(e) => update("sub_group", e.target.value || null)}
+            />
+          </label>
+          <label className="check-line">
+            <input type="checkbox" checked={draft.has_lyrics} onChange={(e) => update("has_lyrics", e.target.checked)} />
+            Has lyrics
+          </label>
+          <label>
+            Manual weight
+            <input
+              type="number"
+              step="0.05"
+              value={draft.manual_multiplier}
+              onChange={(e) => update("manual_multiplier", Number(e.target.value))}
+            />
+          </label>
+          <label className="wide">
+            Groups <span className="hint">semicolon separated</span>
+            <input
+              value={draft.groups.map((group) => group.name).join("; ")}
+              onChange={(e) => update("groups", parseGroups(e.target.value, draft.groups))}
+            />
+          </label>
+        </div>
       </div>
 
-      <div className="asset-list">
-        {draft.assets.map((asset) => (
-          <div key={asset.id}>
-            <span>{asset.asset_type}</span>
-            <small>{asset.container ?? asset.codec ?? "file"}</small>
-            <code>{asset.file_path}</code>
-          </div>
-        ))}
+      <div className="editor-section">
+        <h5>Media</h5>
+        <div className="asset-list">
+          {draft.assets.map((asset) => (
+            <div key={asset.id} className="asset-row">
+              <span className={`asset-type ${asset.asset_type}`}>{asset.asset_type}</span>
+              <code>{asset.container ?? asset.codec ?? "file"}</code>
+              {asset.is_lossless ? <span className="tag">lossless</span> : null}
+            </div>
+          ))}
+          {draft.assets.length === 0 ? <small>No media files linked.</small> : null}
+        </div>
       </div>
 
-      <button className="primary save-button" onClick={() => props.onSave(draft)}>
-        <Save size={18} />
-        Save
+      <button className="primary save-button" disabled={props.busy} onClick={() => props.onSave(draft)}>
+        <Save size={16} /> Save changes
       </button>
     </aside>
   );
 }
 
-function StarRating(props: {
-  label: string;
-  value: number | null;
-  onChange: (value: number | null) => void;
-}) {
+function StarRating(props: { label: string; value: number | null; onChange: (value: number | null) => void }) {
   return (
     <div className="star-rating">
       <span>{props.label}</span>
       <div>
-        {[0, 1, 2, 3, 4, 5].map((value) => (
+        {[1, 2, 3, 4, 5].map((value) => (
           <button
             key={value}
-            className={props.value === value ? "active" : ""}
+            className={props.value != null && value <= props.value ? "active" : ""}
             title={`${props.label}: ${value}`}
             onClick={() => props.onChange(props.value === value ? null : value)}
           >
-            {value === 0 ? <X size={14} /> : <Star size={14} fill="currentColor" />}
+            <Star size={15} fill={props.value != null && value <= props.value ? "currentColor" : "none"} />
           </button>
         ))}
+        <button className="clear" title="Clear" onClick={() => props.onChange(null)}>
+          <X size={12} />
+        </button>
       </div>
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Stats view
+// ---------------------------------------------------------------------------
+
+function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: PlaybackEvent[] }) {
+  const { stats } = props;
+  const playedIds = useMemo(
+    () => new Set(props.events.filter((e) => e.event_type !== "paused").map((e) => e.track_id)),
+    [props.events]
+  );
+  const decided = stats.completed_count + stats.skipped_count;
+  const completionRate = decided > 0 ? pct(stats.completed_count, decided) : 0;
+  const topGroups = useMemo(() => topGroupsByCount(props.tracks), [props.tracks]);
+  const mostPlayed = useMemo(() => mostPlayedTracks(props.events, props.tracks), [props.events, props.tracks]);
+
+  return (
+    <section className="stats-view">
+      <div className="stat-cards">
+        <StatCard label="Library" value={stats.track_count} hint="tracks" />
+        <StatCard label="Coverage" value={`${pct(stats.rated_track_count, stats.track_count)}%`} hint={`${stats.rated_track_count} rated`} />
+        <StatCard label="Heard at least once" value={`${pct(playedIds.size, stats.track_count)}%`} hint={`${playedIds.size} tracks`} />
+        <StatCard label="Visual tracks" value={stats.video_track_count} hint="with video" />
+        <StatCard label="Groups" value={stats.group_count} hint="weight groups" />
+        <StatCard label="Completion rate" value={`${completionRate}%`} hint={`${stats.completed_count} finished`} />
+      </div>
+
+      <div className="stat-panels">
+        <div className="stat-panel">
+          <h4>Listening coverage</h4>
+          <CoverageBar label="Rated" value={stats.rated_track_count} total={stats.track_count} tone="boost" />
+          <CoverageBar label="Heard" value={playedIds.size} total={stats.track_count} tone="neutral" />
+          <CoverageBar label="Still unrated" value={stats.unrated_track_count} total={stats.track_count} tone="suppress" />
+          <p className="stat-note">
+            Cold-start keeps surfacing unrated tracks until every song has had a fair chance — coverage should
+            climb steadily before anything repeats heavily.
+          </p>
+        </div>
+
+        <div className="stat-panel">
+          <h4>How sessions go</h4>
+          <CoverageBar label="Completed" value={stats.completed_count} total={Math.max(decided, 1)} tone="boost" />
+          <CoverageBar label="Skipped" value={stats.skipped_count} total={Math.max(decided, 1)} tone="suppress" />
+          <div className="skip-split">
+            <span>Early skips <b>{stats.early_skip_count}</b></span>
+            <span>Partial skips <b>{stats.partial_skip_count}</b></span>
+          </div>
+          <p className="stat-note">
+            Early skips (under 10% heard) count as a negative signal; partial skips count as half a listen.
+          </p>
+        </div>
+
+        <div className="stat-panel">
+          <h4>Biggest groups</h4>
+          <BarList rows={topGroups} />
+        </div>
+
+        <div className="stat-panel">
+          <h4>Most played</h4>
+          {mostPlayed.length === 0 ? (
+            <p className="stat-note">Nothing played yet — generate a queue and press play.</p>
+          ) : (
+            <BarList rows={mostPlayed} />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StatCard(props: { label: string; value: number | string; hint: string }) {
+  return (
+    <div className="stat-card">
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+      <small>{props.hint}</small>
+    </div>
+  );
+}
+
+function CoverageBar(props: { label: string; value: number; total: number; tone: WhyReason["tone"] }) {
+  const ratio = props.total > 0 ? props.value / props.total : 0;
+  return (
+    <div className="coverage-bar">
+      <div className="coverage-label">
+        <span>{props.label}</span>
+        <b>{props.value}</b>
+      </div>
+      <div className="coverage-track">
+        <div className={`coverage-fill tone-${props.tone}`} style={{ width: `${Math.min(ratio * 100, 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function BarList(props: { rows: { label: string; value: number }[] }) {
+  const max = Math.max(...props.rows.map((row) => row.value), 1);
+  return (
+    <div className="bar-list">
+      {props.rows.map((row) => (
+        <div key={row.label} className="bar-row">
+          <span className="bar-label" title={row.label}>
+            {row.label}
+          </span>
+          <div className="bar-track">
+            <div className="bar-fill" style={{ width: `${(row.value / max) * 100}%` }} />
+          </div>
+          <b>{row.value}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Settings view
+// ---------------------------------------------------------------------------
 
 function SettingsView(props: {
   settings: AppSettings;
@@ -726,83 +1004,48 @@ function SettingsView(props: {
   busy: boolean;
   onSave: (values: Record<string, number | boolean>) => void;
 }) {
-  const [draft, setDraft] = useState<Record<string, number | boolean>>(() =>
-    settingsToDraft(props.settings)
+  const [draft, setDraft] = useState<Record<string, number | boolean>>(() => settingsToDraft(props.settings));
+  useEffect(() => setDraft(settingsToDraft(props.settings)), [props.settings]);
+
+  const dirty = useMemo(
+    () => props.settings.controls.some((control) => draft[control.key] !== props.settings[control.key]),
+    [draft, props.settings]
   );
 
-  useEffect(() => {
-    setDraft(settingsToDraft(props.settings));
-  }, [props.settings]);
-
-  function updateControl(control: SettingControl, value: number | boolean) {
-    setDraft((current) => ({ ...current, [control.key]: value }));
-  }
-
   return (
-    <section className="settings-layout">
+    <section className="settings-view">
       <div className="settings-controls">
         {props.settings.controls.map((control) => (
           <SettingControlRow
             key={control.key}
             control={control}
             value={draft[control.key]}
-            onChange={(value) => updateControl(control, value)}
+            onChange={(value) => setDraft((current) => ({ ...current, [control.key]: value }))}
           />
         ))}
-        <button className="primary save-button" disabled={props.busy} onClick={() => props.onSave(draft)}>
-          <Save size={18} />
-          Save settings
-        </button>
       </div>
       <div className="settings-side">
         <div className="settings-note">
-          <h3>Local daemon</h3>
-          <p>{props.settings.home}</p>
-          <small>
-            Settings are stored locally and used by the queue generator. Existing generated queues
-            keep the settings snapshot they were created with.
-          </small>
+          <h4>How settings apply</h4>
+          <p>
+            Changes affect the next queue you generate. Existing sessions keep the snapshot they were built with,
+            so tweaking won't disturb what you're hearing now.
+          </p>
         </div>
-        <div className="factor-list">
+        <div className="factor-card">
+          <h5>Rating factors</h5>
           {props.ratingFactors.map((factor) => (
-            <div key={factor.key}>
+            <div key={factor.key} className="factor-row">
               <span>{factor.label}</span>
-              <small>{factor.weight.toFixed(2)}</small>
+              <small>{factor.applies_to_variants_only ? "variants" : factor.applies_to_lyrics ? "all" : "instrumental"}</small>
             </div>
           ))}
         </div>
+        <button className="primary save-button" disabled={props.busy || !dirty} onClick={() => props.onSave(draft)}>
+          <Save size={16} /> {dirty ? "Save settings" : "Saved"}
+        </button>
       </div>
     </section>
-  );
-}
-
-function StatsView(props: { stats: StatsSummary }) {
-  const coverage =
-    props.stats.track_count > 0
-      ? Math.round((props.stats.rated_track_count / props.stats.track_count) * 100)
-      : 0;
-  return (
-    <section className="stats-layout">
-      <Metric label="Tracks" value={props.stats.track_count} />
-      <Metric label="Rated" value={`${props.stats.rated_track_count} (${coverage}%)`} />
-      <Metric label="Unrated" value={props.stats.unrated_track_count} />
-      <Metric label="Visual tracks" value={props.stats.video_track_count} />
-      <Metric label="Groups" value={props.stats.group_count} />
-      <Metric label="Playback events" value={props.stats.playback_event_count} />
-      <Metric label="Completed" value={props.stats.completed_count} />
-      <Metric label="Skipped" value={props.stats.skipped_count} />
-      <Metric label="Early skips" value={props.stats.early_skip_count} />
-      <Metric label="Partial skips" value={props.stats.partial_skip_count} />
-    </section>
-  );
-}
-
-function Metric(props: { label: string; value: number | string }) {
-  return (
-    <div className="metric-tile">
-      <span>{props.label}</span>
-      <strong>{props.value}</strong>
-    </div>
   );
 }
 
@@ -811,9 +1054,8 @@ function SettingControlRow(props: {
   value: number | boolean;
   onChange: (value: number | boolean) => void;
 }) {
-  const control = props.control;
+  const { control } = props;
   const numberValue = typeof props.value === "number" ? props.value : Number(control.default);
-
   return (
     <div className="setting-control">
       <div className="setting-copy">
@@ -849,19 +1091,103 @@ function SettingControlRow(props: {
   );
 }
 
-function settingsToDraft(settings: AppSettings): Record<string, number | boolean> {
-  return Object.fromEntries(
-    settings.controls.map((control) => [control.key, settings[control.key]])
-  ) as Record<string, number | boolean>;
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-function formatMetric(value: unknown): string {
-  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(3) : "1.000";
-}
-
-function displayArtist(track?: Track | null) {
-  if (!track) {
-    return "";
+function buildFacets(tracks: Track[]): Record<"source" | "artist" | "theme" | "variant", Facet[]> {
+  const counters: Record<string, Map<string, number>> = {
+    source: new Map(),
+    artist: new Map(),
+    theme: new Map(),
+    variant: new Map()
+  };
+  for (const track of tracks) {
+    for (const group of track.groups) {
+      const bucket = counters[group.group_type as keyof typeof counters] ?? counters.theme;
+      bucket.set(group.name, (bucket.get(group.name) ?? 0) + 1);
+    }
+    if (track.sub_group) {
+      counters.variant.set(track.sub_group, (counters.variant.get(track.sub_group) ?? 0) + 1);
+    }
   }
-  return [track.artist, track.album].filter(Boolean).join(" · ");
+  const toFacets = (type: string, map: Map<string, number>): Facet[] =>
+    [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ key: `${type}::${name}`, label: name, type, count }));
+  return {
+    source: toFacets("source", counters.source),
+    artist: toFacets("artist", counters.artist),
+    theme: toFacets("theme", counters.theme),
+    variant: toFacets("variant", counters.variant)
+  };
+}
+
+function topGroupsByCount(tracks: Track[]): { label: string; value: number }[] {
+  const counts = new Map<string, number>();
+  for (const track of tracks) {
+    for (const group of track.groups) {
+      counts.set(group.name, (counts.get(group.name) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
+}
+
+function mostPlayedTracks(events: PlaybackEvent[], tracks: Track[]): { label: string; value: number }[] {
+  const titleById = new Map(tracks.map((track) => [track.id, track.title]));
+  const counts = new Map<number, number>();
+  for (const event of events) {
+    if (event.event_type === "completed" || event.event_type === "started") {
+      counts.set(event.track_id, (counts.get(event.track_id) ?? 0) + (event.event_type === "completed" ? 1 : 0));
+    }
+  }
+  return [...counts.entries()]
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([id, value]) => ({ label: titleById.get(id) ?? `Track ${id}`, value }));
+}
+
+function isFactorApplicable(factor: RatingFactor, track: Track): boolean {
+  if (factor.applies_to_variants_only && !track.sub_group) {
+    return false;
+  }
+  if (track.has_lyrics && !factor.applies_to_lyrics) {
+    return false;
+  }
+  if (!track.has_lyrics && !factor.applies_to_instrumental) {
+    return false;
+  }
+  return true;
+}
+
+function parseGroups(value: string, existing: TrackGroup[]): TrackGroup[] {
+  const byName = new Map(existing.map((group) => [group.name, group]));
+  return value
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((name) => byName.get(name) ?? { id: 0, name, group_type: "theme", share: null });
+}
+
+function settingsToDraft(settings: AppSettings): Record<string, number | boolean> {
+  return Object.fromEntries(settings.controls.map((control) => [control.key, settings[control.key]])) as Record<
+    string,
+    number | boolean
+  >;
+}
+
+function artStyle(seed: number): React.CSSProperties {
+  const hue = (seed * 47) % 360;
+  const hue2 = (hue + 38) % 360;
+  return {
+    background: `linear-gradient(135deg, hsl(${hue} 42% 32%), hsl(${hue2} 38% 22%))`
+  };
+}
+
+function message(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
 }
