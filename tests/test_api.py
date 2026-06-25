@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from harmonica.api import create_app
 from harmonica.db import SessionLocal
-from harmonica.models import PlaylistItem, PlaylistRun, Track
+from harmonica.models import DeviceConfig, PlaylistItem, PlaylistRun, Track
 
 
 def test_api_smoke() -> None:
@@ -153,3 +153,55 @@ def get_or_create_track(session, song_id: str, title: str) -> Track:
         session.add(track)
         session.flush()
     return track
+
+
+def test_device_config_claim_and_scoped_generation() -> None:
+    with TestClient(create_app()) as client:
+        with SessionLocal() as session:
+            track = session.scalar(select(Track).where(Track.song_id == "api_config_test"))
+            if track is None:
+                track = Track(song_id="api_config_test", title="API Config Test")
+                session.add(track)
+                session.commit()
+                session.refresh(track)
+            track_id = track.id
+            # Idempotent across re-runs against a shared dev DB.
+            existing = session.scalar(
+                select(DeviceConfig).where(DeviceConfig.name == "api-config-test")
+            )
+            if existing is not None:
+                session.delete(existing)
+                session.commit()
+
+        created = client.post(
+            "/configs",
+            json={
+                "name": "api-config-test",
+                "passphrase": "green-fox",
+                "settings": {"default_playlist_length": 7},
+                "track_ids": [track_id],
+            },
+        )
+        assert created.status_code == 200
+        config_id = created.json()["id"]
+        assert created.json()["included_track_ids"] == [track_id]
+
+        # Listing exposes names but never secrets.
+        listed = client.get("/configs").json()
+        assert any(c["name"] == "api-config-test" for c in listed)
+        assert all("passphrase" not in c and "passphrase_hash" not in c for c in listed)
+
+        # Wrong passphrase is rejected; correct one returns the detail.
+        wrong = client.post("/configs/claim", json={"name": "api-config-test", "passphrase": "no"})
+        assert wrong.status_code == 401
+        claimed = client.post(
+            "/configs/claim", json={"name": "api-config-test", "passphrase": "green-fox"}
+        )
+        assert claimed.status_code == 200
+        assert claimed.json()["id"] == config_id
+
+        # Generation scoped to the config only draws from its included songs.
+        generated = client.post("/queue/generate", json={"length": 5, "config_id": config_id})
+        assert generated.status_code == 200
+        track_ids = {item["track"]["id"] for item in generated.json()["items"]}
+        assert track_ids <= {track_id}

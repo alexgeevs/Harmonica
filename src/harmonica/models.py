@@ -212,6 +212,40 @@ class AppSetting(Base):
     )
 
 
+class DeviceConfig(Base):
+    """A named, passphrase-protected device profile: a settings snapshot plus the
+    exact set of songs that device should see. Lets a device re-claim its setup by
+    passphrase after its LAN IP rotates. See docs/planning/multi-device-architecture.md."""
+
+    __tablename__ = "device_configs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    passphrase_hash: Mapped[str] = mapped_column(String(255))
+    settings_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, onupdate=now_utc
+    )
+
+    tracks: Mapped[list[DeviceConfigTrack]] = relationship(
+        back_populates="config", cascade="all, delete-orphan"
+    )
+
+
+class DeviceConfigTrack(Base):
+    __tablename__ = "device_config_tracks"
+    __table_args__ = (UniqueConstraint("config_id", "track_id", name="uq_config_track"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    config_id: Mapped[int] = mapped_column(
+        ForeignKey("device_configs.id", ondelete="CASCADE"), index=True
+    )
+    track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+
+    config: Mapped[DeviceConfig] = relationship(back_populates="tracks")
+
+
 class PlaybackEvent(Base):
     __tablename__ = "playback_events"
 

@@ -98,6 +98,7 @@ class QueueGenerateRequest(BaseModel):
     seed: str | None = None
     explain: bool = True
     ui_active: bool = False
+    config_id: int | None = None
 
 
 class QueueItemRead(BaseModel):
@@ -173,6 +174,38 @@ class SettingsRead(BaseModel):
 
 class SettingsUpdate(BaseModel):
     values: dict[str, int | float | bool]
+
+
+class DeviceConfigCreate(BaseModel):
+    name: str
+    passphrase: str
+    settings: dict[str, int | float | bool] = Field(default_factory=dict)
+    track_ids: list[int] = Field(default_factory=list)
+
+
+class DeviceConfigUpdate(BaseModel):
+    passphrase: str
+    settings: dict[str, int | float | bool] | None = None
+    track_ids: list[int] | None = None
+
+
+class DeviceConfigClaim(BaseModel):
+    name: str
+    passphrase: str
+
+
+class DeviceConfigSummary(BaseModel):
+    id: int
+    name: str
+    track_count: int
+    created_at: str
+
+
+class DeviceConfigDetail(BaseModel):
+    id: int
+    name: str
+    settings: dict[str, int | float | bool] = Field(default_factory=dict)
+    included_track_ids: list[int] = Field(default_factory=list)
 
 
 class PlaybackEventCreate(BaseModel):

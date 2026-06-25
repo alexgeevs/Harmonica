@@ -18,6 +18,8 @@ from harmonica.db import SessionLocal, get_session, init_db
 from harmonica.history import playback_event_signal
 from harmonica.models import (
     CooldownTag,
+    DeviceConfig,
+    DeviceConfigTrack,
     GroupMembership,
     MediaAsset,
     PlaybackEvent,
@@ -35,6 +37,11 @@ from harmonica.models import (
 from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
 from harmonica.schemas import (
+    DeviceConfigClaim,
+    DeviceConfigCreate,
+    DeviceConfigDetail,
+    DeviceConfigSummary,
+    DeviceConfigUpdate,
     GroupRead,
     LibraryImportRequest,
     PlaybackEventCreate,
@@ -54,6 +61,7 @@ from harmonica.schemas import (
     TrackRead,
     TrackUpdate,
 )
+from harmonica.security import hash_passphrase, verify_passphrase
 from harmonica.serialization import export_library_payload, import_library_payload
 from harmonica.settings_store import get_effective_settings, settings_payload, update_setting_values
 
@@ -163,6 +171,14 @@ def create_app() -> FastAPI:
     ) -> QueueRunRead:
         ensure_default_rating_factors(session)
         effective_settings = get_effective_settings(session, settings)
+        included_track_ids: set[int] | None = None
+        if payload.config_id is not None:
+            config = session.get(DeviceConfig, payload.config_id)
+            if config is None:
+                raise HTTPException(status_code=404, detail="Config not found")
+            effective_settings = apply_config_settings(effective_settings, config)
+            ids = [link.track_id for link in config.tracks]
+            included_track_ids = set(ids) if ids else None  # empty selection = all songs
         run, _items = generate_and_persist_playlist(
             session,
             effective_settings,
@@ -170,6 +186,7 @@ def create_app() -> FastAPI:
             seed=payload.seed,
             write_debug_log=payload.explain,
             ui_active=payload.ui_active,
+            included_track_ids=included_track_ids,
         )
         return load_run_response(session, run.id)
 
@@ -322,7 +339,90 @@ def create_app() -> FastAPI:
         import_library_payload(session, payload.payload)
         return {"ok": True}
 
+    # --- Device configs (multi-device profiles; see docs/planning/multi-device-architecture.md) ---
+
+    @app.get("/configs", response_model=list[DeviceConfigSummary])
+    def list_configs(session: SessionDep) -> list[DeviceConfigSummary]:
+        configs = session.scalars(select(DeviceConfig).order_by(DeviceConfig.name)).all()
+        return [
+            DeviceConfigSummary(
+                id=config.id,
+                name=config.name,
+                track_count=len(config.tracks),
+                created_at=config.created_at.isoformat(),
+            )
+            for config in configs
+        ]
+
+    @app.post("/configs", response_model=DeviceConfigDetail)
+    def create_config(payload: DeviceConfigCreate, session: SessionDep) -> DeviceConfigDetail:
+        if session.scalar(select(DeviceConfig).where(DeviceConfig.name == payload.name)):
+            raise HTTPException(status_code=409, detail="A config with that name already exists")
+        config = DeviceConfig(
+            name=payload.name,
+            passphrase_hash=hash_passphrase(payload.passphrase),
+            settings_json=json.dumps(payload.settings or {}),
+        )
+        session.add(config)
+        session.flush()
+        set_config_tracks(session, config, payload.track_ids)
+        session.commit()
+        return config_to_detail(session, config.id)
+
+    @app.post("/configs/claim", response_model=DeviceConfigDetail)
+    def claim_config(payload: DeviceConfigClaim, session: SessionDep) -> DeviceConfigDetail:
+        config = session.scalar(select(DeviceConfig).where(DeviceConfig.name == payload.name))
+        if config is None or not verify_passphrase(payload.passphrase, config.passphrase_hash):
+            raise HTTPException(status_code=401, detail="Unknown config name or wrong passphrase")
+        return config_to_detail(session, config.id)
+
+    @app.patch("/configs/{config_id}", response_model=DeviceConfigDetail)
+    def update_config(
+        config_id: int,
+        payload: DeviceConfigUpdate,
+        session: SessionDep,
+    ) -> DeviceConfigDetail:
+        config = session.get(DeviceConfig, config_id)
+        if config is None or not verify_passphrase(payload.passphrase, config.passphrase_hash):
+            raise HTTPException(status_code=401, detail="Config not found or wrong passphrase")
+        if payload.settings is not None:
+            config.settings_json = json.dumps(payload.settings)
+        if payload.track_ids is not None:
+            set_config_tracks(session, config, payload.track_ids)
+        session.commit()
+        return config_to_detail(session, config_id)
+
     return app
+
+
+def set_config_tracks(session: Session, config: DeviceConfig, track_ids: list[int]) -> None:
+    session.execute(delete(DeviceConfigTrack).where(DeviceConfigTrack.config_id == config.id))
+    session.flush()
+    seen: set[int] = set()
+    for track_id in track_ids:
+        if track_id in seen or session.get(Track, track_id) is None:
+            continue
+        seen.add(track_id)
+        session.add(DeviceConfigTrack(config_id=config.id, track_id=track_id))
+
+
+def config_to_detail(session: Session, config_id: int) -> DeviceConfigDetail:
+    config = session.get(DeviceConfig, config_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail="Config not found")
+    return DeviceConfigDetail(
+        id=config.id,
+        name=config.name,
+        settings=json.loads(config.settings_json or "{}"),
+        included_track_ids=[link.track_id for link in config.tracks],
+    )
+
+
+def apply_config_settings(settings: Settings, config: DeviceConfig) -> Settings:
+    raw = json.loads(config.settings_json or "{}")
+    fields = type(settings).model_fields
+    updates = {key: value for key, value in raw.items() if key in fields}
+    return settings.model_copy(update=updates) if updates else settings
 
 
 def track_query():

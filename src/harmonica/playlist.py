@@ -32,6 +32,7 @@ from harmonica.ratings import aggregate_group_rating_multipliers, effective_song
 def load_algorithm_inputs(
     session: Session,
     settings: Settings,
+    included_track_ids: set[int] | None = None,
 ) -> tuple[list[AlgorithmTrack], dict[int, AlgorithmGroup], object]:
     tracks = list(
         session.scalars(
@@ -42,6 +43,9 @@ def load_algorithm_inputs(
             )
         )
     )
+    # A device config can restrict the library to an explicit set of songs.
+    if included_track_ids is not None:
+        tracks = [track for track in tracks if track.id in included_track_ids]
     variant_counts = dict(
         session.execute(
             select(Track.sub_group, func.count(Track.id))
@@ -127,9 +131,10 @@ def generate_and_persist_playlist(
     seed: str | int | None = None,
     write_debug_log: bool = True,
     ui_active: bool = False,
+    included_track_ids: set[int] | None = None,
 ) -> tuple[PlaylistRun, list[GeneratedItem]]:
     ensure_additive_playlist_run_columns(engine)
-    tracks, groups, history_summary = load_algorithm_inputs(session, settings)
+    tracks, groups, history_summary = load_algorithm_inputs(session, settings, included_track_ids)
     track_distances = {
         track_id: signal.repeat_distance
         for track_id, signal in history_summary.track_signals.items()
