@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws the UI; this base theme keeps the system bars sane before Compose loads. -->
+    <style name="Theme.Harmonica" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
