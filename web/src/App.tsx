@@ -2,7 +2,6 @@ import {
   BarChart3,
   Clock,
   Download,
-  GripVertical,
   Library as LibraryIcon,
   ListMusic,
   Pause,
@@ -64,6 +63,26 @@ export default function App() {
     void refreshAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keyboard transport — the hallmark of a real player. Ignored while typing.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
+        return;
+      }
+      if (event.code === "Space") {
+        event.preventDefault();
+        player.togglePlay();
+      } else if (event.code === "ArrowRight" && event.shiftKey) {
+        player.next();
+      } else if (event.code === "ArrowLeft" && event.shiftKey) {
+        player.previous();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [player]);
 
   async function refreshAll() {
     setError(null);
@@ -129,6 +148,24 @@ export default function App() {
     }
   }
 
+  async function renameRun(id: number, name: string) {
+    try {
+      await api.renameRun(id, name);
+      void refreshSavedRuns();
+    } catch (err) {
+      setError(message(err, "Could not rename that session"));
+    }
+  }
+
+  async function deleteRun(id: number) {
+    try {
+      await api.deleteRun(id);
+      void refreshSavedRuns();
+    } catch (err) {
+      setError(message(err, "Could not delete that session"));
+    }
+  }
+
   async function saveTrack(track: Track) {
     setBusy(true);
     setError(null);
@@ -182,6 +219,8 @@ export default function App() {
               onGenerate={generateQueue}
               onLoadRun={loadSavedRun}
               onRefreshSaved={refreshSavedRuns}
+              onRenameRun={renameRun}
+              onDeleteRun={deleteRun}
             />
           ) : null}
 
@@ -353,6 +392,8 @@ function QueueView(props: {
   onGenerate: (length: number, seed: string) => void;
   onLoadRun: (id: number) => void;
   onRefreshSaved: () => void;
+  onRenameRun: (id: number, name: string) => void;
+  onDeleteRun: (id: number) => void;
 }) {
   const { player } = props;
   const [length, setLength] = useState(props.defaultLength);
@@ -360,6 +401,17 @@ function QueueView(props: {
   const item = player.currentItem;
 
   useEffect(() => setLength(props.defaultLength), [props.defaultLength]);
+
+  function nameCurrentSession() {
+    if (!player.runId || props.savedRuns === null) {
+      return;
+    }
+    const existing = props.savedRuns.find((run) => run.id === player.runId);
+    const name = window.prompt("Name this session", existing?.name ?? "")?.trim();
+    if (name) {
+      props.onRenameRun(player.runId, name);
+    }
+  }
 
   return (
     <section className="queue-view">
@@ -406,7 +458,19 @@ function QueueView(props: {
               Generate
             </button>
           </div>
-          <SavedRuns runs={props.savedRuns} onLoad={props.onLoadRun} onRefresh={props.onRefreshSaved} />
+          {player.runId && props.savedRuns !== null ? (
+            <button className="link save-session" onClick={nameCurrentSession}>
+              <Save size={14} /> Name this session
+            </button>
+          ) : null}
+          <SavedRuns
+            runs={props.savedRuns}
+            currentRunId={player.runId}
+            onLoad={props.onLoadRun}
+            onRefresh={props.onRefreshSaved}
+            onRename={props.onRenameRun}
+            onDelete={props.onDeleteRun}
+          />
         </div>
       </div>
 
@@ -534,12 +598,25 @@ function WhyIcon(props: { reason: WhyReason }) {
   }
 }
 
-function SavedRuns(props: { runs: RunSummary[] | null; onLoad: (id: number) => void; onRefresh: () => void }) {
+function SavedRuns(props: {
+  runs: RunSummary[] | null;
+  currentRunId: number | null;
+  onLoad: (id: number) => void;
+  onRefresh: () => void;
+  onRename: (id: number, name: string) => void;
+  onDelete: (id: number) => void;
+}) {
   if (props.runs === null) {
     return null;
   }
   if (props.runs.length === 0) {
     return <p className="saved-empty">Saved sessions will show up here once you generate a few.</p>;
+  }
+  function rename(run: RunSummary) {
+    const name = window.prompt("Rename session", run.name ?? "")?.trim();
+    if (name) {
+      props.onRename(run.id, name);
+    }
   }
   return (
     <div className="saved-runs">
@@ -550,14 +627,22 @@ function SavedRuns(props: { runs: RunSummary[] | null; onLoad: (id: number) => v
         </button>
       </div>
       <ul>
-        {props.runs.slice(0, 6).map((run) => (
-          <li key={run.id}>
-            <button onClick={() => props.onLoad(run.id)}>
+        {props.runs.slice(0, 8).map((run) => (
+          <li key={run.id} className={run.id === props.currentRunId ? "current" : ""}>
+            <button className="saved-load" onClick={() => props.onLoad(run.id)}>
               <strong>{run.name || `Session #${run.id}`}</strong>
               <small>
                 {run.item_count} tracks · {run.preview_titles.slice(0, 2).join(", ") || "—"}
               </small>
             </button>
+            <div className="saved-actions">
+              <button className="mini" title="Rename" onClick={() => rename(run)}>
+                ✎
+              </button>
+              <button className="mini danger" title="Delete" onClick={() => props.onDelete(run.id)}>
+                <Trash2 size={13} />
+              </button>
+            </div>
           </li>
         ))}
       </ul>

@@ -631,6 +631,13 @@ input:focus {
   font-size: 13px;
 }
 
+.save-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+}
+
 .saved-runs ul {
   display: grid;
   gap: 6px;
@@ -639,19 +646,43 @@ input:focus {
   list-style: none;
 }
 
-.saved-runs button {
+.saved-runs li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.saved-runs li.current {
+  outline: 1px solid var(--accent);
+}
+
+.saved-load {
   display: grid;
   width: 100%;
   gap: 1px;
   padding: 8px 10px;
   border: 0;
-  border-radius: 8px;
-  background: var(--panel-soft);
+  background: none;
   text-align: left;
 }
 
-.saved-runs button:hover {
+.saved-runs li:hover {
   background: #e2ebe5;
+}
+
+.saved-actions {
+  display: flex;
+  gap: 2px;
+  padding-right: 6px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.saved-runs li:hover .saved-actions {
+  opacity: 1;
 }
 
 .saved-runs strong {
