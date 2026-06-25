@@ -49,6 +49,9 @@ export function usePlayer() {
     const element = document.createElement("video");
     element.preload = "metadata";
     element.setAttribute("playsinline", "");
+    // Native controls give video tracks fullscreen + scrubbing; they stay in sync
+    // with the app transport bar because both act on this same element.
+    element.controls = true;
     audioRef.current = element;
   }
 
