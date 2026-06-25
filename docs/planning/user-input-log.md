@@ -464,3 +464,40 @@ Claude owns the front-end and will deliver a cohesive, working music-app UI toda
 palette, with frequent small pushes to `main` under the user's name. Backend gaps (persistent
 sessions, queue mutation, algorithm improvements) are coordinated with Codex or implemented directly
 while keeping models/schemas/tests coherent.
+
+## 2026-06-25: Real Data, Video, Presets, Curation (autonomous build session)
+
+### User Input
+
+The user said: do video review for visual tracks AND broad polish — including simplifying settings
+and adding **listening presets**. The presets should be researched and could "steal"/emulate
+Spotify-style behaviour through the existing parameters: e.g. a short-run "addictive"/familiar preset,
+and a long-term-utility preset that punishes repeats much harder for maximum variety. The user then
+left for ~1 hour and said to implement all four of: curation review UI, real-data polish, in-app
+curation, and algorithm refinement — "do what you can/want", noting the full 250 songs should be
+present.
+
+A separate Storage agent downloaded the real ~250-song batch into `Storage/` (gitignored): one
+folder per song with `song_config.json` + media (`.mp4` video and/or `.m4a` audio).
+
+### What was delivered (all on `main`)
+
+- **Real library imported** via `scripts/import_storage_library.py` (250 tracks, 242 with video,
+  52 groups). Maps `weight_group_names`→groups, `version_family_name`→sub_group, video/audio assets.
+- **Video review**: the player engine became a reparented `<video>` element with native
+  fullscreen/scrubbing; visual tracks play in the now-playing stage without breaking cross-view
+  playback; tracks still downloading are auto-skipped.
+- **Listening presets** (research-grounded): Familiar / Balanced / Discovery / Long game, applied as
+  bundles over the existing settings; settings screen grouped into sections.
+- **Curation review workflow** (`Curate` tab): export library JSON for an agent, load its proposal,
+  see a per-field diff, accept/reject per track, apply via `PATCH /tracks` (+ import for new tracks).
+- **In-app curation**: rename/merge weight groups from the Library facet rail.
+- **Polish**: Library quick filters (All / Video / Unrated), track counts, connecting state.
+- **Algorithm validated on real data**: 0 consecutive same-variant-family pairs (dub families never
+  cluster), strong variety, cold-start surfacing all 250 unrated tracks.
+
+### Note for Codex (backend)
+
+`tests/` write to the real app DB (`.harmonica/harmonica.db`) with no isolation, so running the
+suite pollutes the working library (added ~6 tracks). Worth adding a temp/in-memory test DB fixture.
+Codex was rate-limited (usage cap) during this session, so Claude led the backend-adjacent pieces.
