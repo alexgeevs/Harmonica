@@ -135,6 +135,15 @@ Transcoding is not a v1 feature. Future tooling may keep storage-efficient versi
 
 ## Deferred Ideas
 
+- **Destructive trim & audio-only stripping (rating-gated).** Per-song trim points
+  (`clip_start_seconds`/`clip_end_seconds`) and an `audio_only` flag already exist and are honored
+  during playback (non-destructive). The future step: after trim/audio-only is set, if the song's
+  rating does not degrade over the next several plays, physically re-encode the media to drop the
+  unused intro/outro (or strip the video to thumbnail+audio) to reclaim storage. If the rating
+  degrades within that window, keep the original and surface a **Restore** button a few plays later.
+  Requires a transcoder (ffmpeg, kept outside the app per codec policy) plus tracking of
+  plays-since-change and a rating baseline/trend. Until then, trimming only affects playback and
+  nothing is deleted.
 - Downloader/source-acquisition daemon.
 - Transcoding/cache pipeline.
 - LAN access and authentication.
