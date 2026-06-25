@@ -432,3 +432,35 @@ Collaboration direction:
 - Claude can be especially useful for front-end product thinking, user flows, layout, interaction design, and making Harmonica feel like a polished music app rather than a backend demo.
 - Both agents should preserve user direction in Markdown files as it is provided.
 - Both agents should coordinate around file ownership to avoid conflicting edits.
+
+## 2026-06-25: Claude Onboarding, Full UI Mandate, And Working Norms
+
+### User Input
+
+The user pointed Claude at the shared Codex session and asked Claude to explore, ask clarifying
+questions, create a `CLAUDE.md`, and aim to achieve what the user wants the project to be by the end
+of the day.
+
+Clarifying answers from the user:
+
+- **Scope:** The user wants a full, genuinely working UI and trusts Claude's design judgment.
+  They have no UI design skills. They found the handoff phrase "persistent listening sessions +
+  queue ergonomics" to be opaque jargon; they care about the app feeling and working like a real
+  player, not the wording. Claude should decide the design; the user asked whether to consider
+  "Claude Design" (DesignSync) — Claude recommended building directly in code to keep it functional
+  and preserve the liked colour scheme, offering a visual redesign tool later if wanted.
+- **Collaboration:** Claude should orchestrate Codex for backend work for now, then gradually
+  transition to doing everything itself. Claude commits and pushes (Codex's sandbox cannot push).
+- **Commits:** Author as `alexgeevs` only, with **no `Co-Authored-By: Claude` trailer**.
+- **Test data:** The user is supplying a real ~250-song batch from their own playlist (not full
+  quality yet). It is a deliberate stress test: musicals,
+  artists, overlapping themes, and songs with up to ~5 dubs/covers of themselves across languages.
+  Until the files arrive, develop against a synthetic library that mimics that overlap structure.
+  The user also thinks the algorithm can be improved to better maximize listening utility.
+
+### Current Interpretation
+
+Claude owns the front-end and will deliver a cohesive, working music-app UI today, preserving the
+palette, with frequent small pushes to `main` under the user's name. Backend gaps (persistent
+sessions, queue mutation, algorithm improvements) are coordinated with Codex or implemented directly
+while keeping models/schemas/tests coherent.
