@@ -228,6 +228,7 @@ export default function App() {
           <h2>{VIEW_TITLES[view]}</h2>
           <div className="topbar-actions">
             {error ? <span className="error-text">{error}</span> : null}
+            {!settings && !error ? <span className="connecting">Connecting…</span> : null}
             <button className="icon-button" title="Refresh" onClick={() => void refreshAll()}>
               <RefreshCw size={18} />
             </button>
@@ -721,6 +722,7 @@ function LibraryView(props: {
 }) {
   const [search, setSearch] = useState("");
   const [facet, setFacet] = useState<string>("all");
+  const [quick, setQuick] = useState<"all" | "video" | "unrated">("all");
   const [selected, setSelected] = useState<Track | null>(null);
   const [scanPath, setScanPath] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -769,6 +771,12 @@ function LibraryView(props: {
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return props.tracks.filter((track) => {
+      if (quick === "video" && !track.assets.some((asset) => asset.asset_type === "video")) {
+        return false;
+      }
+      if (quick === "unrated" && Object.values(track.ratings).some((value) => value != null)) {
+        return false;
+      }
       if (facet !== "all") {
         const [type, name] = facet.split("::");
         if (type === "variant") {
@@ -786,7 +794,7 @@ function LibraryView(props: {
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(needle));
     });
-  }, [props.tracks, search, facet]);
+  }, [props.tracks, search, facet, quick]);
 
   async function scan() {
     if (!scanPath.trim()) {
@@ -819,12 +827,26 @@ function LibraryView(props: {
             <Search size={16} />
             <input value={search} placeholder="Search title, artist, group…" onChange={(e) => setSearch(e.target.value)} />
           </label>
+          <div className="quick-filters">
+            {(["all", "video", "unrated"] as const).map((key) => (
+              <button
+                key={key}
+                className={quick === key ? "quick active" : "quick"}
+                onClick={() => setQuick(key)}
+              >
+                {key === "all" ? "All" : key === "video" ? "Video" : "Unrated"}
+              </button>
+            ))}
+          </div>
           <div className="scan-box">
             <input value={scanPath} placeholder="Scan a folder…" onChange={(e) => setScanPath(e.target.value)} />
             <button className="primary" disabled={scanning} onClick={() => void scan()}>
               <Plus size={16} /> Scan
             </button>
           </div>
+        </div>
+        <div className="library-count">
+          {filtered.length} of {props.tracks.length} tracks
         </div>
 
         <div className="track-list">
