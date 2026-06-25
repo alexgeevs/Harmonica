@@ -35,6 +35,8 @@ The dashboard should stay focused. Settings should remain reachable through a se
 
 Preserve the current colour scheme unless the user later asks for a redesign.
 
+Claude may help with front-end product thinking. The current priority for the UI is to turn Harmonica from a technically capable local app into something that feels natural for a real listener: good queue ergonomics, visible feedback, rich but calm library browsing, explainable recommendations, and settings that feel like controls rather than documentation.
+
 ## What Matters Most
 
 - The algorithm is central.
@@ -151,3 +153,5 @@ Transcoding is not a v1 feature. Future tooling may keep storage-efficient versi
 Push directly to `main` after significant increments.
 
 Keep direction-setting user input in Markdown planning docs so future agents understand the user's intent without relying on chat history.
+
+When working with another agent such as Claude, coordinate by subsystem and file ownership. Prefer letting Codex own backend/data/algorithm/test changes and letting Claude focus on front-end user experience, unless the user gives different instructions.

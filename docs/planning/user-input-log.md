@@ -413,3 +413,22 @@ The user said the app should be a serious alternative to YouTube or Spotify afte
 ### Current Interpretation
 
 This next pass should be ambitious and product-oriented, not just a narrow algorithm patch. It should aim to make Harmonica materially closer to a real local music system by adding history-aware generation, skip semantics, group ratings, startup coverage, visual priority, clustering controls, and better UI/API support where feasible.
+
+## 2026-06-25: Claude Collaboration And Front-End Focus
+
+### User Input
+
+The user said to keep all information they have given and what they intend Harmonica to be. The user will direct a Claude agent to this conversation. The assistant and Claude should work together and transfer knowledge to Claude.
+
+The user said both agents can work in parallel today. The shared goal is to make a good final product. The user thinks Claude can help by understanding what a user would actually want regarding the front-end, while this assistant has made a good back-end.
+
+### Current Interpretation
+
+Create and maintain a dedicated handoff document for Claude and future agents. The handoff should explain product intent, current implementation, architectural boundaries, user preferences, and likely division of labor.
+
+Collaboration direction:
+
+- Codex should continue to protect backend architecture, algorithm correctness, data model consistency, tests, and agent-friendly APIs.
+- Claude can be especially useful for front-end product thinking, user flows, layout, interaction design, and making Harmonica feel like a polished music app rather than a backend demo.
+- Both agents should preserve user direction in Markdown files as it is provided.
+- Both agents should coordinate around file ownership to avoid conflicting edits.
