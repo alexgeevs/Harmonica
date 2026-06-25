@@ -245,11 +245,11 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         label="Loudness warning sensitivity",
         description=(
             "How loud (relative, 0–1) sustained playback may get before Harmonica nudges you. "
-            "Lower is more cautious."
+            "Lower is more cautious — the default errs toward warning early."
         ),
         value_type="number",
         control="slider",
-        default=0.7,
+        default=0.55,
         minimum=0.3,
         maximum=1.0,
         step=0.05,

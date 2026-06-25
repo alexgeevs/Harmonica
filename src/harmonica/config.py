@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     avoid_consecutive_compressed: bool = True
     compressed_break_reminder: bool = True
     loudness_warning_enabled: bool = True
-    loudness_warning_level: float = 0.7
+    # Cautious by default: warnings should err toward firing early.
+    loudness_warning_level: float = 0.55
 
     @property
     def db_url(self) -> str:

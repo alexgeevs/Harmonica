@@ -84,8 +84,10 @@ export default function App() {
     }
     if (currentCompressed) {
       compressedRunRef.current += 1;
-      if (settings?.compressed_break_reminder && compressedRunRef.current >= 8) {
+      // Conservative: after just two compressed songs in a row, stop and prompt a break.
+      if (settings?.compressed_break_reminder && compressedRunRef.current >= 2) {
         setShowBreak(true);
+        player.pause();
       }
     } else {
       compressedRunRef.current = 0;
@@ -121,6 +123,9 @@ export default function App() {
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
         return;
       }
+      if (showBreak) {
+        return; // playback is paused for a break; ignore transport keys
+      }
       if (event.code === "Space") {
         event.preventDefault();
         player.togglePlay();
@@ -132,7 +137,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [player]);
+  }, [player, showBreak]);
 
   async function refreshAll() {
     setError(null);
@@ -274,32 +279,15 @@ export default function App() {
           </div>
         </header>
 
-        {loudnessWarn || showBreak ? (
+        {loudnessWarn && !showBreak ? (
           <div className="health-banners">
-            {loudnessWarn ? (
-              <div className="health-banner warn">
-                <Volume2 size={16} />
-                <span>
-                  Sustained loudness looks high{currentCompressed ? " for compressed audio" : ""}. Consider
-                  turning it down to protect your hearing. <em>(relative estimate)</em>
-                </span>
-              </div>
-            ) : null}
-            {showBreak ? (
-              <div className="health-banner break">
-                <Clock size={16} />
-                <span>You've had a long run of compressed tracks — a short break can ease listening fatigue.</span>
-                <button
-                  className="link"
-                  onClick={() => {
-                    setShowBreak(false);
-                    compressedRunRef.current = 0;
-                  }}
-                >
-                  Dismiss
-                </button>
-              </div>
-            ) : null}
+            <div className="health-banner warn">
+              <Volume2 size={16} />
+              <span>
+                Sustained loudness looks high{currentCompressed ? " for compressed audio" : ""}. Consider
+                turning it down to protect your hearing. <em>(relative estimate)</em>
+              </span>
+            </div>
           </div>
         ) : null}
 
@@ -348,6 +336,40 @@ export default function App() {
       <PlayerBar player={player} />
       {/* The single <video> element lives here whenever it isn't on the now-playing stage. */}
       <div ref={videoParkRef} className="video-park" aria-hidden />
+
+      {showBreak ? (
+        <BreakModal
+          onClose={() => {
+            setShowBreak(false);
+            compressedRunRef.current = 0;
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function BreakModal(props: { onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="break-modal">
+        <div className="break-icon">
+          <Clock size={26} />
+        </div>
+        <h3>Time for a short break</h3>
+        <p>
+          You've listened to two compressed (lossy) tracks in a row, and playback is paused. Heavily
+          compressed music can be more fatiguing — in a lab study, over-compressed music caused lasting
+          ear damage in guinea pigs that the same energy of normal music did not.
+        </p>
+        <a className="break-link" href="https://econ.st/4dtOesh" target="_blank" rel="noreferrer">
+          Read The Economist on this →
+        </a>
+        <button className="primary" onClick={props.onClose}>
+          I've taken a break — resume
+        </button>
+        <small>You can soften or turn this off in Settings → Hearing health.</small>
+      </div>
     </div>
   );
 }

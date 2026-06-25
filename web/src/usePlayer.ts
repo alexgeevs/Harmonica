@@ -364,7 +364,8 @@ export function usePlayer() {
       if (peak > peakRef.current) {
         peakRef.current = peak;
       }
-      sustainedRef.current = sustainedRef.current * 0.99 + loud * 0.01;
+      // Fast-ish EWMA so sustained-loudness warnings err toward firing early.
+      sustainedRef.current = sustainedRef.current * 0.98 + loud * 0.02;
       frame += 1;
       if (frame % 6 === 0) {
         setLevel(loud);
@@ -423,6 +424,11 @@ export function usePlayer() {
       audio.pause();
     }
   }, [currentUrl, startMeter]);
+
+  const pause = useCallback(() => {
+    wantsPlayRef.current = false;
+    audioRef.current?.pause();
+  }, []);
 
   const next = useCallback(() => goToIndex(indexRef.current + 1, { recordSkip: true, play: true }), [
     goToIndex
@@ -552,6 +558,7 @@ export function usePlayer() {
       loadQueue,
       playAt,
       togglePlay,
+      pause,
       next,
       previous,
       seek,
@@ -577,6 +584,7 @@ export function usePlayer() {
       loadQueue,
       playAt,
       togglePlay,
+      pause,
       next,
       previous,
       seek,

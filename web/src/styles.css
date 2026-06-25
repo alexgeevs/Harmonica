@@ -432,6 +432,72 @@ p {
   background: #e6b34d;
 }
 
+/* break modal */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 30, 29, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.break-modal {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+  padding: 26px;
+  border-radius: 16px;
+  background: var(--panel);
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+
+.break-icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: #e7eef5;
+  color: #335068;
+}
+
+.break-modal h3 {
+  font-size: 20px;
+}
+
+.break-modal p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.break-link {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.break-link:hover {
+  text-decoration: underline;
+}
+
+.break-modal .primary {
+  justify-self: center;
+  margin-top: 4px;
+}
+
+.break-modal small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* health banners */
 
 .health-banners {
