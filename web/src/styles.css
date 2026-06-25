@@ -549,6 +549,40 @@ p {
   color: #884150;
 }
 
+/* rate card */
+
+.rate-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.rate-card h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+
+.rate-card h4 svg {
+  color: var(--gold);
+}
+
+.rate-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 18px;
+}
+
+@media (max-width: 1320px) {
+  .rate-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* why card */
 
 .why-card {

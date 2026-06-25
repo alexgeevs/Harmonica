@@ -192,6 +192,20 @@ export default function App() {
     }
   }
 
+  async function rateTrack(track: Track, factorKey: string, value: number | null) {
+    const current = tracks.find((item) => item.id === track.id) ?? track;
+    const ratings = { ...current.ratings, [factorKey]: value };
+    // Optimistic: stars respond instantly while the save lands.
+    setTracks((cur) => cur.map((item) => (item.id === track.id ? { ...item, ratings } : item)));
+    try {
+      const saved = await api.updateTrackFields(track.id, { ratings });
+      setTracks((cur) => cur.map((item) => (item.id === saved.id ? saved : item)));
+      void refreshStats();
+    } catch (err) {
+      setError(message(err, "Could not save the rating"));
+    }
+  }
+
   async function saveTrack(track: Track) {
     setBusy(true);
     setError(null);
@@ -245,6 +259,9 @@ export default function App() {
               savedRuns={savedRuns}
               currentIsVideo={currentIsVideo}
               videoStageRef={videoStageRef}
+              ratingFactors={ratingFactors}
+              liveTracks={tracks}
+              onRate={rateTrack}
               onGenerate={generateQueue}
               onLoadRun={loadSavedRun}
               onRefreshSaved={refreshSavedRuns}
@@ -436,6 +453,9 @@ function QueueView(props: {
   savedRuns: RunSummary[] | null;
   currentIsVideo: boolean;
   videoStageRef: React.RefObject<HTMLDivElement>;
+  ratingFactors: RatingFactor[];
+  liveTracks: Track[];
+  onRate: (track: Track, factorKey: string, value: number | null) => void;
   onGenerate: (length: number, seed: string) => void;
   onLoadRun: (id: number) => void;
   onRefreshSaved: () => void;
@@ -446,6 +466,8 @@ function QueueView(props: {
   const [length, setLength] = useState(props.defaultLength);
   const [seed, setSeed] = useState("");
   const item = player.currentItem;
+  // Prefer the live track (with the latest ratings) over the queue snapshot.
+  const liveTrack = item ? props.liveTracks.find((t) => t.id === item.track.id) ?? item.track : null;
 
   useEffect(() => setLength(props.defaultLength), [props.defaultLength]);
 
@@ -484,6 +506,14 @@ function QueueView(props: {
             {item ? <ChipRow groups={item.track.groups} subGroup={item.track.sub_group} /> : null}
           </div>
         </div>
+
+        {item && liveTrack ? (
+          <RateCard
+            track={liveTrack}
+            factors={props.ratingFactors}
+            onRate={(key, value) => props.onRate(liveTrack, key, value)}
+          />
+        ) : null}
 
         {item ? <WhyThisSong item={item} /> : null}
 
@@ -613,6 +643,34 @@ function QueueRow(props: {
         </button>
       </div>
     </li>
+  );
+}
+
+function RateCard(props: {
+  track: Track;
+  factors: RatingFactor[];
+  onRate: (key: string, value: number | null) => void;
+}) {
+  const applicable = props.factors.filter((factor) => isFactorApplicable(factor, props.track));
+  if (applicable.length === 0) {
+    return null;
+  }
+  return (
+    <div className="rate-card">
+      <h4>
+        <Star size={15} /> Rate this song
+      </h4>
+      <div className="rate-grid">
+        {applicable.map((factor) => (
+          <StarRating
+            key={factor.key}
+            label={factor.label}
+            value={props.track.ratings[factor.key] ?? null}
+            onChange={(value) => props.onRate(factor.key, value)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
