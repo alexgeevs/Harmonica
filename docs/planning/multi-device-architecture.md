@@ -93,6 +93,13 @@ or `/media`), generated PNG/SVG icons (`web/scripts/make_icons.py`, no image-lib
 dependency), and a hardened mobile layout (safe-area insets for the notch/home indicator,
 `100dvh`, icon-only top nav, bottom-docked player). Same install works on Android Chrome.
 
+**LAN caveat — secure context.** Service workers register only over HTTPS or `localhost`.
+Over a plain `http://<nas-ip>` LAN address: iOS *Add to Home Screen* and standalone launch
+still work (it's a manual Safari action), but the offline-shell SW won't activate (it fails
+gracefully — no breakage, just no shell caching) and Android Chrome won't offer an install
+prompt. To get the SW + Android install, put TLS in front of the daemon — easiest options:
+a local CA via `mkcert`/Caddy, or Tailscale (which hands out HTTPS hostnames per device).
+
 **Upgrade path if a Mac/Developer account later appears:** wrap the same React UI with
 Capacitor + a ~30-line Swift plugin exposing `AVAudioSession.outputVolume` and route
 changes — this recovers the system-volume read without a from-scratch SwiftUI app. (iOS
