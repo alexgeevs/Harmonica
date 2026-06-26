@@ -61,6 +61,7 @@ p {
   grid-template-columns: 240px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   height: 100vh;
+  height: 100dvh; /* track iOS Safari's dynamic toolbar instead of overflowing */
   overflow: hidden;
 }
 
@@ -2155,13 +2156,22 @@ input:focus {
     grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
+  /* Top app bar: brand on the left, icon-only nav scrolling on the right.
+     Pad past the iOS status bar / side notch via the safe-area insets. */
   .sidebar {
     grid-row: 1;
     grid-column: 1;
     flex-direction: row;
     align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
+    gap: 12px;
+    padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-left: calc(14px + env(safe-area-inset-left));
+    padding-right: calc(14px + env(safe-area-inset-right));
+  }
+
+  .brand p {
+    display: none; /* drop the track-count subtitle to save the bar height */
   }
 
   .sidebar-foot {
@@ -2170,7 +2180,24 @@ input:focus {
 
   .nav-buttons {
     grid-auto-flow: column;
+    grid-auto-columns: max-content;
     margin-left: auto;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .nav-buttons::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Icon-only on phones (the current view's name shows in the top bar). */
+  .nav-buttons button {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
   }
 
   .nav-buttons button span {
@@ -2182,9 +2209,23 @@ input:focus {
     grid-column: 1;
   }
 
+  .topbar {
+    padding-left: calc(env(safe-area-inset-left) + 16px);
+    padding-right: calc(env(safe-area-inset-right) + 16px);
+  }
+
+  .view-scroll {
+    padding-left: calc(env(safe-area-inset-left) + 16px);
+    padding-right: calc(env(safe-area-inset-right) + 16px);
+  }
+
+  /* Player docks to the bottom; clear the home indicator with the inset. */
   .player-bar {
     grid-row: 3;
     grid-template-columns: 1fr auto;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    padding-left: calc(22px + env(safe-area-inset-left));
+    padding-right: calc(22px + env(safe-area-inset-right));
   }
 
   .player-center {

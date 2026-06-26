@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Harmonica">
+  <rect width="512" height="512" fill="#20302f"/>
+  <g>
+    <rect x="40"  y="294" width="62" height="138" rx="22" fill="#2c8473"/>
+    <rect x="133" y="196" width="62" height="236" rx="22" fill="#206a5d"/>
+    <rect x="226" y="237" width="62" height="195" rx="22" fill="#2c8473"/>
+    <rect x="319" y="138" width="62" height="294" rx="22" fill="#f1c84b"/>
+    <rect x="412" y="217" width="62" height="215" rx="22" fill="#206a5d"/>
+  </g>
+</svg>

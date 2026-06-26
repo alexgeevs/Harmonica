@@ -68,6 +68,36 @@ client stores `config_id` locally; if lost, re-claim via passphrase. (Security: 
 light LAN convenience lock — hash with PBKDF2, rate-limit claims; it is not strong auth for the open
 internet. Keep the daemon on the LAN.)
 
+## iOS app — installable web app (chosen 2026-06-26)
+
+The user has no Mac and doesn't want an Apple Developer account, so iOS ships as an
+**installable web app (PWA)**, not a native build. Reality check that drove this:
+
+- **Any** iOS app — native *or* a web-wrapper (Capacitor/Tauri) — must be compiled and
+  code-signed with Xcode, which only runs on macOS. You can rent macOS at build time
+  (EAS Build, Codemagic, GitHub `macos-latest` runners) so a Mac isn't strictly required,
+  but installing on your own iPhone beyond a 7-day re-sign needs a $99/yr Apple Developer
+  account. The user opted out of that ceremony for now.
+- A PWA sidesteps all of it: open the web app in Safari → Share → **Add to Home Screen**.
+  It launches standalone (no browser chrome) and points at the LAN daemon like any client.
+- **Trade-off:** Safari gives a PWA no access to system volume or the output-device type,
+  so iOS hearing-health falls back to the in-app **signal-based loudness meter** (the same
+  Web-Audio RMS estimate the desktop web app uses) rather than the volume×output estimate
+  the native Kotlin Android client gets. Acceptable; revisit if a Mac appears.
+
+**Implemented (2026-06-26).** The web app is now a real installable PWA:
+`web/public/manifest.webmanifest` (standalone, deep-green theme, maskable icons),
+Apple touch icon + `apple-mobile-web-app-*` meta in `web/index.html`, a conservative
+app-shell service worker (`web/public/sw.js`, registered prod-only, never caches the API
+or `/media`), generated PNG/SVG icons (`web/scripts/make_icons.py`, no image-lib
+dependency), and a hardened mobile layout (safe-area insets for the notch/home indicator,
+`100dvh`, icon-only top nav, bottom-docked player). Same install works on Android Chrome.
+
+**Upgrade path if a Mac/Developer account later appears:** wrap the same React UI with
+Capacitor + a ~30-line Swift plugin exposing `AVAudioSession.outputVolume` and route
+changes — this recovers the system-volume read without a from-scratch SwiftUI app. (iOS
+*does* expose those APIs natively; only the browser sandbox withholds them.)
+
 ## Android app — three routes (a decision is needed)
 
 | Route | Reuse | System volume / headphone read | Effort |

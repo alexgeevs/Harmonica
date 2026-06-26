@@ -9,3 +9,13 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   </React.StrictMode>
 );
 
+// Register the app-shell service worker in production builds only. In dev it
+// would cache Vite's HMR assets and serve stale code, so we keep it off there.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* SW is a progressive enhancement; ignore registration failures. */
+    });
+  });
+}
+

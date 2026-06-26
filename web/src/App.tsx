@@ -403,7 +403,7 @@ function Sidebar(props: { view: View; onView: (view: View) => void; trackCount: 
             onClick={() => props.onView(item.key)}
           >
             {item.icon}
-            {item.label}
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>

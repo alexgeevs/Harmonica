@@ -501,3 +501,27 @@ folder per song with `song_config.json` + media (`.mp4` video and/or `.m4a` audi
 `tests/` write to the real app DB (`.harmonica/harmonica.db`) with no isolation, so running the
 suite pollutes the working library (added ~6 tracks). Worth adding a temp/in-memory test DB fixture.
 Codex was rate-limited (usage cap) during this session, so Claude led the backend-adjacent pieces.
+
+## 2026-06-26: iOS — web app for now
+
+### User Input
+
+"I'll have the NAS up and running sometime soon. For now, how do you propose we implement
+this for iOS? I don't currently have access to a mac." After hearing the options, the user
+chose: "For now, a web-app is probably best as I can't be bothered with the developer things,
+I might reconsider if I get a mac."
+
+### Result
+
+iOS ships as an **installable web app (PWA)**, not a native build — no Mac and no Apple
+Developer account required. Made the web app installable to the iPhone home screen: web
+manifest (standalone, deep-green theme), Apple touch icon + `apple-mobile-web-app-*` meta,
+a prod-only app-shell service worker that never caches the API or `/media`, dependency-free
+generated icons (`web/scripts/make_icons.py`), and a hardened mobile layout (safe-area insets,
+`100dvh`, icon-only top nav, bottom-docked player). Same install works on Android Chrome.
+
+Trade-off accepted: Safari withholds system volume / output-device from web apps, so iOS
+hearing-health uses the in-app signal-based loudness meter rather than the volume×output
+estimate the native Kotlin Android client gets. Upgrade path if a Mac later appears: wrap the
+same React UI with Capacitor + a small Swift `AVAudioSession` plugin to recover the volume read.
+See `docs/planning/multi-device-architecture.md` → "iOS app".
