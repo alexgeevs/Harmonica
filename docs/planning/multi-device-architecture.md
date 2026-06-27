@@ -138,8 +138,13 @@ Notes:
   `GET/POST /configs`, `POST /configs/claim`, `PATCH /configs/{id}`; PBKDF2 passphrase hashing;
   per-config song inclusion in `POST /queue/generate` via `config_id`; settings snapshot per config.
   Tested in `tests/test_api.py`.
-- **Phase 2 (web) — TODO.** A "connect / claim config" screen; library and queue respect the
-  config's included songs; a per-device settings view.
+- **Phase 2 (web) — DONE (2026-06-27).** A "Device profile" panel in Settings (kept out of the
+  main nav so local-only use is untouched): claim an existing profile by name + passphrase, or
+  create one (name, passphrase, song scope via an "all / choose songs" picker) capturing the
+  current settings as its snapshot. An active profile shows a banner and scopes both the Library
+  view and queue generation (`config_id` threaded into `POST /queue/generate`); "Switch to local"
+  clears it. **Local mode (no profile) is the default and draws from the full library with global
+  settings — verified end-to-end.** The panel hides itself if the `/configs` endpoints are absent.
 - **Phase 3 (Android) — STARTED (chose native Kotlin).** Scaffold in `../android/` (Compose UI,
   Retrofit client to the daemon, Media3 playback, `AudioManager` volume/output-device read). Still
   to do: local media folder + offline delta sync; rating/curation screens; background service;
