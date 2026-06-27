@@ -1,5 +1,7 @@
 import type {
   AppSettings,
+  DeviceConfigDetail,
+  DeviceConfigSummary,
   LibraryExport,
   PlaybackEvent,
   PlaybackEventCreate,
@@ -65,10 +67,16 @@ export const api = {
         body: JSON.stringify({ library })
       }
     ),
-  generateQueue: (length: number, seed?: string) =>
+  generateQueue: (length: number, seed?: string, configId?: number | null) =>
     request<QueueRun>("/queue/generate", {
       method: "POST",
-      body: JSON.stringify({ length, seed: seed || null, explain: true, ui_active: true })
+      body: JSON.stringify({
+        length,
+        seed: seed || null,
+        explain: true,
+        ui_active: true,
+        config_id: configId ?? null
+      })
     }),
   recordPlaybackEvent: (event: PlaybackEventCreate) =>
     request("/playback-events", {
@@ -98,6 +106,28 @@ export const api = {
     request<{ ok: boolean }>("/library/import-json", {
       method: "POST",
       body: JSON.stringify({ payload })
+    }),
+  // --- Device profiles (optional multi-device scope; safe to ignore in local use) ---
+  listConfigs: () => request<DeviceConfigSummary[]>("/configs"),
+  createConfig: (body: {
+    name: string;
+    passphrase: string;
+    settings?: Record<string, number | boolean>;
+    track_ids?: number[];
+  }) =>
+    request<DeviceConfigDetail>("/configs", {
+      method: "POST",
+      body: JSON.stringify({
+        name: body.name,
+        passphrase: body.passphrase,
+        settings: body.settings ?? {},
+        track_ids: body.track_ids ?? []
+      })
+    }),
+  claimConfig: (name: string, passphrase: string) =>
+    request<DeviceConfigDetail>("/configs/claim", {
+      method: "POST",
+      body: JSON.stringify({ name, passphrase })
     })
 };
 
@@ -105,6 +135,16 @@ export const api = {
 export async function savedQueuesSupported(): Promise<boolean> {
   try {
     await api.listRuns(1);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when the device-profiles backend endpoints are available. */
+export async function configsSupported(): Promise<boolean> {
+  try {
+    await api.listConfigs();
     return true;
   } catch {
     return false;

@@ -6,6 +6,7 @@ import {
   GitMerge,
   Library as LibraryIcon,
   ListMusic,
+  LogOut,
   Pause,
   Pencil,
   Play,
@@ -16,6 +17,7 @@ import {
   Settings as SettingsIcon,
   SkipBack,
   SkipForward,
+  Smartphone,
   Sparkles,
   Star,
   Trash2,
@@ -25,13 +27,14 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, savedQueuesSupported } from "./api";
+import { api, configsSupported, savedQueuesSupported } from "./api";
 import { displayArtist, formatTime, pct, whyReasons } from "./format";
 import CurateView from "./CurateView";
 import { matchPreset, PRESETS, type Preset } from "./presets";
 import { usePlayer, type PlayerApi } from "./usePlayer";
 import type {
   AppSettings,
+  DeviceConfigDetail,
   PlaybackEvent,
   QueueItem,
   RatingFactor,
@@ -42,6 +45,17 @@ import type {
   TrackGroup,
   WhyReason
 } from "./types";
+
+const ACTIVE_CONFIG_KEY = "harmonica.activeConfig";
+
+function loadStoredConfig(): DeviceConfigDetail | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_CONFIG_KEY);
+    return raw ? (JSON.parse(raw) as DeviceConfigDetail) : null;
+  } catch {
+    return null;
+  }
+}
 
 type View = "queue" | "library" | "curate" | "stats" | "settings";
 
@@ -64,6 +78,38 @@ export default function App() {
   const [savedRuns, setSavedRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Device profiles are entirely optional. null = local mode (full library,
+  // global settings) — the default, identical to single-device use.
+  const [activeConfig, setActiveConfig] = useState<DeviceConfigDetail | null>(loadStoredConfig);
+  const [configsOk, setConfigsOk] = useState(false);
+
+  // The set of song ids a profile restricts to (empty list = no restriction).
+  const scopedIds = useMemo(() => {
+    if (!activeConfig || activeConfig.included_track_ids.length === 0) {
+      return null;
+    }
+    return new Set(activeConfig.included_track_ids);
+  }, [activeConfig]);
+
+  // Library browsing respects the active profile's scope; the player itself is
+  // already scoped server-side because generation passes config_id.
+  const libraryTracks = useMemo(
+    () => (scopedIds ? tracks.filter((track) => scopedIds.has(track.id)) : tracks),
+    [tracks, scopedIds]
+  );
+
+  useEffect(() => {
+    try {
+      if (activeConfig) {
+        localStorage.setItem(ACTIVE_CONFIG_KEY, JSON.stringify(activeConfig));
+      } else {
+        localStorage.removeItem(ACTIVE_CONFIG_KEY);
+      }
+    } catch {
+      /* localStorage may be unavailable (private mode); profile stays in memory. */
+    }
+  }, [activeConfig]);
 
   const videoStageRef = useRef<HTMLDivElement>(null);
   const videoParkRef = useRef<HTMLDivElement>(null);
@@ -154,6 +200,7 @@ export default function App() {
       setStats(nextStats);
       void api.playbackEvents(300).then(setEvents).catch(() => undefined);
       void refreshSavedRuns();
+      void configsSupported().then(setConfigsOk).catch(() => setConfigsOk(false));
     } catch (err) {
       setError(message(err, "Could not reach the Harmonica backend. Is it running?"));
     }
@@ -180,7 +227,7 @@ export default function App() {
     setBusy(true);
     setError(null);
     try {
-      const run = await api.generateQueue(length, seed.trim() || undefined);
+      const run = await api.generateQueue(length, seed.trim() || undefined, activeConfig?.id ?? null);
       player.loadQueue(run, { autoplay: true });
       void refreshSavedRuns();
     } catch (err) {
@@ -188,6 +235,30 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function claimConfig(name: string, passphrase: string) {
+    // Throws on bad passphrase / unknown name; the panel surfaces the message.
+    const detail = await api.claimConfig(name, passphrase);
+    setActiveConfig(detail);
+    return detail;
+  }
+
+  async function createConfig(name: string, passphrase: string, trackIds: number[]) {
+    // New profiles capture the current global settings as their snapshot.
+    const snapshot = settings ? settingsToDraft(settings) : {};
+    const detail = await api.createConfig({
+      name,
+      passphrase,
+      settings: snapshot,
+      track_ids: trackIds
+    });
+    setActiveConfig(detail);
+    return detail;
+  }
+
+  function switchToLocal() {
+    setActiveConfig(null);
   }
 
   async function loadSavedRun(id: number) {
@@ -279,6 +350,21 @@ export default function App() {
           </div>
         </header>
 
+        {activeConfig ? (
+          <div className="health-banners">
+            <div className="health-banner profile">
+              <Smartphone size={16} />
+              <span>
+                Profile <strong>{activeConfig.name}</strong> is active
+                {scopedIds ? ` · ${scopedIds.size} of ${tracks.length} songs` : " · all songs"}.
+              </span>
+              <button className="link-button" onClick={switchToLocal}>
+                Switch to local
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {loudnessWarn && !showBreak ? (
           <div className="health-banners">
             <div className="health-banner warn">
@@ -313,7 +399,7 @@ export default function App() {
 
           {view === "library" ? (
             <LibraryView
-              tracks={tracks}
+              tracks={libraryTracks}
               ratingFactors={ratingFactors}
               busy={busy}
               currentTrackId={player.currentItem?.track.id ?? null}
@@ -328,7 +414,18 @@ export default function App() {
           {view === "stats" && stats ? <StatsView stats={stats} tracks={tracks} events={events} /> : null}
 
           {view === "settings" && settings ? (
-            <SettingsView settings={settings} ratingFactors={ratingFactors} busy={busy} onSave={saveSettings} />
+            <SettingsView
+              settings={settings}
+              ratingFactors={ratingFactors}
+              busy={busy}
+              onSave={saveSettings}
+              configsEnabled={configsOk}
+              activeConfig={activeConfig}
+              allTracks={tracks}
+              onClaim={claimConfig}
+              onCreate={createConfig}
+              onSwitchLocal={switchToLocal}
+            />
           ) : null}
         </div>
       </main>
@@ -1513,6 +1610,12 @@ function SettingsView(props: {
   ratingFactors: RatingFactor[];
   busy: boolean;
   onSave: (values: Record<string, number | boolean>) => void;
+  configsEnabled: boolean;
+  activeConfig: DeviceConfigDetail | null;
+  allTracks: Track[];
+  onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
+  onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
+  onSwitchLocal: () => void;
 }) {
   const [draft, setDraft] = useState<Record<string, number | boolean>>(() => settingsToDraft(props.settings));
   useEffect(() => setDraft(settingsToDraft(props.settings)), [props.settings]);
@@ -1604,6 +1707,15 @@ function SettingsView(props: {
         <button className="primary save-button" disabled={props.busy || !dirty} onClick={() => props.onSave(draft)}>
           <Save size={16} /> {dirty ? "Save settings" : "Saved"}
         </button>
+        {props.configsEnabled ? (
+          <DeviceProfilePanel
+            activeConfig={props.activeConfig}
+            allTracks={props.allTracks}
+            onClaim={props.onClaim}
+            onCreate={props.onCreate}
+            onSwitchLocal={props.onSwitchLocal}
+          />
+        ) : null}
         <div className="settings-note">
           <h4>How settings apply</h4>
           <p>
@@ -1622,6 +1734,178 @@ function SettingsView(props: {
         </div>
       </div>
     </section>
+  );
+}
+
+function DeviceProfilePanel(props: {
+  activeConfig: DeviceConfigDetail | null;
+  allTracks: Track[];
+  onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
+  onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
+  onSwitchLocal: () => void;
+}) {
+  const [mode, setMode] = useState<"claim" | "create">("claim");
+  const [name, setName] = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [scopeAll, setScopeAll] = useState(true);
+  const [chosen, setChosen] = useState<Set<number>>(new Set());
+  const [search, setSearch] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return props.allTracks;
+    return props.allTracks.filter((track) =>
+      `${track.title} ${track.artist ?? ""}`.toLowerCase().includes(needle)
+    );
+  }, [props.allTracks, search]);
+
+  function reset() {
+    setName("");
+    setPassphrase("");
+    setError(null);
+    setScopeAll(true);
+    setChosen(new Set());
+    setSearch("");
+  }
+
+  function toggle(id: number) {
+    setChosen((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  async function submit() {
+    if (!name.trim() || !passphrase.trim()) {
+      setError("Name and passphrase are both required.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode === "claim") {
+        await props.onClaim(name.trim(), passphrase);
+      } else {
+        const ids = scopeAll ? [] : [...chosen];
+        if (!scopeAll && ids.length === 0) {
+          setError("Pick at least one song, or choose “All songs”.");
+          setBusy(false);
+          return;
+        }
+        await props.onCreate(name.trim(), passphrase, ids);
+      }
+      reset();
+    } catch (err) {
+      setError(
+        message(err, mode === "claim" ? "Could not claim that profile." : "Could not create that profile.")
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="profile-panel">
+      <div className="profile-head">
+        <h4>
+          <Smartphone size={15} /> Device profile
+        </h4>
+        <p>
+          Optional. Share one library across devices — each device claims its own profile (its songs and
+          settings) by passphrase. Leave this be for normal single-device use.
+        </p>
+      </div>
+
+      {props.activeConfig ? (
+        <div className="profile-active">
+          <div>
+            <strong>{props.activeConfig.name}</strong>
+            <small>
+              {props.activeConfig.included_track_ids.length === 0
+                ? "All songs"
+                : `${props.activeConfig.included_track_ids.length} songs`}
+            </small>
+          </div>
+          <button className="ghost-button" onClick={props.onSwitchLocal} title="Use the full local library">
+            <LogOut size={14} /> Local
+          </button>
+        </div>
+      ) : (
+        <p className="profile-mode-note">Currently local — using the full library and global settings.</p>
+      )}
+
+      <div className="profile-tabs">
+        <button className={mode === "claim" ? "active" : ""} onClick={() => setMode("claim")}>
+          Claim existing
+        </button>
+        <button className={mode === "create" ? "active" : ""} onClick={() => setMode("create")}>
+          Create new
+        </button>
+      </div>
+
+      <div className="profile-form">
+        <input
+          placeholder="Profile name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Passphrase"
+          value={passphrase}
+          onChange={(event) => setPassphrase(event.target.value)}
+        />
+
+        {mode === "create" ? (
+          <div className="scope-control">
+            <label className="scope-toggle">
+              <input type="checkbox" checked={scopeAll} onChange={(event) => setScopeAll(event.target.checked)} />
+              Include all songs
+            </label>
+            {!scopeAll ? (
+              <div className="scope-picker">
+                <div className="scope-picker-head">
+                  <input
+                    placeholder="Search songs…"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                  <span>{chosen.size} selected</span>
+                </div>
+                <div className="scope-list">
+                  {filtered.slice(0, 300).map((track) => (
+                    <label key={track.id} className="scope-row">
+                      <input type="checkbox" checked={chosen.has(track.id)} onChange={() => toggle(track.id)} />
+                      <span className="scope-title">{track.title}</span>
+                      <small>{displayArtist(track)}</small>
+                    </label>
+                  ))}
+                  {filtered.length > 300 ? (
+                    <p className="scope-more">Showing first 300 — search to narrow.</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {error ? <p className="profile-error">{error}</p> : null}
+
+        <button className="primary" disabled={busy} onClick={() => void submit()}>
+          {busy ? "Working…" : mode === "claim" ? "Claim profile" : "Create profile"}
+        </button>
+        {mode === "create" ? (
+          <small className="profile-hint">New profiles capture your current settings as their snapshot.</small>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

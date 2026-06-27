@@ -207,3 +207,20 @@ export type LibraryExport = {
   groups?: { name: string; group_type: string; manual_multiplier?: number; rating_multiplier?: number }[];
   tracks: LibraryTrackPayload[];
 };
+
+// Device profiles (optional, multi-device). A profile = which songs are included
+// + a settings snapshot, claimable on any device by name + passphrase. Local-only
+// use never needs one; activeConfig === null means "full library, global settings".
+export type DeviceConfigSummary = {
+  id: number;
+  name: string;
+  track_count: number;
+  created_at: string;
+};
+
+export type DeviceConfigDetail = {
+  id: number;
+  name: string;
+  settings: Record<string, number | boolean>;
+  included_track_ids: number[];
+};
