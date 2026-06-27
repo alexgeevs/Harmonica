@@ -526,3 +526,28 @@ hearing-health uses the in-app signal-based loudness meter rather than the volum
 estimate the native Kotlin Android client gets. Upgrade path if a Mac later appears: wrap the
 same React UI with Capacitor + a small Swift `AVAudioSession` plugin to recover the volume read.
 See `docs/planning/multi-device-architecture.md` → "iOS app".
+
+## 2026-06-27: Codex retired; priorities; Android = "an iPod"
+
+### User Input
+
+- **Codex is retired** — the user's Codex subscription ran out, so Claude now solo-owns the whole
+  codebase (front-end *and* backend). Do not resume the old Codex session.
+- On the four open threads: (1) **build Phase 2** (device profiles in the web app) — *"as long as
+  the files for a network-hosted thing aren't compulsory for a local-hosted thing"* (i.e. configs
+  must stay optional; local-only use must keep working with zero config). (2) Install-hint banner:
+  *"probably not just yet."* (3) Test-DB isolation: *"Do this yourself."* (4) Android: *"Sounds
+  good, I will give you access to the Android phone shortly, basically you should make it entirely
+  an iPod or something like that where its sole purpose will be to play local music in your UI."*
+
+### Result
+
+- Recorded Codex retirement in `CLAUDE.md` and memory; Claude owns backend going forward.
+- **#3 done:** `tests/conftest.py` redirects `HARMONICA_HOME` to a temp dir so the suite can no
+  longer pollute the real ~250-song library (verified: 250 → 250 after a full run).
+- **#1 done:** optional "Device profile" panel in Settings (claim/create, song-scope picker,
+  settings snapshot); active profile scopes Library + queue; local mode stays the untouched
+  default (verified end-to-end). See `multi-device-architecture.md` → Phase 2.
+- **#4 framing captured:** the Android client is to be a dedicated **"iPod"** — a single-purpose
+  local-music player driven by Harmonica's algorithm, syncing its songs/config from the daemon and
+  playing offline from a phone folder. Build resumes once the user grants phone access.
