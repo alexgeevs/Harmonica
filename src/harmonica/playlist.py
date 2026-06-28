@@ -26,7 +26,15 @@ from harmonica.models import (
     WeightGroup,
     ensure_additive_playlist_run_columns,
 )
-from harmonica.ratings import aggregate_group_rating_multipliers, effective_song_multiplier
+from harmonica.normalization import (
+    aggregate_group_multipliers_from_overall,
+    compute_song_ratings,
+)
+from harmonica.ratings import (
+    aggregate_group_rating_multipliers,
+    effective_song_multiplier,
+    rating_to_song_multiplier,
+)
 
 
 def load_algorithm_inputs(
@@ -34,7 +42,7 @@ def load_algorithm_inputs(
     settings: Settings,
     included_track_ids: set[int] | None = None,
 ) -> tuple[list[AlgorithmTrack], dict[int, AlgorithmGroup], object]:
-    tracks = list(
+    all_tracks = list(
         session.scalars(
             select(Track).options(
                 selectinload(Track.assets),
@@ -43,9 +51,13 @@ def load_algorithm_inputs(
             )
         )
     )
-    # A device config can restrict the library to an explicit set of songs.
-    if included_track_ids is not None:
-        tracks = [track for track in tracks if track.id in included_track_ids]
+    # A device config can restrict the library to an explicit set of songs. Stats stay
+    # whole-library (all_tracks); only the candidate pool is scoped.
+    tracks = (
+        [track for track in all_tracks if track.id in included_track_ids]
+        if included_track_ids is not None
+        else all_tracks
+    )
     variant_counts = dict(
         session.execute(
             select(Track.sub_group, func.count(Track.id))
@@ -55,11 +67,24 @@ def load_algorithm_inputs(
     )
     history_summary = summarize_history(session, tracks, settings)
     groups = list(session.scalars(select(WeightGroup)))
-    aggregate_group_multipliers = (
-        aggregate_group_rating_multipliers(tracks, variant_counts, settings)
-        if settings.enable_group_rating_multiplier
-        else {}
+
+    # Feature 1: normalised per-song rating (history-aware, mood-stripped). When disabled,
+    # fall back to the legacy single-star path so behaviour is unchanged.
+    song_ratings = (
+        compute_song_ratings(session, all_tracks, variant_counts, settings)
+        if settings.rating_normalization_enabled
+        else None
     )
+    if not settings.enable_group_rating_multiplier:
+        aggregate_group_multipliers = {}
+    elif song_ratings is not None:
+        aggregate_group_multipliers = aggregate_group_multipliers_from_overall(
+            tracks, song_ratings.overall_by_track, settings
+        )
+    else:
+        aggregate_group_multipliers = aggregate_group_rating_multipliers(
+            tracks, variant_counts, settings
+        )
     group_map = {
         group.id: AlgorithmGroup(
             id=group.id,
@@ -92,11 +117,12 @@ def load_algorithm_inputs(
                 groups={membership.group_id: membership.share for membership in track.memberships},
                 sub_group=track.sub_group,
                 manual_multiplier=track.manual_multiplier,
-                rating_multiplier=effective_song_multiplier(
-                    track,
-                    track.ratings,
-                    variant_count,
-                    settings,
+                rating_multiplier=(
+                    rating_to_song_multiplier(
+                        song_ratings.overall_by_track.get(track.id), settings
+                    )
+                    if song_ratings is not None
+                    else effective_song_multiplier(track, track.ratings, variant_count, settings)
                 ),
                 history_multiplier=history_multiplier(signal, settings),
                 cold_start_multiplier=cold_start_multiplier(

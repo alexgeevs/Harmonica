@@ -46,6 +46,19 @@ class Settings(BaseSettings):
     # Cautious by default: warnings should err toward firing early.
     loudness_warning_level: float = 0.55
 
+    # Rating normalisation (Feature 1; docs/planning/rating-normalization-and-covers.md).
+    rating_normalization_enabled: bool = True
+    rating_outlier_sd: float = 1.0
+    rating_session_mood_correction: bool = True
+    rating_session_min_songs: int = 10
+    rating_coverage_ready_fraction: float = 0.6
+    # Internal estimator constants (not exposed as user controls).
+    rating_shrinkage_pseudocount: float = 1.0
+    rating_min_multi_rated_songs: int = 20
+    rating_min_samples_for_sd: int = 30
+    rating_session_bias_min_sd: float = 0.5
+    rating_session_bias_pseudocount: float = 10.0
+
     @property
     def db_url(self) -> str:
         if self.database_url:
