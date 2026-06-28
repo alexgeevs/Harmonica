@@ -93,6 +93,12 @@ export type SettingControl = {
     | "rating_session_min_songs"
     | "rating_coverage_ready_fraction"
     | "rating_calibration_enabled"
+    | "satiation_enabled"
+    | "satiation_strength"
+    | "satiation_window_days"
+    | "rediscovery_enabled"
+    | "rediscovery_strength"
+    | "rediscovery_halflife_days"
   >;
   label: string;
   description: string;
@@ -136,6 +142,12 @@ export type AppSettings = {
   rating_session_min_songs: number;
   rating_coverage_ready_fraction: number;
   rating_calibration_enabled: boolean;
+  satiation_enabled: boolean;
+  satiation_strength: number;
+  satiation_window_days: number;
+  rediscovery_enabled: boolean;
+  rediscovery_strength: number;
+  rediscovery_halflife_days: number;
   controls: SettingControl[];
 };
 

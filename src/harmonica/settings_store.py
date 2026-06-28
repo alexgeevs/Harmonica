@@ -330,6 +330,82 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         control="switch",
         default=True,
     ),
+    SettingDefinition(
+        key="satiation_enabled",
+        label="Ease off recent favourites",
+        description=(
+            "Pace a song you've been playing a lot lately so it doesn't wear out, then let it "
+            "recover over the following weeks. Protects against burning out on a song you love."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="satiation_strength",
+        label="Ease-off strength",
+        description="How strongly a recently over-played song is held back. Higher = more spacing.",
+        value_type="number",
+        control="slider",
+        default=0.5,
+        minimum=0.0,
+        maximum=2.0,
+        step=0.1,
+    ),
+    SettingDefinition(
+        key="satiation_window_days",
+        label="Recent-play window",
+        description=(
+            "Over how many days recent plays count toward easing a song off (a play this long ago "
+            "counts half). Roughly your binge length."
+        ),
+        value_type="number",
+        control="stepper",
+        default=14,
+        minimum=3,
+        maximum=60,
+        step=1,
+        unit="days",
+    ),
+    SettingDefinition(
+        key="rediscovery_enabled",
+        label="Resurface dormant favourites",
+        description=(
+            "Gradually bring back a song you loved but haven't heard in a long time, so it returns "
+            "fresh. Only applies to your above-average songs that have been played before."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="rediscovery_strength",
+        label="Rediscovery strength",
+        description=(
+            "How much extra weight a long-dormant favourite earns. Higher = returns sooner."
+        ),
+        value_type="number",
+        control="slider",
+        default=0.4,
+        minimum=0.0,
+        maximum=1.0,
+        step=0.05,
+    ),
+    SettingDefinition(
+        key="rediscovery_halflife_days",
+        label="Rediscovery patience",
+        description=(
+            "How long a favourite must rest for half of its rediscovery boost. Larger = waits "
+            "longer before bringing a song back."
+        ),
+        value_type="number",
+        control="stepper",
+        default=60,
+        minimum=14,
+        maximum=180,
+        step=1,
+        unit="days",
+    ),
 )
 
 SETTING_MAP = {definition.key: definition for definition in SETTING_DEFINITIONS}

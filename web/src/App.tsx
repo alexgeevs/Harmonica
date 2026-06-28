@@ -1661,6 +1661,18 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
       "rating_session_min_songs",
       "rating_coverage_ready_fraction"
     ]
+  },
+  {
+    title: "Repetition & rediscovery",
+    note: "Avoid wearing a song out by over-playing it, and bring back dormant favourites.",
+    keys: [
+      "satiation_enabled",
+      "satiation_strength",
+      "satiation_window_days",
+      "rediscovery_enabled",
+      "rediscovery_strength",
+      "rediscovery_halflife_days"
+    ]
   }
 ];
 

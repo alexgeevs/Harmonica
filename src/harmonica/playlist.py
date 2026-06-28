@@ -15,7 +15,13 @@ from harmonica.algorithm import (
 )
 from harmonica.config import Settings
 from harmonica.db import engine
-from harmonica.history import cold_start_multiplier, history_multiplier, summarize_history
+from harmonica.history import (
+    cold_start_multiplier,
+    history_multiplier,
+    rediscovery_multiplier,
+    satiation_multiplier,
+    summarize_history,
+)
 from harmonica.models import (
     GroupMembership,
     MediaAsset,
@@ -25,6 +31,7 @@ from harmonica.models import (
     TrackRating,
     WeightGroup,
     ensure_additive_playlist_run_columns,
+    now_utc,
 )
 from harmonica.normalization import (
     aggregate_group_multipliers_from_overall,
@@ -65,7 +72,8 @@ def load_algorithm_inputs(
             .group_by(Track.sub_group)
         ).all()
     )
-    history_summary = summarize_history(session, tracks, settings)
+    now = now_utc()
+    history_summary = summarize_history(session, tracks, settings, now=now)
     groups = list(session.scalars(select(WeightGroup)))
 
     # Feature 1: normalised per-song rating (history-aware, mood-stripped). When disabled,
@@ -75,6 +83,12 @@ def load_algorithm_inputs(
         if settings.rating_normalization_enabled
         else None
     )
+    # Library mean of the normalised overall — the bar a song must clear to count as a
+    # "favourite" for rediscovery.
+    library_overall_mean: float | None = None
+    if song_ratings is not None:
+        rated = [v for v in song_ratings.overall_by_track.values() if v is not None]
+        library_overall_mean = sum(rated) / len(rated) if rated else None
     if not settings.enable_group_rating_multiplier:
         aggregate_group_multipliers = {}
     elif song_ratings is not None:
@@ -130,6 +144,14 @@ def load_algorithm_inputs(
                     history_summary,
                     settings,
                     variant_count,
+                ),
+                satiation_multiplier=satiation_multiplier(signal, settings),
+                rediscovery_multiplier=rediscovery_multiplier(
+                    signal,
+                    song_ratings.overall_by_track.get(track.id) if song_ratings else None,
+                    library_overall_mean,
+                    now,
+                    settings,
                 ),
                 has_video=any(asset.asset_type == "video" for asset in track.assets),
                 repeat_count=signal.repeat_count if signal else 0.0,

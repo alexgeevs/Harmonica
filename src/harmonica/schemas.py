@@ -181,6 +181,12 @@ class SettingsRead(BaseModel):
     rating_session_min_songs: int
     rating_coverage_ready_fraction: float
     rating_calibration_enabled: bool
+    satiation_enabled: bool
+    satiation_strength: float
+    satiation_window_days: float
+    rediscovery_enabled: bool
+    rediscovery_strength: float
+    rediscovery_halflife_days: float
     controls: list[SettingControlRead]
 
 

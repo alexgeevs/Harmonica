@@ -33,6 +33,8 @@ class AlgorithmTrack:
     rating_multiplier: float = 1.0
     history_multiplier: float = 1.0
     cold_start_multiplier: float = 1.0
+    satiation_multiplier: float = 1.0
+    rediscovery_multiplier: float = 1.0
     has_video: bool = False
     repeat_count: float = 0.0
     is_rated: bool = False
@@ -268,6 +270,8 @@ def score_track(
         * track.rating_multiplier
         * track.history_multiplier
         * track.cold_start_multiplier
+        * track.satiation_multiplier
+        * track.rediscovery_multiplier
         * visual_multiplier
         * song_cooldown
         * sub_cooldown
@@ -281,6 +285,8 @@ def score_track(
         "rating_multiplier": track.rating_multiplier,
         "history_multiplier": track.history_multiplier,
         "cold_start_multiplier": track.cold_start_multiplier,
+        "satiation_multiplier": track.satiation_multiplier,
+        "rediscovery_multiplier": track.rediscovery_multiplier,
         "visual_multiplier": visual_multiplier,
         "song_cooldown": song_cooldown,
         "sub_group_cooldown": sub_cooldown,

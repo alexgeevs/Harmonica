@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     visual_priority_enabled: bool = True
     visual_priority_multiplier: float = 1.35
     group_clustering_bias: float = 0.0
+    # Satiation: pace a recently over-played song so a binge doesn't burn it out (recovers over
+    # weeks). Rediscovery: resurface a dormant favourite the longer it's gone unheard.
+    satiation_enabled: bool = True
+    satiation_strength: float = 0.5
+    satiation_window_days: float = 14.0
+    satiation_floor: float = 0.3
+    rediscovery_enabled: bool = True
+    rediscovery_strength: float = 0.4
+    rediscovery_halflife_days: float = 60.0
     # Hearing health & compression awareness.
     avoid_consecutive_compressed: bool = True
     compressed_break_reminder: bool = True

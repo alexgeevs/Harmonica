@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from harmonica.config import Settings
-from harmonica.models import PlaybackEvent, Track
+from harmonica.models import PlaybackEvent, Track, now_utc
 from harmonica.ratings import effective_rating
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite drops tzinfo on read, so timestamps come back naive; treat naive as UTC so we can
+    safely subtract them from the tz-aware injected `now`."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 @dataclass
@@ -16,6 +23,10 @@ class TrackHistorySignal:
     repeat_credit: float = 0.0
     skip_penalty: float = 0.0
     repeat_count: float = 0.0
+    # Wall-clock signals (for satiation + rediscovery). last_played_at is the most recent play;
+    # recent_play_weight is a time-decayed count of recent plays (binge detector).
+    last_played_at: datetime | None = None
+    recent_play_weight: float = 0.0
 
 
 @dataclass
@@ -33,7 +44,10 @@ def summarize_history(
     session: Session,
     tracks: list[Track],
     settings: Settings,
+    now: datetime | None = None,
 ) -> HistorySummary:
+    # `now` is injected (not read inside the loop) so a generation stays deterministic.
+    now = _as_utc(now or now_utc())
     summary = HistorySummary()
     summary.rated_track_ids = rated_track_ids(tracks)
 
@@ -57,6 +71,7 @@ def summarize_history(
     halflife = max(settings.skip_penalty_halflife, 1.0)
     decay = 0.5 ** (1.0 / halflife)
     penalty_acc: dict[int, list[float]] = {}
+    satiation_window = max(settings.satiation_window_days, 0.1)
 
     for index, event in enumerate(events):
         track = track_by_id.get(event.track_id)
@@ -72,6 +87,13 @@ def summarize_history(
             acc = penalty_acc.setdefault(event.track_id, [0.0, 0.0])
             acc[0] += weight * skip_penalty
             acc[1] += weight
+        # Wall-clock recency: most-recent play time + a time-decayed recent-play count.
+        if event.created_at is not None:
+            if signal.last_played_at is None or event.created_at > signal.last_played_at:
+                signal.last_played_at = event.created_at
+            if repeat_credit > 0:
+                age_days = max((now - _as_utc(event.created_at)).total_seconds() / 86400.0, 0.0)
+                signal.recent_play_weight += repeat_credit * (0.5 ** (age_days / satiation_window))
         if repeat_credit > 0:
             effective_distance = effective_repeat_distance(distance, repeat_credit)
             if signal.repeat_distance is None or effective_distance < signal.repeat_distance:
@@ -167,6 +189,42 @@ def history_multiplier(signal: TrackHistorySignal | None, settings: Settings) ->
         return 1.0
     penalty = min(max(signal.skip_penalty, 0.0), 1.0)
     return max(0.2, 1.0 - (settings.skip_penalty_strength * penalty))
+
+
+def satiation_multiplier(signal: TrackHistorySignal | None, settings: Settings) -> float:
+    """Suppress a song that's been played heavily in the recent window so a binge doesn't burn
+    it out; recovers smoothly as those plays age out. Floored so nothing is ever banned."""
+    if not settings.satiation_enabled or signal is None or signal.recent_play_weight <= 0:
+        return 1.0
+    raw = 1.0 / (1.0 + settings.satiation_strength * signal.recent_play_weight)
+    return max(settings.satiation_floor, raw)
+
+
+def rediscovery_multiplier(
+    signal: TrackHistorySignal | None,
+    overall_rating: float | None,
+    library_mean: float | None,
+    now: datetime,
+    settings: Settings,
+) -> float:
+    """Boost a dormant FAVOURITE (rated above the library mean) the longer it's gone unheard, so
+    a once-loved song returns fresh months later. Collapses to 1.0 the moment it plays; never
+    fires for never-played songs (cold-start owns those)."""
+    if (
+        not settings.rediscovery_enabled
+        or signal is None
+        or signal.last_played_at is None
+        or overall_rating is None
+        or library_mean is None
+    ):
+        return 1.0
+    favourite = min(max(overall_rating - library_mean, 0.0), 1.0)  # 0 at the mean → 1 a star above
+    if favourite <= 0:
+        return 1.0
+    age_days = max((_as_utc(now) - _as_utc(signal.last_played_at)).total_seconds() / 86400.0, 0.0)
+    halflife = max(settings.rediscovery_halflife_days, 0.1)
+    dormancy = 1.0 - 0.5 ** (age_days / halflife)
+    return 1.0 + settings.rediscovery_strength * favourite * dormancy
 
 
 def cold_start_multiplier(
