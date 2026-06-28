@@ -180,6 +180,7 @@ class SettingsRead(BaseModel):
     rating_session_mood_correction: bool
     rating_session_min_songs: int
     rating_coverage_ready_fraction: float
+    rating_calibration_enabled: bool
     controls: list[SettingControlRead]
 
 

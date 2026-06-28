@@ -1655,6 +1655,7 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
     note: "How repeat ratings are averaged and mood-corrected before they steer the queue.",
     keys: [
       "rating_normalization_enabled",
+      "rating_calibration_enabled",
       "rating_outlier_sd",
       "rating_session_mood_correction",
       "rating_session_min_songs",

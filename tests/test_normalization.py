@@ -11,6 +11,8 @@ from harmonica.db import SessionLocal
 from harmonica.models import Track
 from harmonica.normalization import (
     FactorStats,
+    calibrate_value,
+    compute_calibration_stats,
     compute_factor_stats,
     compute_session_biases,
     pooled_within_series_sd,
@@ -148,6 +150,33 @@ def test_session_mood_off_when_not_ready() -> None:
     not_ready = FactorStats(1, "overall", 3.0, 0.5, 1.0, 99, 99, ready=False, alpha=0.0)
     series = {tid: [(3.0, "base"), (4.0, "R")] for tid in range(12)}
     assert compute_session_biases(series, not_ready, settings) == {}
+
+
+def test_calibration_recentres_a_top_heavy_rater() -> None:
+    settings = Settings(rating_calibration_enabled=True, rating_calibration_min_rated_songs=5,
+                        rating_calibration_z_cap=2.0)
+    # A 4-or-5-only rater: song means clustered high. Their average is the neutral point.
+    song_means = [4.0, 4.5, 5.0, 4.0, 4.5, 5.0, 4.0, 4.5]  # mean = 4.4375
+    stats = compute_calibration_stats(_Factor(1, "overall"), song_means, settings)
+    assert stats.ready is True
+    # Their average song -> neutral 2.5; below-average 4.0 -> below neutral; 5.0 -> above.
+    assert math.isclose(calibrate_value(stats.mean, stats, settings), 2.5)
+    assert calibrate_value(4.0, stats, settings) < 2.5
+    assert calibrate_value(5.0, stats, settings) > 2.5
+
+
+def test_calibration_inert_when_not_ready() -> None:
+    settings = Settings(rating_calibration_min_rated_songs=20)
+    stats = compute_calibration_stats(_Factor(1, "overall"), [4.0, 5.0, 4.0], settings)  # only 3
+    assert stats.ready is False
+    assert calibrate_value(4.0, stats, settings) == 4.0  # pass-through
+
+
+def test_calibration_inert_with_zero_spread() -> None:
+    settings = Settings(rating_calibration_min_rated_songs=2)
+    stats = compute_calibration_stats(_Factor(1, "overall"), [4.0, 4.0, 4.0], settings)
+    assert stats.ready is False  # sd == 0
+    assert calibrate_value(4.0, stats, settings) == 4.0
 
 
 def test_normalised_overall_drives_generation_multiplier() -> None:

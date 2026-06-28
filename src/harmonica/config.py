@@ -52,12 +52,17 @@ class Settings(BaseSettings):
     rating_session_mood_correction: bool = True
     rating_session_min_songs: int = 10
     rating_coverage_ready_fraction: float = 0.6
+    # Per-user scale calibration: recentre so the user's OWN average maps to neutral and their
+    # used range is stretched (e.g. a 4★-everything rater has their 4 treated as mediocre).
+    rating_calibration_enabled: bool = True
     # Internal estimator constants (not exposed as user controls).
     rating_shrinkage_pseudocount: float = 1.0
     rating_min_multi_rated_songs: int = 20
     rating_min_samples_for_sd: int = 30
     rating_session_bias_min_sd: float = 0.5
     rating_session_bias_pseudocount: float = 10.0
+    rating_calibration_min_rated_songs: int = 20
+    rating_calibration_z_cap: float = 2.0
 
     @property
     def db_url(self) -> str:

@@ -92,6 +92,7 @@ export type SettingControl = {
     | "rating_session_mood_correction"
     | "rating_session_min_songs"
     | "rating_coverage_ready_fraction"
+    | "rating_calibration_enabled"
   >;
   label: string;
   description: string;
@@ -134,6 +135,7 @@ export type AppSettings = {
   rating_session_mood_correction: boolean;
   rating_session_min_songs: number;
   rating_coverage_ready_fraction: number;
+  rating_calibration_enabled: boolean;
   controls: SettingControl[];
 };
 

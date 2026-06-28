@@ -79,9 +79,20 @@ algorithm rationale see `rating-normalization-and-covers.md`; for verbatim early
   be weighted against playing two in a row (e.g. two pop), and songs can have several types. Take inputs
   with a grain of salt; add these and **brainstorm what else** could be added. Keep an md log of every final
   output and every input (this one included).
-- **Claude (final):** _(in progress this turn)_ Created this session log. Confirmed the multiplier already
-  scales continuously (4→1.6×, only 5→2× max, floor 0.5× at 0; min/max already settings). Implementing
-  "displayed rating = plain average" (fractional stars). Verifying/strengthening the type link (group
-  rating-multiplier + group cooldown + multi-type membership already provide it; making it tunable). Ran a
-  multi-agent **brainstorm + adversarial vetting** workflow for further algorithm enhancements; synthesis to
-  be folded into an algorithm-roadmap doc.
+- **Claude (final):** Created this session log. Confirmed the multiplier already scales continuously
+  (4→1.6×, only 5→2× max, floor 0.5× at 0; min/max already settings). Implemented "displayed rating =
+  plain average" (fractional stars). Exposed the rating-normalisation settings as real controls. Ran a
+  multi-agent **brainstorm + adversarial vetting** workflow (35 ideas) for further enhancements.
+
+### 2026-06-27 — Brainstorm reactions; per-user scale calibration
+- **User:** "Not now and More like this are good ideas, write down that you came up with them." Concurs
+  with most of the brainstorm preview. New idea: **per-user rating-scale calibration** — if a user tends
+  to rate only 4–5, the algorithm should account for that (treat a 4 like ~2, a 4.5 like ~3.5). "Otherwise,
+  do continue, these are very good ideas."
+- **Claude (final):** **Attribution noted — the "Not now" / "More like this" ephemeral session-steering
+  controls were Claude's ideas (surfaced by the multi-agent brainstorm), not the user's.** Implemented the
+  user's **rating-scale calibration**: per-factor between-song distribution recentres the user's own
+  average to neutral and stretches their used range, so a 4/5-only rater's 4★ song scores 0.75× and their
+  5★ scores 1.5× (vs face-value 1.6×/2.0×). Gated on ≥20 rated songs + non-zero spread; tunable via a new
+  "Calibrate to your scale" setting. The full brainstorm synthesis (interrupted by a usage limit) is
+  re-running; survivors → `algorithm-roadmap.md`. Continuing to Phase C (two-level covers) next.

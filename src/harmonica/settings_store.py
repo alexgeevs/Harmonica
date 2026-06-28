@@ -318,6 +318,18 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         maximum=1.0,
         step=0.05,
     ),
+    SettingDefinition(
+        key="rating_calibration_enabled",
+        label="Calibrate to your scale",
+        description=(
+            "Account for how you personally use the stars: if you tend to rate only 4–5, your "
+            "average song is treated as neutral and a 4 counts as mediocre. Off = take stars at "
+            "face value."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
 )
 
 SETTING_MAP = {definition.key: definition for definition in SETTING_DEFINITIONS}

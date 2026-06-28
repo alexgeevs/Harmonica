@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -155,6 +155,48 @@ def song_overall(
     return others_mean
 
 
+@dataclass(frozen=True)
+class CalibrationStats:
+    """Per-factor between-song distribution, used to recentre a user's personal scale."""
+
+    factor_id: int
+    mean: float
+    sd: float
+    n_rated: int
+    ready: bool
+
+
+def compute_calibration_stats(
+    factor: RatingFactor, song_means: list[float], settings: Settings
+) -> CalibrationStats:
+    """The distribution of per-song mean ratings for a factor — how the user actually SPREADS
+    the star scale across songs (between-song), computed from raw means (not the shrunk values,
+    so shrinkage can't deflate the spread)."""
+    n = len(song_means)
+    if n == 0:
+        return CalibrationStats(factor.id, 2.5, 0.0, 0, False)
+    mean = sum(song_means) / n
+    sd = math.sqrt(sum((x - mean) ** 2 for x in song_means) / n) if n > 1 else 0.0
+    ready = (
+        settings.rating_calibration_enabled
+        and n >= settings.rating_calibration_min_rated_songs
+        and sd > 1e-6
+    )
+    return CalibrationStats(factor.id, mean, sd, n, ready)
+
+
+def calibrate_value(value: float, stats: CalibrationStats, settings: Settings) -> float:
+    """Map a song's rating onto the utility scale relative to the user's OWN distribution: the
+    user's average song → neutral 2.5, ±z_cap SD → the full 0–5 range. So a 4★-everything rater
+    has a 4 (below their mean) land below neutral, while their 5 stays at the top."""
+    if not stats.ready:
+        return value
+    z = (value - stats.mean) / stats.sd
+    cap = settings.rating_calibration_z_cap
+    z = max(-cap, min(cap, z))
+    return _clip(2.5 + z * (2.5 / cap))
+
+
 @dataclass
 class SongRatings:
     """Per-track normalised ratings for one generation."""
@@ -162,6 +204,7 @@ class SongRatings:
     overall_by_track: dict[int, float | None]
     effective_by_track: dict[int, dict[str, float | None]]
     factor_stats: dict[int, FactorStats]
+    calibration: dict[int, CalibrationStats] = field(default_factory=dict)
 
 
 def plain_rating_averages(
@@ -324,8 +367,10 @@ def compute_song_ratings(
             series_by_factor.get(factor.id, {}), stats, settings
         )
 
-    overall_by_track: dict[int, float | None] = {}
-    effective_by_track: dict[int, dict[str, float | None]] = {}
+    # Pass 1: raw normalised effective value per (track, factor) — mood-corrected, winsorised,
+    # shrunk, ramped. Calibration (per-user scale) is applied afterwards.
+    raw_effective: dict[int, dict[str, float | None]] = {}
+    applicable_by_track: dict[int, set[str]] = {}
     for track in all_tracks:
         effective_by_key: dict[str, float | None] = {}
         applicable: set[str] = set()
@@ -338,10 +383,34 @@ def compute_song_ratings(
             effective_by_key[factor.key] = series_effective(
                 corrected, stats_by_factor[factor.id], settings
             )
-        overall_by_track[track.id] = song_overall(effective_by_key, applicable)
-        effective_by_track[track.id] = effective_by_key
+        raw_effective[track.id] = effective_by_key
+        applicable_by_track[track.id] = applicable
 
-    return SongRatings(overall_by_track, effective_by_track, stats_by_factor)
+    # Per-user scale calibration stats, from raw per-song means (the between-song spread).
+    calibration_by_factor: dict[int, CalibrationStats] = {}
+    for factor in rated_factors:
+        song_means = [sum(vals) / len(vals) for vals in raw_values(factor.id).values() if vals]
+        calibration_by_factor[factor.id] = compute_calibration_stats(factor, song_means, settings)
+    calibration_by_key = {factor.key: calibration_by_factor[factor.id] for factor in rated_factors}
+
+    # Pass 2: calibrate each factor onto the user's own scale, then combine into overall.
+    overall_by_track: dict[int, float | None] = {}
+    effective_by_track: dict[int, dict[str, float | None]] = {}
+    for track in all_tracks:
+        calibrated: dict[str, float | None] = {
+            key: (
+                calibrate_value(value, calibration_by_key[key], settings)
+                if value is not None
+                else None
+            )
+            for key, value in raw_effective[track.id].items()
+        }
+        overall_by_track[track.id] = song_overall(calibrated, applicable_by_track[track.id])
+        effective_by_track[track.id] = calibrated
+
+    return SongRatings(
+        overall_by_track, effective_by_track, stats_by_factor, calibration_by_factor
+    )
 
 
 def song_rating_multiplier(track_id: int, ratings: SongRatings, settings: Settings) -> float:
