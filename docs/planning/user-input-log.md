@@ -551,3 +551,29 @@ See `docs/planning/multi-device-architecture.md` → "iOS app".
 - **#4 framing captured:** the Android client is to be a dedicated **"iPod"** — a single-purpose
   local-music player driven by Harmonica's algorithm, syncing its songs/config from the daemon and
   playing offline from a phone folder. Build resumes once the user grants phone access.
+
+## 2026-06-27: Rating normalisation & cover comparison (algorithm direction)
+
+### User Input
+
+The user set two algorithm directions and asked them recorded as evidence (verbatim Q&A is in
+`docs/planning/rating-normalization-and-covers.md`):
+1. **Rating normalisation** — accumulate rating history; strip mood noise. The standard deviation is
+   **library-wide, per factor, derived once the majority of songs are rated** (most ideally >1×), used as
+   the yardstick to regress a song's outlier rating (>~1 SD from that song's own mean) toward the mean.
+   Plus session-mood correction for sessions of >10 rated songs.
+2. **Cover comparison** — songs with **≥4 covers** (same `sub_group`) get **consecutive-playback A/B**
+   (play cover A, then B; during B ask "which was better?", with a brief "replay A at ~same %"), only when
+   **active** (≥4 of last 5 songs rated); bootstrap then **revert to stars**. **Two-level selection**: pick
+   a song from shared ratings, then a cover from cover-specific **performance**; cover count boosts
+   appearance **logarithmically** (tunable base); `overall` = 50% direct + 50% mean of other factors;
+   original rendition gets a small prior.
+
+The user then switched the session to **ultracode** and asked for a multi-agent design review of the
+algorithm and the app as a whole before/while implementing.
+
+### Result
+
+Captured decisions in `rating-normalization-and-covers.md` (incl. verbatim Q&A). Launched a four-phase
+multi-agent design review (map → design → adversarial critique → synthesis) to lock the detailed math and
+schema before implementing. Implementation proceeds from the synthesised blueprint.
