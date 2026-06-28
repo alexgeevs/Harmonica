@@ -175,6 +175,11 @@ class SettingsRead(BaseModel):
     compressed_break_reminder: bool
     loudness_warning_enabled: bool
     loudness_warning_level: float
+    rating_normalization_enabled: bool
+    rating_outlier_sd: float
+    rating_session_mood_correction: bool
+    rating_session_min_songs: int
+    rating_coverage_ready_fraction: float
     controls: list[SettingControlRead]
 
 

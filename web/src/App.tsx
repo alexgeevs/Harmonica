@@ -1649,6 +1649,17 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
       "compressed_break_reminder",
       "avoid_consecutive_compressed"
     ]
+  },
+  {
+    title: "Rating normalisation",
+    note: "How repeat ratings are averaged and mood-corrected before they steer the queue.",
+    keys: [
+      "rating_normalization_enabled",
+      "rating_outlier_sd",
+      "rating_session_mood_correction",
+      "rating_session_min_songs",
+      "rating_coverage_ready_fraction"
+    ]
   }
 ];
 

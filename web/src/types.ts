@@ -87,6 +87,11 @@ export type SettingControl = {
     | "compressed_break_reminder"
     | "loudness_warning_enabled"
     | "loudness_warning_level"
+    | "rating_normalization_enabled"
+    | "rating_outlier_sd"
+    | "rating_session_mood_correction"
+    | "rating_session_min_songs"
+    | "rating_coverage_ready_fraction"
   >;
   label: string;
   description: string;
@@ -124,6 +129,11 @@ export type AppSettings = {
   compressed_break_reminder: boolean;
   loudness_warning_enabled: boolean;
   loudness_warning_level: number;
+  rating_normalization_enabled: boolean;
+  rating_outlier_sd: number;
+  rating_session_mood_correction: boolean;
+  rating_session_min_songs: number;
+  rating_coverage_ready_fraction: number;
   controls: SettingControl[];
 };
 

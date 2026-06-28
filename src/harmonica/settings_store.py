@@ -254,6 +254,70 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         maximum=1.0,
         step=0.05,
     ),
+    SettingDefinition(
+        key="rating_normalization_enabled",
+        label="Normalise ratings",
+        description=(
+            "Strip mood swings from ratings by averaging your repeat ratings and gently regressing "
+            "outliers, once enough of your library is rated. Off = use your latest star as-is."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="rating_outlier_sd",
+        label="Outlier tolerance",
+        description=(
+            "How far one rating may stray from that song's own average before it is pulled "
+            "back in, measured in standard deviations. Lower is stricter."
+        ),
+        value_type="number",
+        control="slider",
+        default=1.0,
+        minimum=0.25,
+        maximum=3.0,
+        step=0.25,
+    ),
+    SettingDefinition(
+        key="rating_session_mood_correction",
+        label="Correct session mood",
+        description=(
+            "Correct a whole rating session that ran uniformly generous or grumpy. Only acts once "
+            "your library is well-rated."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=True,
+    ),
+    SettingDefinition(
+        key="rating_session_min_songs",
+        label="Session-mood minimum songs",
+        description=(
+            "Minimum songs rated in one sitting before session-mood correction can apply."
+        ),
+        value_type="number",
+        control="stepper",
+        default=10,
+        minimum=5,
+        maximum=50,
+        step=1,
+        unit="songs",
+    ),
+    SettingDefinition(
+        key="rating_coverage_ready_fraction",
+        label="Normalisation readiness",
+        description=(
+            "Fraction of rateable songs that must have a rating before library-wide normalisation "
+            "switches on. Until then your plain averages are used as-is."
+        ),
+        value_type="number",
+        control="slider",
+        default=0.6,
+        minimum=0.2,
+        maximum=1.0,
+        step=0.05,
+    ),
 )
 
 SETTING_MAP = {definition.key: definition for definition in SETTING_DEFINITIONS}
