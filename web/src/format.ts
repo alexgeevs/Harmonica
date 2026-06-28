@@ -66,12 +66,54 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
     });
   }
 
+  // A dormant favourite being brought back fresh — directly serves the binge-then-rest pattern.
+  const rediscovery = metricNumber(ex.rediscovery_multiplier);
+  if (rediscovery > 1.02) {
+    reasons.push({
+      icon: "spark",
+      tone: "boost",
+      text: "A favourite you haven't heard in a while — bringing it back fresh"
+    });
+  }
+
   const coldStart = metricNumber(ex.cold_start_multiplier);
   if (coldStart > 1.01) {
     reasons.push({
       icon: "spark",
       tone: "boost",
       text: "New to you — surfaced early so you can rate it"
+    });
+  }
+
+  // Satiation: eased off because you've been playing it a lot lately (avoid burning it out).
+  const satiation = metricNumber(ex.satiation_multiplier);
+  if (satiation <= 0.92) {
+    reasons.push({
+      icon: "cooldown",
+      tone: "suppress",
+      text: "You've played this a lot lately — resting it so it doesn't wear out"
+    });
+  }
+
+  // The single highest-trust anti-repetition message: you literally just heard this song.
+  const songCooldown = metricNumber(ex.song_cooldown);
+  if (songCooldown <= 0.6) {
+    reasons.push({
+      icon: "cooldown",
+      tone: "suppress",
+      text: "You heard this exact song recently"
+    });
+  }
+
+  // The most-cooled group this track belongs to (e.g. "eased off this artist/source").
+  const cooledGroup = groups
+    .filter((g) => g.name && typeof g.cooldown === "number")
+    .sort((a, b) => metricNumber(a.cooldown, 1) - metricNumber(b.cooldown, 1))[0];
+  if (cooledGroup?.name && metricNumber(cooledGroup.cooldown, 1) <= 0.5) {
+    reasons.push({
+      icon: "cooldown",
+      tone: "suppress",
+      text: `Eased off ${cooledGroup.name} for variety`
     });
   }
 

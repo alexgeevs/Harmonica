@@ -109,3 +109,17 @@ algorithm rationale see `rating-normalization-and-covers.md`; for verbatim early
   lone skip still scores 1.0. Roadmap confirms the user's type-link idea is mostly already built (endorse
   + expose in "why this song"; reject the learned-graph form) and strongly endorses the simple-average
   display invariant.
+
+### 2026-06-27 — Quick wins chosen; satiation pattern revealed
+- **User:** Chose "quick wins, then covers" (other roadmap items still to come later). Revealed the core
+  listening pattern: **binge a song ~2 weeks then burn out for months**; the goal is to **avoid quality
+  depreciation from repetition** (distinct from rating-age decay). Will **update the algorithm presets**
+  once all these factors are in.
+- **Claude (final):** Recorded the satiation pattern as a durable preference (memory + roadmap). Built the
+  wall-clock layer addressing it: a **satiation guard** (eases off a recently over-played song, recovering
+  over a ~2-week window) and **dormant-favourite rediscovery** (resurfaces an above-average song the
+  longer it's gone unheard) — both bounded multipliers in the score product, deterministic via an injected
+  now-clock, inert until there's play history; exposed as a "Repetition & rediscovery" settings section.
+  Also extended **"why this song"** to surface the highest-trust messages it was hiding (you-heard-this-
+  recently, eased-off-this-type, resting-it, long-lost-favourite). Fixed a tz bug (SQLite returns naive
+  datetimes). 51 tests green. Next: Phase C (two-level covers).

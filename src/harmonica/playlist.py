@@ -267,4 +267,13 @@ def settings_snapshot(settings: Settings) -> dict[str, object]:
         "visual_priority_enabled": settings.visual_priority_enabled,
         "visual_priority_multiplier": settings.visual_priority_multiplier,
         "group_clustering_bias": settings.group_clustering_bias,
+        "skip_penalty_halflife": settings.skip_penalty_halflife,
+        "rating_normalization_enabled": settings.rating_normalization_enabled,
+        "rating_calibration_enabled": settings.rating_calibration_enabled,
+        "satiation_enabled": settings.satiation_enabled,
+        "satiation_strength": settings.satiation_strength,
+        "satiation_window_days": settings.satiation_window_days,
+        "rediscovery_enabled": settings.rediscovery_enabled,
+        "rediscovery_strength": settings.rediscovery_strength,
+        "rediscovery_halflife_days": settings.rediscovery_halflife_days,
     }
