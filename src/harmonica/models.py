@@ -7,10 +7,13 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    func,
+    select,
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -38,6 +41,8 @@ class Track(Base):
     clip_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     # When true, play the audio track only and show artwork instead of the video.
     audio_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Marks the original rendition within a sub_group (cover set) for the cover prior.
+    is_original_rendition: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
@@ -164,6 +169,35 @@ class TrackRating(Base):
 
     track: Mapped[Track] = relationship(back_populates="ratings")
     factor: Mapped[RatingFactor] = relationship(back_populates="ratings")
+
+
+class RatingSample(Base):
+    """Append-only history of every rating action. ``TrackRating.value`` stays the raw
+    latest star (for display/badge/export); the algorithm recomputes a normalised
+    effective value from these samples each generation (winsorise + shrink toward the
+    library mean, mood-corrected). NULL value = an explicit clear/retract marker.
+    See docs/planning/rating-normalization-and-covers.md."""
+
+    __tablename__ = "rating_samples"
+    __table_args__ = (
+        Index("ix_rating_samples_factor_track_created", "factor_id", "track_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    factor_id: Mapped[int] = mapped_column(
+        ForeignKey("rating_factors.id", ondelete="CASCADE"), index=True
+    )
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0..5, or NULL = cleared
+    source: Mapped[str] = mapped_column(String(16), default="user")  # 'user' | 'import'
+    # Client "sitting" id used by session-mood correction (Phase B); may be null.
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("playlist_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, index=True
+    )
 
 
 class PlaylistRun(Base):
@@ -293,6 +327,9 @@ def ensure_additive_track_columns(engine: Engine) -> None:
         "clip_start_seconds": "ALTER TABLE tracks ADD COLUMN clip_start_seconds FLOAT",
         "clip_end_seconds": "ALTER TABLE tracks ADD COLUMN clip_end_seconds FLOAT",
         "audio_only": "ALTER TABLE tracks ADD COLUMN audio_only BOOLEAN DEFAULT 0",
+        "is_original_rendition": (
+            "ALTER TABLE tracks ADD COLUMN is_original_rendition BOOLEAN DEFAULT 0"
+        ),
     }
     with engine.begin() as connection:
         columns = {
@@ -301,6 +338,32 @@ def ensure_additive_track_columns(engine: Engine) -> None:
         for name, statement in additions.items():
             if name not in columns:
                 connection.exec_driver_sql(statement)
+
+
+def backfill_rating_samples(engine: Engine) -> None:
+    """One-time, idempotent: seed ``rating_samples`` from existing ``TrackRating`` rows so a
+    pre-existing library becomes history-capable. Each becomes a single ``source='import'``
+    sample (n=1), so normalisation correctly stays inert until songs are re-rated. No-op once
+    any sample exists."""
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as session:
+        if session.scalar(select(func.count()).select_from(RatingSample)):
+            return
+        rows = session.execute(
+            select(TrackRating.track_id, TrackRating.factor_id, TrackRating.value).where(
+                TrackRating.value.is_not(None)
+            )
+        ).all()
+        if not rows:
+            return
+        for track_id, factor_id, value in rows:
+            session.add(
+                RatingSample(
+                    track_id=track_id, factor_id=factor_id, value=value, source="import"
+                )
+            )
+        session.commit()
 
 
 def ensure_additive_playback_event_columns(engine: Engine) -> None:

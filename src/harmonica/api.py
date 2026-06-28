@@ -26,13 +26,11 @@ from harmonica.models import (
     PlaylistItem,
     PlaylistRun,
     RatingFactor,
+    RatingSample,
     Track,
     TrackCooldownTag,
     TrackRating,
     WeightGroup,
-    ensure_additive_playback_event_columns,
-    ensure_additive_playlist_run_columns,
-    ensure_additive_track_columns,
 )
 from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
@@ -70,12 +68,8 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 def create_app() -> FastAPI:
+    # init_db() now also runs the additive-column upgrades + rating-sample backfill.
     init_db()
-    from harmonica.db import engine
-
-    ensure_additive_playlist_run_columns(engine)
-    ensure_additive_track_columns(engine)
-    ensure_additive_playback_event_columns(engine)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -506,6 +500,7 @@ def track_to_schema(track: Track) -> TrackRead:
         clip_start_seconds=track.clip_start_seconds,
         clip_end_seconds=track.clip_end_seconds,
         audio_only=track.audio_only,
+        is_original_rendition=track.is_original_rendition,
         assets=[
             {
                 "id": asset.id,
@@ -592,6 +587,7 @@ def apply_track_update(session: Session, track: Track, payload: TrackUpdate) -> 
         "clip_start_seconds",
         "clip_end_seconds",
         "audio_only",
+        "is_original_rendition",
     ]:
         if field in fields:
             setattr(track, field, fields[field])
@@ -600,7 +596,7 @@ def apply_track_update(session: Session, track: Track, payload: TrackUpdate) -> 
     if payload.cooldown_tags is not None:
         replace_tags(session, track, payload.cooldown_tags)
     if payload.ratings is not None:
-        upsert_ratings(session, track, payload.ratings)
+        upsert_ratings(session, track, payload.ratings, session_id=payload.rating_session_id)
 
 
 def replace_groups(session: Session, track: Track, groups: list[TrackGroupWrite]) -> None:
@@ -632,19 +628,38 @@ def replace_tags(session: Session, track: Track, tag_names: list[str]) -> None:
         session.add(TrackCooldownTag(track=track, tag=tag))
 
 
-def upsert_ratings(session: Session, track: Track, ratings: dict[str, float | None]) -> None:
+def upsert_ratings(
+    session: Session,
+    track: Track,
+    ratings: dict[str, float | None],
+    session_id: str | None = None,
+) -> None:
     factor_map = {factor.key: factor for factor in session.scalars(select(RatingFactor))}
     for key, value in ratings.items():
         factor = factor_map.get(key)
         if factor is None:
             continue
+        clamped = None if value is None else min(max(float(value), 0.0), 5.0)
         rating = session.scalar(
             select(TrackRating).where(
                 TrackRating.track_id == track.id,
                 TrackRating.factor_id == factor.id,
             )
         )
+        previous = rating.value if rating is not None else None
         if rating is None:
             rating = TrackRating(track=track, factor=factor)
             session.add(rating)
-        rating.value = None if value is None else min(max(float(value), 0.0), 5.0)
+        rating.value = clamped
+        # Append to the append-only history ONLY on a genuine change, so the track
+        # editor's "save all fields" can't spam duplicate samples for unchanged factors.
+        if clamped != previous:
+            session.add(
+                RatingSample(
+                    track_id=track.id,
+                    factor_id=factor.id,
+                    value=clamped,
+                    source="user",
+                    session_id=session_id,
+                )
+            )

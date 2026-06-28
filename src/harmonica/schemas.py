@@ -54,10 +54,13 @@ class TrackRead(BaseModel):
     clip_start_seconds: float | None = None
     clip_end_seconds: float | None = None
     audio_only: bool = False
+    is_original_rendition: bool = False
     assets: list[MediaAssetRead] = Field(default_factory=list)
     groups: list[TrackGroupRead] = Field(default_factory=list)
     cooldown_tags: list[str] = Field(default_factory=list)
     ratings: dict[str, float | None] = Field(default_factory=dict)
+    # Normalised effective rating per factor (algorithm view); raw stars stay in `ratings`.
+    ratings_effective: dict[str, float | None] = Field(default_factory=dict)
 
 
 class TrackGroupWrite(BaseModel):
@@ -76,9 +79,12 @@ class TrackUpdate(BaseModel):
     clip_start_seconds: float | None = None
     clip_end_seconds: float | None = None
     audio_only: bool | None = None
+    is_original_rendition: bool | None = None
     groups: list[TrackGroupWrite] | None = None
     cooldown_tags: list[str] | None = None
     ratings: dict[str, float | None] | None = None
+    # Optional client "sitting" id, threaded onto rating samples for session-mood (Phase B).
+    rating_session_id: str | None = None
 
 
 class ScanRequest(BaseModel):

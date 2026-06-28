@@ -26,6 +26,12 @@ def init_db() -> None:
     from harmonica import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    # Additive upgrades for pre-existing DBs. Wired here (not only in create_app) so the
+    # CLI and seed scripts — which call init_db() but not the API factory — also get them.
+    models.ensure_additive_playlist_run_columns(engine)
+    models.ensure_additive_track_columns(engine)
+    models.ensure_additive_playback_event_columns(engine)
+    models.backfill_rating_samples(engine)
 
 
 def get_session() -> Generator[Session, None, None]:
