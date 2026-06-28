@@ -1333,9 +1333,35 @@ input:focus {
 
 .mini-rating {
   display: inline-flex;
-  gap: 1px;
+  align-items: center;
+  gap: 4px;
   color: var(--gold);
   white-space: nowrap;
+}
+
+.mini-rating em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.frac-stars {
+  color: var(--gold);
+}
+
+.star-avg {
+  margin-left: 6px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.editor-hint {
+  margin: -2px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .mini-rating.unrated {

@@ -52,6 +52,19 @@ def test_rating_change_appends_one_history_sample() -> None:
         assert [s.value for s in _samples(track_id)] == [4.0, 2.0, None]
 
 
+def test_displayed_rating_is_running_average() -> None:
+    with TestClient(create_app()) as client:
+        track_id = _make_track(client, "avg_display")
+        client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": 4}})
+        assert client.get(f"/tracks/{track_id}").json()["ratings"]["overall"] == 4.0
+        # The shown value is the AVERAGE of past ratings, not the latest tap.
+        client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": 2}})
+        assert client.get(f"/tracks/{track_id}").json()["ratings"]["overall"] == 3.0
+        # Clearing resets the series (unrated).
+        client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": None}})
+        assert "overall" not in client.get(f"/tracks/{track_id}").json()["ratings"]
+
+
 def test_is_original_rendition_roundtrips() -> None:
     with TestClient(create_app()) as client:
         track_id = _make_track(client, "orig_flag")

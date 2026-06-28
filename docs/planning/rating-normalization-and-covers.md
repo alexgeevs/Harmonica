@@ -73,6 +73,26 @@ relative order of renditions, not an absolute like-score.
   algorithm picks that song; the song's cross-song frequency still comes from the shared factors + the
   set's representative rating. (i.e. "better" = better rendition, not "I like this song more.")
 
+## Corrections & clarifications (2026-06-27, after Feature 1 shipped)
+
+These refine/override the blueprint where they differ:
+
+- **Displayed rating = plain AVERAGE of the user's past ratings** (fractional), NOT the raw latest
+  star. This supersedes the blueprint's "TrackRating.value stays the raw latest star for display."
+  Implemented: `plain_rating_averages()` feeds `TrackRead.ratings`; the UI shows fractional stars +
+  the numeric average; each star tap records ONE new sample (only the tapped factor is sent, so the
+  average is never re-recorded as a fake rating); the bulk track-save no longer touches ratings.
+- **Outliers are judged against that plain average** (`mu_c` = the series mean) — already how
+  winsorising works. The internal normalised ("magic") value is separate and only the algorithm sees
+  it (`ratings_effective`).
+- **Multiplier scaling is already continuous** and needs no change: rating 4 → 1.6×, only a maximal 5
+  → the max (2×), floor 0.5× at 0; `song_rating_min_multiplier` / `song_rating_max_multiplier` are
+  already real settings controls. (The earlier "2×" example just used max ratings.)
+- **Weak cross-song type link** (user seed idea): a good rating nudges a type up while same-type songs
+  are still spaced apart — much of this already exists (group rating-multipliers + group cooldown +
+  fractional multi-type membership). To be verified and made tunable; see the algorithm-roadmap doc
+  (from the brainstorm review) for the refined form.
+
 ## Architecture decisions — verbatim Q&A (2026-06-27)
 
 The user asked these be recorded as evidence of intent. Captured verbatim.

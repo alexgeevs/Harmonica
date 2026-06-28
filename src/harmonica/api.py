@@ -32,6 +32,7 @@ from harmonica.models import (
     TrackRating,
     WeightGroup,
 )
+from harmonica.normalization import plain_rating_averages
 from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
 from harmonica.schemas import (
@@ -118,14 +119,16 @@ def create_app() -> FastAPI:
     def list_tracks(session: SessionDep) -> list[TrackRead]:
         query = track_query().order_by(Track.artist, Track.album, Track.title)
         tracks = session.scalars(query).all()
-        return [track_to_schema(track) for track in tracks]
+        averages = plain_rating_averages(session)
+        return [track_to_schema(track, averages.get(track.id) or {}) for track in tracks]
 
     @app.get("/tracks/{track_id}", response_model=TrackRead)
     def read_track(track_id: int, session: SessionDep) -> TrackRead:
         track = session.scalar(track_query().where(Track.id == track_id))
         if track is None:
             raise HTTPException(status_code=404, detail="Track not found")
-        return track_to_schema(track)
+        averages = plain_rating_averages(session, [track_id])
+        return track_to_schema(track, averages.get(track_id) or {})
 
     @app.patch("/tracks/{track_id}", response_model=TrackRead)
     def update_track(
@@ -142,7 +145,8 @@ def create_app() -> FastAPI:
         track = session.scalar(track_query().where(Track.id == track_id))
         if track is None:
             raise HTTPException(status_code=404, detail="Track not found after update")
-        return track_to_schema(track)
+        averages = plain_rating_averages(session, [track_id])
+        return track_to_schema(track, averages.get(track_id) or {})
 
     @app.post("/scan", response_model=ScanResponse)
     def scan(
@@ -487,7 +491,9 @@ def clean_playlist_run_name(name: str | None) -> str | None:
     return cleaned or None
 
 
-def track_to_schema(track: Track) -> TrackRead:
+def track_to_schema(
+    track: Track, ratings_average: dict[str, float] | None = None
+) -> TrackRead:
     return TrackRead(
         id=track.id,
         song_id=track.song_id,
@@ -527,11 +533,17 @@ def track_to_schema(track: Track) -> TrackRead:
             if membership.group is not None
         ],
         cooldown_tags=[link.tag.name for link in track.cooldown_tags if link.tag is not None],
-        ratings={
-            rating.factor.key: rating.value
-            for rating in track.ratings
-            if rating.factor is not None
-        },
+        # The displayed rating is the plain AVERAGE of the user's past ratings (computed from
+        # history); fall back to the raw latest star only when history hasn't been computed.
+        ratings=(
+            ratings_average
+            if ratings_average is not None
+            else {
+                rating.factor.key: rating.value
+                for rating in track.ratings
+                if rating.factor is not None
+            }
+        ),
     )
 
 

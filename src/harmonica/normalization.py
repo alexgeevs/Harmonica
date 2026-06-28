@@ -164,6 +164,41 @@ class SongRatings:
     factor_stats: dict[int, FactorStats]
 
 
+def plain_rating_averages(
+    session: Session, track_ids: list[int] | None = None
+) -> dict[int, dict[str, float]]:
+    """The user-facing rating per (track, factor): the plain AVERAGE of the live rating
+    series (everything after the most recent clear). This is what the UI shows and what
+    outliers are judged against — NOT the internal normalised value."""
+    factor_key = {f.id: f.key for f in session.scalars(select(RatingFactor))}
+    query = select(
+        RatingSample.track_id, RatingSample.factor_id, RatingSample.value
+    ).order_by(
+        RatingSample.track_id,
+        RatingSample.factor_id,
+        RatingSample.created_at,
+        RatingSample.id,
+    )
+    if track_ids is not None:
+        query = query.where(RatingSample.track_id.in_(track_ids))
+    series: dict[tuple[int, int], list[float]] = {}
+    for track_id, factor_id, value in session.execute(query).all():
+        values = series.setdefault((track_id, factor_id), [])
+        if value is None:
+            values.clear()
+        else:
+            values.append(float(value))
+    averages: dict[int, dict[str, float]] = {}
+    for (track_id, factor_id), values in series.items():
+        if not values:
+            continue
+        key = factor_key.get(factor_id)
+        if key is None:
+            continue
+        averages.setdefault(track_id, {})[key] = round(sum(values) / len(values), 3)
+    return averages
+
+
 def _variant_count(track: Track, variant_counts: dict[str | None, int]) -> int:
     return variant_counts.get(track.sub_group, 1) if track.sub_group else 1
 

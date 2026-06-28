@@ -63,9 +63,9 @@ export const api = {
           group_type: group.group_type,
           share: group.share ?? null
         })),
-        cooldown_tags: track.cooldown_tags,
-        ratings: track.ratings,
-        rating_session_id: ratingSessionId
+        cooldown_tags: track.cooldown_tags
+        // Ratings are NOT sent here: each is a discrete tap recorded via updateTrackFields,
+        // so the bulk metadata save can't re-record the displayed average as a fake rating.
       })
     }),
   scan: (library: string) =>

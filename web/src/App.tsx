@@ -294,11 +294,15 @@ export default function App() {
 
   async function rateTrack(track: Track, factorKey: string, value: number | null) {
     const current = tracks.find((item) => item.id === track.id) ?? track;
-    const ratings = { ...current.ratings, [factorKey]: value };
-    // Optimistic: stars respond instantly while the save lands.
-    setTracks((cur) => cur.map((item) => (item.id === track.id ? { ...item, ratings } : item)));
+    // Send ONLY the tapped factor — each tap is one new data point. The displayed rating is
+    // the average of all past taps (recomputed server-side), so we must NOT resend the other
+    // factors' averages as if they were fresh ratings.
+    const optimistic = { ...current.ratings, [factorKey]: value };
+    setTracks((cur) =>
+      cur.map((item) => (item.id === track.id ? { ...item, ratings: optimistic } : item))
+    );
     try {
-      const saved = await api.updateTrackFields(track.id, { ratings });
+      const saved = await api.updateTrackFields(track.id, { ratings: { [factorKey]: value } });
       setTracks((cur) => cur.map((item) => (item.id === saved.id ? saved : item)));
       void refreshStats();
     } catch (err) {
@@ -405,6 +409,7 @@ export default function App() {
               currentTrackId={player.currentItem?.track.id ?? null}
               currentTime={player.currentTime}
               onSave={saveTrack}
+              onRate={rateTrack}
               onRescan={refreshAll}
             />
           ) : null}
@@ -969,6 +974,7 @@ function LibraryView(props: {
   currentTrackId: number | null;
   currentTime: number;
   onSave: (track: Track) => Promise<Track>;
+  onRate: (track: Track, factorKey: string, value: number | null) => void;
   onRescan: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -1141,6 +1147,7 @@ function LibraryView(props: {
           isCurrent={props.currentTrackId === selected.id}
           currentTime={props.currentTime}
           onSave={async (draft) => setSelected(await props.onSave(draft))}
+          onRate={props.onRate}
           onClose={() => setSelected(null)}
         />
       ) : (
@@ -1193,15 +1200,39 @@ function FacetGroup(props: {
   );
 }
 
+// Read-only stars with partial fill, for displaying a fractional average rating.
+function FractionalStars(props: { value: number; size?: number }) {
+  const size = props.size ?? 12;
+  const value = Math.min(Math.max(props.value, 0), 5);
+  return (
+    <span className="frac-stars" style={{ display: "inline-flex", gap: 1 }}>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const fill = Math.min(Math.max(value - i, 0), 1);
+        return (
+          <span key={i} style={{ position: "relative", width: size, height: size, display: "inline-block" }}>
+            <Star size={size} fill="none" style={{ position: "absolute", inset: 0 }} />
+            {fill > 0 ? (
+              <span
+                style={{ position: "absolute", inset: 0, width: `${fill * 100}%`, overflow: "hidden" }}
+              >
+                <Star size={size} fill="currentColor" />
+              </span>
+            ) : null}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function MiniRating(props: { value: number | null }) {
   if (props.value == null) {
     return <span className="mini-rating unrated">Unrated</span>;
   }
   return (
-    <span className="mini-rating" title={`Overall ${props.value}/5`}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <Star key={n} size={12} fill={n <= props.value! ? "currentColor" : "none"} />
-      ))}
+    <span className="mini-rating" title={`Average overall ${props.value.toFixed(1)}/5`}>
+      <FractionalStars value={props.value} size={12} />
+      <em>{props.value.toFixed(1)}</em>
     </span>
   );
 }
@@ -1213,6 +1244,7 @@ function TrackEditor(props: {
   isCurrent: boolean;
   currentTime: number;
   onSave: (track: Track) => void;
+  onRate: (track: Track, factorKey: string, value: number | null) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<Track>(props.track);
@@ -1243,15 +1275,21 @@ function TrackEditor(props: {
 
       <div className="editor-section">
         <h5>Ratings</h5>
+        <p className="editor-hint">Each tap adds a rating; the shown value is your running average.</p>
         <div className="rating-grid">
           {applicable.map((factor) => (
             <StarRating
               key={factor.key}
               label={factor.label}
               value={draft.ratings[factor.key] ?? null}
-              onChange={(value) =>
-                setDraft((current) => ({ ...current, ratings: { ...current.ratings, [factor.key]: value } }))
-              }
+              onChange={(value) => {
+                // Optimistically reflect the tap, then record it as a new data point.
+                setDraft((current) => ({
+                  ...current,
+                  ratings: { ...current.ratings, [factor.key]: value }
+                }));
+                props.onRate(props.track, factor.key, value);
+              }}
             />
           ))}
         </div>
@@ -1400,6 +1438,9 @@ function TrimField(props: {
 }
 
 function StarRating(props: { label: string; value: number | null; onChange: (value: number | null) => void }) {
+  // The value shown is the running AVERAGE (fractional); tapping a star adds a new rating.
+  const rounded = props.value != null ? Math.round(props.value) : null;
+  const isFractional = props.value != null && Math.abs(props.value - (rounded ?? 0)) > 0.05;
   return (
     <div className="star-rating">
       <span>{props.label}</span>
@@ -1407,14 +1448,20 @@ function StarRating(props: { label: string; value: number | null; onChange: (val
         {[1, 2, 3, 4, 5].map((value) => (
           <button
             key={value}
-            className={props.value != null && value <= props.value ? "active" : ""}
-            title={`${props.label}: ${value}`}
-            onClick={() => props.onChange(props.value === value ? null : value)}
+            className={rounded != null && value <= rounded ? "active" : ""}
+            title={`Rate ${props.label} ${value}`}
+            onClick={() => props.onChange(value)}
           >
-            <Star size={15} fill={props.value != null && value <= props.value ? "currentColor" : "none"} />
+            <Star size={15} fill={rounded != null && value <= rounded ? "currentColor" : "none"} />
           </button>
         ))}
-        <button className="clear" title="Clear" onClick={() => props.onChange(null)}>
+        {props.value != null ? (
+          <em className="star-avg" title="Your average rating">
+            {props.value.toFixed(1)}
+            {isFractional ? " avg" : ""}
+          </em>
+        ) : null}
+        <button className="clear" title="Clear all ratings" onClick={() => props.onChange(null)}>
           <X size={12} />
         </button>
       </div>
