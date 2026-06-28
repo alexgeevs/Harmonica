@@ -152,7 +152,12 @@ def test_session_mood_off_when_not_ready() -> None:
 
 def test_normalised_overall_drives_generation_multiplier() -> None:
     # End-to-end: a high-rated song is boosted, a low-rated song suppressed, unrated neutral,
-    # via the new normalisation path (50/50 overall) feeding rating_multiplier.
+    # via the new normalisation path (50/50 overall) feeding rating_multiplier. Inspect the
+    # computed multipliers directly (deterministic) rather than which tracks land in a queue.
+    from harmonica.config import get_settings
+    from harmonica.playlist import load_algorithm_inputs
+    from harmonica.settings_store import get_effective_settings
+
     with TestClient(create_app()) as client:
         with SessionLocal() as session:
             for i in range(4):
@@ -165,11 +170,9 @@ def test_normalised_overall_drives_generation_multiplier() -> None:
             ]
         client.patch(f"/tracks/{ids[0]}", json={"ratings": {"overall": 5, "music": 5}})
         client.patch(f"/tracks/{ids[1]}", json={"ratings": {"overall": 1, "music": 1}})
-        run = client.post(
-            "/queue/generate", json={"length": 60, "explain": True, "ui_active": True}
-        ).json()
-        mult = {}
-        for item in run["items"]:
-            mult.setdefault(item["track"]["id"], item["explanation"]["rating_multiplier"])
+        with SessionLocal() as session:
+            settings = get_effective_settings(session, get_settings())
+            algo_tracks, _, _ = load_algorithm_inputs(session, settings)
+        mult = {t.id: t.rating_multiplier for t in algo_tracks}
         assert mult[ids[0]] > 1.0 > mult[ids[1]]
         assert math.isclose(mult[ids[2]], 1.0)
