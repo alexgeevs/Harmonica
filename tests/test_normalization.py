@@ -12,6 +12,7 @@ from harmonica.models import Track
 from harmonica.normalization import (
     FactorStats,
     compute_factor_stats,
+    compute_session_biases,
     pooled_within_series_sd,
     series_effective,
     series_values,
@@ -104,6 +105,49 @@ def test_compute_factor_stats_readiness_gate() -> None:
     stats = compute_factor_stats(_Factor(1, "overall"), series, 10, settings)
     assert stats.ready is False
     assert math.isclose(stats.coverage, 0.2)
+
+
+def test_session_mood_isolates_one_generous_sitting() -> None:
+    # Many sittings around a mean of 3, plus ONE generous sitting "R" (+1). With a stable
+    # baseline from all the other sessions, only "R" is flagged as biased (the realistic case).
+    settings = Settings(rating_session_min_songs=10, rating_session_bias_pseudocount=10.0)
+    stats = _ready_stats(mu=3.0, sigma=0.5)
+    series: dict[int, list[tuple[float, str]]] = {}
+    for tid in range(12):
+        # five baseline sittings at 3.0 each, then one generous 4.0 in "R"
+        series[tid] = [(3.0, f"s{j}") for j in range(5)] + [(4.0, "R")]
+    biases = compute_session_biases(series, stats, settings)
+    # Each song's out-of-R mean is 3.0, so R's residual is +1.0, shrunk by 12/(12+10).
+    assert math.isclose(biases.get("R", 0.0), 1.0 * 12 / 22, rel_tol=1e-6)
+    # The uniform baseline sittings have zero residual → no spurious correction.
+    assert all(not v for k, v in biases.items() if k != "R")
+
+
+def test_session_mood_two_sittings_center_symmetrically() -> None:
+    # Degenerate 2-sitting case: with no neutral reference, leave-session-out centres both
+    # sittings around the songs' overall mean (equal & opposite). This is desirable.
+    settings = Settings(rating_session_min_songs=10, rating_session_bias_pseudocount=10.0)
+    stats = _ready_stats(mu=3.0, sigma=0.5)
+    series = {tid: [(3.0, "base"), (4.0, "R")] for tid in range(12)}
+    biases = compute_session_biases(series, stats, settings)
+    assert math.isclose(biases["R"], -biases["base"], rel_tol=1e-6)
+    assert biases["R"] > 0 > biases["base"]
+
+
+def test_session_mood_inert_for_all_first_ratings() -> None:
+    # A cold-start sitting where every song is rated for the FIRST time: no out-of-session
+    # baseline exists, so no song qualifies and no bias is applied.
+    settings = Settings()
+    stats = _ready_stats(mu=3.0, sigma=0.5)
+    series = {tid: [(4.0, "R")] for tid in range(12)}
+    assert compute_session_biases(series, stats, settings) == {}
+
+
+def test_session_mood_off_when_not_ready() -> None:
+    settings = Settings()
+    not_ready = FactorStats(1, "overall", 3.0, 0.5, 1.0, 99, 99, ready=False, alpha=0.0)
+    series = {tid: [(3.0, "base"), (4.0, "R")] for tid in range(12)}
+    assert compute_session_biases(series, not_ready, settings) == {}
 
 
 def test_normalised_overall_drives_generation_multiplier() -> None:

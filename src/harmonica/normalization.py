@@ -168,6 +168,69 @@ def _variant_count(track: Track, variant_counts: dict[str | None, int]) -> int:
     return variant_counts.get(track.sub_group, 1) if track.sub_group else 1
 
 
+def _session_key(session_id: str | None, created_at: object) -> str:
+    """The 'sitting' a rating belongs to: the explicit client id, else its calendar day."""
+    if session_id:
+        return session_id
+    day = getattr(created_at, "date", None)
+    return f"__day_{day().isoformat()}" if callable(day) else "__day_unknown"
+
+
+MIN_QUALIFYING_SONGS = 3  # need a few songs with out-of-session history to estimate mood
+
+
+def compute_session_biases(
+    series_by_track: dict[int, list[tuple[float, str]]],
+    stats: FactorStats,
+    settings: Settings,
+) -> dict[str, float]:
+    """Per-session mood bias for one factor (Phase B). A "session" rated uniformly
+    generous/grumpy is detected by comparing each in-session rating to that song's mean from
+    OTHER sessions (leave-session-out), so the bias can't cancel itself. Reliability-shrunk
+    and thresholded; returns {} (no correction) unless the factor is ready and the feature on.
+
+    Inert by construction during an all-first-rating session: a song with no out-of-session
+    history doesn't qualify, so a cold-start sitting yields no bias."""
+    if not stats.ready or not settings.rating_session_mood_correction:
+        return {}
+
+    in_session: dict[str, list[tuple[int, float]]] = {}
+    for track_id, entries in series_by_track.items():
+        for value, key in entries:
+            in_session.setdefault(key, []).append((track_id, value))
+
+    biases: dict[str, float] = {}
+    for key, entries in in_session.items():
+        distinct_songs = {track_id for track_id, _ in entries}
+        if len(distinct_songs) <= settings.rating_session_min_songs:
+            continue
+        residuals: list[float] = []
+        qualifying: set[int] = set()
+        for track_id, value in entries:
+            outside = [v for v, k in series_by_track[track_id] if k != key]
+            if not outside:
+                continue  # no out-of-session baseline => not a qualifying song
+            residuals.append(value - sum(outside) / len(outside))
+            qualifying.add(track_id)
+        m_q = len(qualifying)
+        if m_q < MIN_QUALIFYING_SONGS or not residuals:
+            continue
+        bias = sum(residuals) / len(residuals)
+        shrunk = bias * (m_q / (m_q + settings.rating_session_bias_pseudocount))
+        # Only correct a clearly biased sitting (bigger than the normal mood wobble).
+        if abs(shrunk) <= settings.rating_session_bias_min_sd * stats.sigma:
+            shrunk = 0.0
+        if shrunk:
+            biases[key] = shrunk
+    return biases
+
+
+def _mood_corrected_values(
+    entries: list[tuple[float, str]], session_bias: dict[str, float]
+) -> list[float]:
+    return [_clip(value - session_bias.get(key, 0.0)) for value, key in entries]
+
+
 def compute_song_ratings(
     session: Session,
     all_tracks: list[Track],
@@ -181,32 +244,49 @@ def compute_song_ratings(
     factors = list(session.scalars(select(RatingFactor)))
     rated_factors = [f for f in factors if f.key != PERFORMANCE_KEY]
 
-    # Build each (factor, track) series chronologically; a NULL resets the series.
+    # Build each (factor, track) series chronologically, tagging every value with the
+    # "sitting" it came from (session_id, or a calendar-day fallback). A NULL resets it.
     rows = session.execute(
-        select(RatingSample.factor_id, RatingSample.track_id, RatingSample.value).order_by(
+        select(
+            RatingSample.factor_id,
+            RatingSample.track_id,
+            RatingSample.value,
+            RatingSample.session_id,
+            RatingSample.created_at,
+        ).order_by(
             RatingSample.track_id,
             RatingSample.factor_id,
             RatingSample.created_at,
             RatingSample.id,
         )
     ).all()
-    series_by_factor: dict[int, dict[int, list[float]]] = {}
-    for factor_id, track_id, value in rows:
+    # series[factor_id][track_id] = [(value, session_key), ...]
+    series_by_factor: dict[int, dict[int, list[tuple[float, str]]]] = {}
+    for factor_id, track_id, value, session_id, created_at in rows:
         track_series = series_by_factor.setdefault(factor_id, {}).setdefault(track_id, [])
         if value is None:
             track_series.clear()
         else:
-            track_series.append(float(value))
+            track_series.append((float(value), _session_key(session_id, created_at)))
+
+    def raw_values(factor_id: int) -> dict[int, list[float]]:
+        return {
+            track_id: [v for v, _ in entries]
+            for track_id, entries in series_by_factor.get(factor_id, {}).items()
+        }
 
     stats_by_factor: dict[int, FactorStats] = {}
+    session_bias_by_factor: dict[int, dict[str, float]] = {}
     for factor in rated_factors:
         rateable = sum(
             1
             for track in all_tracks
             if factor_applies(track, factor, _variant_count(track, variant_counts))
         )
-        stats_by_factor[factor.id] = compute_factor_stats(
-            factor, series_by_factor.get(factor.id, {}), rateable, settings
+        stats = compute_factor_stats(factor, raw_values(factor.id), rateable, settings)
+        stats_by_factor[factor.id] = stats
+        session_bias_by_factor[factor.id] = compute_session_biases(
+            series_by_factor.get(factor.id, {}), stats, settings
         )
 
     overall_by_track: dict[int, float | None] = {}
@@ -218,9 +298,10 @@ def compute_song_ratings(
             if not factor_applies(track, factor, _variant_count(track, variant_counts)):
                 continue
             applicable.add(factor.key)
-            values = series_by_factor.get(factor.id, {}).get(track.id, [])
+            entries = series_by_factor.get(factor.id, {}).get(track.id, [])
+            corrected = _mood_corrected_values(entries, session_bias_by_factor[factor.id])
             effective_by_key[factor.key] = series_effective(
-                values, stats_by_factor[factor.id], settings
+                corrected, stats_by_factor[factor.id], settings
             )
         overall_by_track[track.id] = song_overall(effective_by_key, applicable)
         effective_by_track[track.id] = effective_by_key

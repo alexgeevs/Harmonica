@@ -30,10 +30,13 @@ export type Track = {
   clip_start_seconds?: number | null;
   clip_end_seconds?: number | null;
   audio_only?: boolean;
+  is_original_rendition?: boolean;
   assets: MediaAsset[];
   groups: TrackGroup[];
   cooldown_tags: string[];
   ratings: Record<string, number | null>;
+  // Normalised effective rating per factor (algorithm view); raw stars stay in `ratings`.
+  ratings_effective?: Record<string, number | null>;
 };
 
 export type RatingFactor = {

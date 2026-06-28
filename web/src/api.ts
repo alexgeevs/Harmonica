@@ -12,6 +12,13 @@ import type {
   Track
 } from "./types";
 
+// A "sitting" id for this app session, attached to ratings so the backend can detect and
+// correct a uniformly generous/grumpy mood across one continuous burst of rating.
+const ratingSessionId =
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `sit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {
@@ -50,13 +57,15 @@ export const api = {
         clip_start_seconds: track.clip_start_seconds ?? null,
         clip_end_seconds: track.clip_end_seconds ?? null,
         audio_only: track.audio_only ?? false,
+        is_original_rendition: track.is_original_rendition ?? false,
         groups: track.groups.map((group) => ({
           name: group.name,
           group_type: group.group_type,
           share: group.share ?? null
         })),
         cooldown_tags: track.cooldown_tags,
-        ratings: track.ratings
+        ratings: track.ratings,
+        rating_session_id: ratingSessionId
       })
     }),
   scan: (library: string) =>
@@ -100,7 +109,11 @@ export const api = {
       }
     }),
   updateTrackFields: (id: number, fields: Record<string, unknown>) =>
-    request<Track>(`/tracks/${id}`, { method: "PATCH", body: JSON.stringify(fields) }),
+    request<Track>(`/tracks/${id}`, {
+      method: "PATCH",
+      // Tag rating edits with the sitting id (ignored by the backend when no ratings change).
+      body: JSON.stringify({ ...fields, rating_session_id: ratingSessionId })
+    }),
   exportLibrary: () => request<LibraryExport>("/library/export-json"),
   importLibrary: (payload: LibraryExport) =>
     request<{ ok: boolean }>("/library/import-json", {
