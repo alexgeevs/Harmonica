@@ -96,3 +96,16 @@ algorithm rationale see `rating-normalization-and-covers.md`; for verbatim early
   5★ scores 1.5× (vs face-value 1.6×/2.0×). Gated on ≥20 rated songs + non-zero spread; tunable via a new
   "Calibrate to your scale" setting. The full brainstorm synthesis (interrupted by a usage limit) is
   re-running; survivors → `algorithm-roadmap.md`. Continuing to Phase C (two-level covers) next.
+
+### 2026-06-27 — Brainstorm roadmap delivered; skip-penalty bug fixed
+- **User:** (usage limit reset) "proceed as you were."
+- **Claude (final):** Brainstorm synthesis completed → wrote `docs/planning/algorithm-roadmap.md` (19
+  vetted items prioritised now/next/later + quick wins + an explicit cut-list). The review's #1 finding
+  was a **real bug**, which I verified in code: `history.py` set `skip_penalty = max(...)` over all
+  events, so a single early/accidental skip floored a song forever and later completions never recovered
+  it; the listened-fraction map was also a coarse 3-bin step. **Fixed:** recency-weighted mean of
+  per-event penalties (completions pull it back down; new `skip_penalty_halflife` setting) + a smooth,
+  position-sensitive listened-fraction curve. Verified: skip→8 completions recovers to <0.2 penalty; a
+  lone skip still scores 1.0. Roadmap confirms the user's type-link idea is mostly already built (endorse
+  + expose in "why this song"; reject the learned-graph form) and strongly endorses the simple-average
+  display invariant.

@@ -51,6 +51,13 @@ def summarize_history(
     total_events = len(events)
     track_by_id = {track.id: track for track in tracks}
 
+    # Skip penalty is a RECENCY-WEIGHTED mean of per-event penalties (completions contribute 0),
+    # so an old or accidental early skip fades and later completions pull a song back up — instead
+    # of the previous permanent max() that floored a song forever on a single skip.
+    halflife = max(settings.skip_penalty_halflife, 1.0)
+    decay = 0.5 ** (1.0 / halflife)
+    penalty_acc: dict[int, list[float]] = {}
+
     for index, event in enumerate(events):
         track = track_by_id.get(event.track_id)
         if track is None:
@@ -59,7 +66,12 @@ def summarize_history(
         repeat_credit, skip_penalty = playback_event_signal(event)
         signal = summary.track_signals.setdefault(event.track_id, TrackHistorySignal())
         signal.repeat_count += repeat_credit
-        signal.skip_penalty = max(signal.skip_penalty, skip_penalty)
+        # Only completed/skipped events carry a quality signal; weight by recency.
+        if event.event_type in ("completed", "skipped"):
+            weight = decay**distance
+            acc = penalty_acc.setdefault(event.track_id, [0.0, 0.0])
+            acc[0] += weight * skip_penalty
+            acc[1] += weight
         if repeat_credit > 0:
             effective_distance = effective_repeat_distance(distance, repeat_credit)
             if signal.repeat_distance is None or effective_distance < signal.repeat_distance:
@@ -82,11 +94,18 @@ def summarize_history(
                     repeat_credit,
                 )
 
+    for track_id, (penalty_sum, weight_total) in penalty_acc.items():
+        if weight_total > 0:
+            summary.track_signals[track_id].skip_penalty = penalty_sum / weight_total
+
     summary.cold_start_active = cold_start_is_active(tracks, summary)
     return summary
 
 
 def playback_event_signal(event: PlaybackEvent) -> tuple[float, float]:
+    """(repeat_credit, skip_penalty) for one event, on smooth continuous curves of how much was
+    listened — so skip POSITION matters (a 95%-listened skip is near a completion, a 5% skip is a
+    strong dislike) instead of the old 3-bin step that collapsed wide ranges together."""
     if event.event_type == "completed":
         return 1.0, 0.0
     if event.event_type != "skipped":
@@ -95,11 +114,11 @@ def playback_event_signal(event: PlaybackEvent) -> tuple[float, float]:
     fraction = listened_fraction(event)
     if fraction is None:
         return 0.5, 0.25
-    if fraction < 0.10:
-        return 0.0, 1.0
-    if fraction < 0.50:
-        return 0.5, 0.5
-    return 0.75, 0.0
+    # repeat_credit ramps 0 (≤10% in) → 1 (≥90% in, treated as a near-completion).
+    repeat_credit = min(max((fraction - 0.10) / 0.80, 0.0), 1.0)
+    # penalty ramps 1 (≤10% in, a clear early bail) → 0 (≥50% in, you gave it a fair hearing).
+    penalty = min(max((0.50 - fraction) / 0.40, 0.0), 1.0)
+    return repeat_credit, penalty
 
 
 def listened_fraction(event: PlaybackEvent) -> float | None:

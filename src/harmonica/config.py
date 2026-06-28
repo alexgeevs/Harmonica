@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     enable_group_rating_multiplier: bool = True
     history_influence_enabled: bool = True
     skip_penalty_strength: float = 0.25
+    # Skip penalty decays with recency (in events) so one old/accidental skip doesn't punish a
+    # song forever and later completions recover it.
+    skip_penalty_halflife: float = 30.0
     cold_start_enabled: bool = True
     cold_start_unrated_boost: float = 2.0
     visual_priority_enabled: bool = True
