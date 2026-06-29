@@ -100,6 +100,42 @@ def test_cover_verdict_records_and_ranks_renditions() -> None:
         assert fetched["total_comparisons"] == 3
 
 
+def test_cover_set_can_be_reopened_after_settling() -> None:
+    with TestClient(create_app()) as client:
+        with SessionLocal() as session:
+            ids = []
+            for i in range(4):
+                song_id = f"reopen_r{i}"
+                track = session.scalar(select(Track).where(Track.song_id == song_id))
+                if track is None:
+                    track = Track(song_id=song_id, title=f"Reopen {i}", sub_group="reopen_set")
+                    session.add(track)
+                else:
+                    track.sub_group = "reopen_set"
+                session.commit()
+                session.refresh(track)
+                ids.append(track.id)
+
+        # Decisive round-robin (lower index always wins) until the ranking settles.
+        body = None
+        for _ in range(3):
+            for i in range(4):
+                for j in range(i + 1, 4):
+                    body = client.post(
+                        "/cover-verdicts",
+                        json={
+                            "sub_group": "reopen_set",
+                            "track_a_id": ids[i],
+                            "track_b_id": ids[j],
+                            "winner_track_id": ids[i],
+                        },
+                    ).json()
+        assert body["comparison_phase"] == "settled"
+
+        reopened = client.post("/cover-sets/reopen_set/reopen").json()
+        assert reopened["comparison_phase"] == "bootstrapping"
+
+
 def test_next_cover_comparison_returns_playable_pair() -> None:
     from harmonica.models import MediaAsset
 

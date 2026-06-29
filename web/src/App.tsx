@@ -35,6 +35,7 @@ import { usePlayer, type PlayerApi } from "./usePlayer";
 import { comparisonMeta, useCoverComparison } from "./useCoverComparison";
 import type {
   AppSettings,
+  CoverSetRead,
   DeviceConfigDetail,
   PlaybackEvent,
   QueueItem,
@@ -1399,6 +1400,66 @@ function MiniRating(props: { value: number | null }) {
   );
 }
 
+// Shows the A/B comparison state of a cover set and lets the user reopen a settled ranking. The
+// per-rendition strength is relative within the set (higher = preferred); it is never an absolute
+// star, matching the "performance is relative" design.
+function CoverSetPanel(props: { subGroup: string }) {
+  const [state, setState] = useState<CoverSetRead | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .coverSet(props.subGroup)
+      .then((value) => {
+        if (!cancelled) setState(value);
+      })
+      .catch(() => {
+        /* status is informational; ignore if unavailable */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.subGroup]);
+
+  if (!state) {
+    return null;
+  }
+  const phaseLabel =
+    state.comparison_phase === "settled"
+      ? "Ranking settled"
+      : state.comparison_phase === "bootstrapping"
+        ? "Comparing versions"
+        : "Not yet compared";
+
+  async function reopen() {
+    setBusy(true);
+    try {
+      setState(await api.reopenCoverSet(props.subGroup));
+    } catch {
+      /* leave the current state if the reopen fails */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="editor-section">
+      <h5>Versions (covers)</h5>
+      <p className="cover-status">
+        {phaseLabel} · {state.total_comparisons} comparison
+        {state.total_comparisons === 1 ? "" : "s"} across {state.renditions.length} version
+        {state.renditions.length === 1 ? "" : "s"}
+      </p>
+      {state.comparison_phase === "settled" ? (
+        <button className="link" disabled={busy} onClick={reopen}>
+          Compare again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function TrackEditor(props: {
   track: Track;
   factors: RatingFactor[];
@@ -1480,6 +1541,16 @@ function TrackEditor(props: {
               onChange={(e) => update("sub_group", e.target.value || null)}
             />
           </label>
+          {draft.sub_group ? (
+            <label className="check-line">
+              <input
+                type="checkbox"
+                checked={draft.is_original_rendition ?? false}
+                onChange={(e) => update("is_original_rendition", e.target.checked)}
+              />
+              Original rendition (slightly favoured among versions)
+            </label>
+          ) : null}
           <label className="check-line">
             <input type="checkbox" checked={draft.has_lyrics} onChange={(e) => update("has_lyrics", e.target.checked)} />
             Has lyrics
@@ -1502,6 +1573,8 @@ function TrackEditor(props: {
           </label>
         </div>
       </div>
+
+      {draft.sub_group ? <CoverSetPanel subGroup={draft.sub_group} /> : null}
 
       <div className="editor-section">
         <h5>Playback</h5>

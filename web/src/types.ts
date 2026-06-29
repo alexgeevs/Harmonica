@@ -226,6 +226,20 @@ export type CoverComparisonPair = {
   b: QueueItem;
 };
 
+export type CoverRenditionRead = {
+  track_id: number;
+  sub_group: string;
+  bt_strength: number;
+  comparison_count: number;
+};
+
+export type CoverSetRead = {
+  sub_group: string;
+  comparison_phase: "stars" | "bootstrapping" | "settled" | string;
+  total_comparisons: number;
+  renditions: CoverRenditionRead[];
+};
+
 export type CoverVerdict = {
   sub_group: string;
   track_a_id: number;

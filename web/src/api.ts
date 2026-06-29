@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   CoverComparisonPair,
+  CoverSetRead,
   CoverVerdict,
   DeviceConfigDetail,
   DeviceConfigSummary,
@@ -105,6 +106,10 @@ export const api = {
     ),
   submitCoverVerdict: (verdict: CoverVerdict) =>
     request("/cover-verdicts", { method: "POST", body: JSON.stringify(verdict) }),
+  coverSet: (subGroup: string) =>
+    request<CoverSetRead>(`/cover-sets/${encodeURIComponent(subGroup)}`),
+  reopenCoverSet: (subGroup: string) =>
+    request<CoverSetRead>(`/cover-sets/${encodeURIComponent(subGroup)}/reopen`, { method: "POST" }),
   // Saved-queue endpoints are additive on the backend; callers should tolerate 404.
   listRuns: (limit = 50) => request<RunSummary[]>(`/playlist-runs?limit=${limit}`),
   renameRun: (id: number, name: string) =>

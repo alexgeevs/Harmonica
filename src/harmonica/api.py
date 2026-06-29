@@ -137,6 +137,16 @@ def create_app() -> FastAPI:
     def read_cover_set(sub_group: str, session: SessionDep) -> CoverSetRead:
         return cover_set_read(session, sub_group)
 
+    @app.post("/cover-sets/{sub_group}/reopen", response_model=CoverSetRead)
+    def reopen_cover_set(sub_group: str, session: SessionDep) -> CoverSetRead:
+        # "Compare again": a settled set goes back to prompting. Verdicts are kept; the ranking just
+        # reopens to fresh evidence (e.g. a rendition was re-encoded, or tastes changed).
+        state = session.get(CoverSetState, sub_group)
+        if state is not None and state.comparison_phase == "settled":
+            state.comparison_phase = "bootstrapping"
+            session.commit()
+        return cover_set_read(session, sub_group)
+
     def comparison_item(
         track: Track, role: str, peer_id: int, sub_group: str
     ) -> QueueItemRead | None:

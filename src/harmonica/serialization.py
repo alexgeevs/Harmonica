@@ -1,22 +1,40 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from harmonica.config import Settings, get_settings
+from harmonica.cover_ranking import recompute_set
 from harmonica.models import (
     CooldownTag,
+    CoverComparison,
     GroupMembership,
     MediaAsset,
     RatingFactor,
+    RatingSample,
     Track,
     TrackCooldownTag,
     TrackRating,
     WeightGroup,
 )
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def export_library(session: Session, output_path: Path) -> None:
@@ -61,7 +79,57 @@ def export_library_payload(session: Session) -> dict[str, Any]:
             for group in groups
         ],
         "tracks": [track_to_payload(track) for track in tracks],
+        # Raw, append-only history the algorithm derives from. Keyed by song_id/factor_key so it
+        # survives a move to another device (where local row ids differ). Device-local session/run
+        # ids are stripped — they have no meaning on the destination.
+        "rating_samples": rating_samples_payload(session),
+        "cover_comparisons": cover_comparisons_payload(session),
     }
+
+
+def rating_samples_payload(session: Session) -> list[dict[str, Any]]:
+    song_by_id = dict(session.execute(select(Track.id, Track.song_id)).all())
+    key_by_id = dict(session.execute(select(RatingFactor.id, RatingFactor.key)).all())
+    out: list[dict[str, Any]] = []
+    for row in session.scalars(select(RatingSample).order_by(RatingSample.created_at)):
+        song_id = song_by_id.get(row.track_id)
+        factor_key = key_by_id.get(row.factor_id)
+        if song_id is None or factor_key is None:
+            continue
+        out.append(
+            {
+                "song_id": song_id,
+                "factor_key": factor_key,
+                "value": row.value,
+                "source": row.source,
+                "created_at": _iso(row.created_at),
+            }
+        )
+    return out
+
+
+def cover_comparisons_payload(session: Session) -> list[dict[str, Any]]:
+    song_by_id = dict(session.execute(select(Track.id, Track.song_id)).all())
+    out: list[dict[str, Any]] = []
+    for row in session.scalars(select(CoverComparison).order_by(CoverComparison.created_at)):
+        song_a = song_by_id.get(row.track_a_id)
+        song_b = song_by_id.get(row.track_b_id)
+        if song_a is None or song_b is None:
+            continue
+        out.append(
+            {
+                "sub_group": row.sub_group,
+                "song_id_a": song_a,
+                "song_id_b": song_b,
+                "winner_song_id": song_by_id.get(row.winner_track_id)
+                if row.winner_track_id is not None
+                else None,
+                "pct_a": row.pct_a,
+                "pct_b": row.pct_b,
+                "created_at": _iso(row.created_at),
+            }
+        )
+    return out
 
 
 def import_library(session: Session, input_path: Path) -> None:
@@ -69,7 +137,11 @@ def import_library(session: Session, input_path: Path) -> None:
     import_library_payload(session, payload)
 
 
-def import_library_payload(session: Session, payload: dict[str, Any]) -> None:
+def import_library_payload(
+    session: Session,
+    payload: dict[str, Any],
+    settings: Settings | None = None,
+) -> None:
     factor_map = upsert_rating_factors(session, payload.get("rating_factors", []))
     group_map = upsert_groups(session, payload.get("groups", []))
 
@@ -88,6 +160,8 @@ def import_library_payload(session: Session, payload: dict[str, Any]) -> None:
         track.has_lyrics = bool(track_payload.get("has_lyrics", True))
         track.sub_group = track_payload.get("sub_group")
         track.manual_multiplier = float(track_payload.get("manual_multiplier", 1.0))
+        if "is_original_rendition" in track_payload:
+            track.is_original_rendition = bool(track_payload.get("is_original_rendition"))
         if "clip_start_seconds" in track_payload:
             track.clip_start_seconds = track_payload.get("clip_start_seconds")
         if "clip_end_seconds" in track_payload:
@@ -134,7 +208,87 @@ def import_library_payload(session: Session, payload: dict[str, Any]) -> None:
                 rating = TrackRating(track=track, factor=factor)
                 session.add(rating)
             rating.value = value
+    session.flush()
+
+    import_rating_samples(session, payload.get("rating_samples", []), factor_map)
+    affected_sets = import_cover_comparisons(session, payload.get("cover_comparisons", []))
+    # Caches (Bradley-Terry strengths / set phase) are NEVER trusted from an export — they're
+    # recomputed from the raw verdicts we just imported, so they're always self-consistent here.
+    resolved_settings = settings or get_settings()
+    for sub_group in affected_sets:
+        recompute_set(session, sub_group, resolved_settings)
     session.commit()
+
+
+def import_rating_samples(
+    session: Session,
+    payloads: list[dict[str, Any]],
+    factor_map: dict[str, RatingFactor],
+) -> None:
+    track_by_song = {track.song_id: track for track in session.scalars(select(Track))}
+    seen = {
+        (row.track_id, row.factor_id, row.value, _iso(row.created_at))
+        for row in session.scalars(select(RatingSample))
+    }
+    for entry in payloads:
+        track = track_by_song.get(entry.get("song_id"))
+        factor = factor_map.get(entry.get("factor_key"))
+        if track is None or factor is None:
+            continue
+        created_at = _parse_iso(entry.get("created_at"))
+        value = entry.get("value")
+        key = (track.id, factor.id, value, _iso(created_at))
+        if key in seen:
+            continue  # idempotent: re-importing the same export won't duplicate history
+        seen.add(key)
+        sample = RatingSample(
+            track_id=track.id,
+            factor_id=factor.id,
+            value=value,
+            source=entry.get("source", "import"),
+        )
+        if created_at is not None:
+            sample.created_at = created_at
+        session.add(sample)
+
+
+def import_cover_comparisons(
+    session: Session,
+    payloads: list[dict[str, Any]],
+) -> set[str]:
+    track_by_song = {track.song_id: track for track in session.scalars(select(Track))}
+    seen = {
+        (row.sub_group, row.track_a_id, row.track_b_id, _iso(row.created_at))
+        for row in session.scalars(select(CoverComparison))
+    }
+    affected: set[str] = set()
+    for entry in payloads:
+        track_a = track_by_song.get(entry.get("song_id_a"))
+        track_b = track_by_song.get(entry.get("song_id_b"))
+        sub_group = entry.get("sub_group")
+        if track_a is None or track_b is None or not sub_group:
+            continue
+        winner_song = entry.get("winner_song_id")
+        winner = track_by_song.get(winner_song) if winner_song else None
+        created_at = _parse_iso(entry.get("created_at"))
+        key = (sub_group, track_a.id, track_b.id, _iso(created_at))
+        if key in seen:
+            continue
+        seen.add(key)
+        comparison = CoverComparison(
+            sub_group=sub_group,
+            track_a_id=track_a.id,
+            track_b_id=track_b.id,
+            winner_track_id=winner.id if winner is not None else None,
+            pct_a=entry.get("pct_a"),
+            pct_b=entry.get("pct_b"),
+        )
+        if created_at is not None:
+            comparison.created_at = created_at
+        session.add(comparison)
+        affected.add(sub_group)
+    session.flush()
+    return affected
 
 
 def track_to_payload(track: Track) -> dict[str, Any]:
@@ -145,6 +299,7 @@ def track_to_payload(track: Track) -> dict[str, Any]:
         "album": track.album,
         "has_lyrics": track.has_lyrics,
         "sub_group": track.sub_group,
+        "is_original_rendition": track.is_original_rendition,
         "manual_multiplier": track.manual_multiplier,
         "clip_start_seconds": track.clip_start_seconds,
         "clip_end_seconds": track.clip_end_seconds,

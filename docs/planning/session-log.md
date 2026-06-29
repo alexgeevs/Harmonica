@@ -228,3 +228,18 @@ phantom-average-player Gaussian prior for regularisation and half-credit tie han
   eligibility/settle/info-gain + the playable-pair endpoint); 70 green; ruff + web build clean.
   Remaining cover work: Phase F (export/import round-trip of the cover tables) and Phase G (polish:
   surface set "settled/compare-again", readiness, docs).
+
+### 2026-06-29 — Phase F (export/import round-trip) + Phase G (polish & docs)
+- **User:** Continue with Phase F (didn't know what it was — asked for an explanation) and Phase G,
+  explained once finished.
+- **Claude (final):** **Phase F** — the new history now survives library export/import so moving
+  devices or restoring a backup keeps your rating history and cover verdicts. `serialization.py`
+  exports `rating_samples` + `cover_comparisons` (keyed by `song_id`/`factor_key`, device-local
+  `session_id`/`run_id` stripped) and `tracks.is_original_rendition`; on import it remaps by
+  `song_id`, dedupes (idempotent re-import), and **recomputes** the Bradley-Terry caches from the
+  imported verdicts rather than trusting exported values. **Phase G** — `POST
+  /cover-sets/{sub_group}/reopen` ("compare again" for a settled set); a track-editor **cover-set
+  status panel** (phase + comparison/version counts + Compare-again) and the **"Original rendition"
+  toggle** (the earlier-deferred control); a full feature reference at
+  `docs/planning/covers-feature.md`. 3 new tests (round-trip + idempotency + reopen); 73 green; ruff
+  + web build clean. The covers feature (C–G) is complete and remains off by default.
