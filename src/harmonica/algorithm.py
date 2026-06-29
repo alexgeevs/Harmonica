@@ -39,6 +39,16 @@ class AlgorithmTrack:
     repeat_count: float = 0.0
     is_rated: bool = False
     is_compressed: bool = False
+    # Two-level cover selection (Phase C). Defaults make a track its own singleton "unit" so the
+    # legacy single-pool path is unchanged. unit_key groups renditions of one song; n_covers is the
+    # device-scoped count; song_rating_multiplier is the unit-shared rating multiplier; perf_mult
+    # and original_prior_mult bias WHICH rendition is picked (never how often the song appears).
+    unit_key: str | None = None
+    n_covers: int = 1
+    song_rating_multiplier: float = 1.0
+    perf_mult: float = 1.0
+    is_original_rendition: bool = False
+    original_prior_mult: float = 1.0
 
 
 @dataclass
@@ -314,6 +324,28 @@ def generate_playlist(
 ) -> list[GeneratedItem]:
     if not tracks:
         return []
+
+    if settings.cover_two_level_enabled:
+        # Two-level path: pick a song (cover set), then a rendition. Imported lazily to avoid a
+        # circular import (covers.py reuses score_track et al. from this module).
+        from harmonica.covers import generate_playlist_two_level
+
+        return generate_playlist_two_level(
+            tracks,
+            groups,
+            length,
+            settings,
+            seed=seed,
+            ui_active=ui_active,
+            initial_track_distances=initial_track_distances,
+            initial_group_distances=initial_group_distances,
+            initial_sub_group_distances=initial_sub_group_distances,
+            initial_track_repeat_credits=initial_track_repeat_credits,
+            initial_group_repeat_credits=initial_group_repeat_credits,
+            initial_sub_group_repeat_credits=initial_sub_group_repeat_credits,
+            initial_track_repeat_counts=initial_track_repeat_counts,
+            cold_start_active=cold_start_active,
+        )
 
     rng = random.Random(seed)
     sizes = group_sizes(tracks, groups)

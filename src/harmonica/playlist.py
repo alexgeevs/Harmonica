@@ -119,6 +119,14 @@ def load_algorithm_inputs(
         signal = history_summary.track_signals.get(track.id)
         variant_count = variant_counts.get(track.sub_group, 1) if track.sub_group else 1
         is_rated = track.id in history_summary.rated_track_ids
+        # The per-song rating multiplier (normalised overall when enabled, else legacy). In the
+        # two-level cover path this is also the unit-shared rating multiplier (covers.py averages
+        # the renditions of a song), so song_rating_multiplier mirrors it for singletons.
+        song_mult = (
+            rating_to_song_multiplier(song_ratings.overall_by_track.get(track.id), settings)
+            if song_ratings is not None
+            else effective_song_multiplier(track, track.ratings, variant_count, settings)
+        )
         algorithm_tracks.append(
             AlgorithmTrack(
                 id=track.id,
@@ -131,12 +139,14 @@ def load_algorithm_inputs(
                 groups={membership.group_id: membership.share for membership in track.memberships},
                 sub_group=track.sub_group,
                 manual_multiplier=track.manual_multiplier,
-                rating_multiplier=(
-                    rating_to_song_multiplier(
-                        song_ratings.overall_by_track.get(track.id), settings
-                    )
-                    if song_ratings is not None
-                    else effective_song_multiplier(track, track.ratings, variant_count, settings)
+                rating_multiplier=song_mult,
+                song_rating_multiplier=song_mult,
+                is_original_rendition=bool(getattr(track, "is_original_rendition", False)),
+                perf_mult=cover_performance_multiplier(track, settings),
+                original_prior_mult=(
+                    1.0 + settings.cover_original_bonus
+                    if getattr(track, "is_original_rendition", False)
+                    else 1.0
                 ),
                 history_multiplier=history_multiplier(signal, settings),
                 cold_start_multiplier=cold_start_multiplier(
@@ -161,6 +171,16 @@ def load_algorithm_inputs(
             )
         )
     return algorithm_tracks, group_map, history_summary
+
+
+def cover_performance_multiplier(track: Track, settings: Settings) -> float:
+    """Within-set rendition preference from a directly-rated ``performance`` star (Phase C). Phase D
+    will replace this with a Bradley-Terry strength learned from A/B verdicts. Neutral (1.0) until a
+    performance rating exists, so it never affects how often a song plays — only which rendition."""
+    for rating in track.ratings:
+        if rating.factor and rating.factor.key == "performance" and rating.value is not None:
+            return rating_to_song_multiplier(float(rating.value), settings)
+    return 1.0
 
 
 def preferred_asset(track: Track) -> MediaAsset | None:

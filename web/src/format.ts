@@ -76,6 +76,21 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
     });
   }
 
+  // Two-level cover selection: which song, then which rendition.
+  const nCovers = metricNumber(ex.n_covers, 1);
+  if (nCovers > 1) {
+    reasons.push({
+      icon: "variant",
+      tone: "neutral",
+      text: `One of ${nCovers} versions of this song`
+    });
+    if (metricNumber(ex.original_prior, 1) > 1.001) {
+      reasons.push({ icon: "star", tone: "boost", text: "The original recording" });
+    } else if (metricNumber(ex.cover_performance, 1) > 1.05) {
+      reasons.push({ icon: "star", tone: "boost", text: "Your favourite rendition of it" });
+    }
+  }
+
   const coldStart = metricNumber(ex.cold_start_multiplier);
   if (coldStart > 1.01) {
     reasons.push({

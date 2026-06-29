@@ -141,3 +141,23 @@ algorithm rationale see `rating-normalization-and-covers.md`; for verbatim early
   New settings flow through config → settings_store → schema → web types/UI and the run snapshot.
   Added an API test asserting both new toggles default off and are real controls. 52 tests green, ruff
   clean, web build clean. Next: build the Phase C selection logic behind its (default-off) flag.
+
+### 2026-06-29 — Phase C: two-level cover selection (behind default-off flag)
+- **User:** (same message) Phase C should be optional and off by default. "Proceed."
+- **Claude (final):** Built the two-level selection in a new `covers.py`, gated entirely behind
+  `cover_two_level_enabled` (default **off**). When on, the generator groups renditions into *units*
+  (a song's `sub_group`; a no-cover song is its own singleton), picks a unit by
+  `W(u) = L(n) · SongRatingMult(u) · UnitCooldown(u) · Abar(u)` with `L(n) = 1 + log_base(n_covers)`
+  (base 4 → 2 covers ×1.5, 10 covers ×2.66, not ×10), then picks a rendition inside it by its own
+  context × within-set preference (`perf_mult` from a directly-rated `performance` star for now;
+  Bradley-Terry comes in Phase D) × a small decaying original-rendition prior. `Abar` is a
+  *v-weighted average* (not a sum), so cover count only enters via the explicit `L(n)` term — proven
+  logarithmic exposure. New `AlgorithmTrack` fields (unit_key, n_covers, song_rating_multiplier,
+  perf_mult, is_original_rendition, original_prior_mult) default so the legacy path is untouched.
+  **Golden-parity guarantee:** a singleton unit consumes *no* extra RNG draw, so a no-`sub_group`
+  library yields a **byte-identical seeded queue** with the flag on vs off — covered by
+  `test_golden_parity_*` (ids + scores, incl. under cold start). Also tested: logarithmic exposure
+  at a clean state (observed ≈ L(n)/(L(n)+singletons), decisively sublinear), one rendition per slot
+  with cover fields in the explanation, and the original-rendition nudge. Frontend "why this song"
+  surfaces "one of N versions / the original recording / your favourite rendition" when enabled.
+  6 new tests; 58 green; ruff + web build clean. Phase D (A/B comparison + Bradley-Terry) is next.
