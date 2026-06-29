@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from harmonica.bootstrap import ensure_default_rating_factors
 from harmonica.config import Settings, get_settings
-from harmonica.cover_ranking import record_verdict
+from harmonica.cover_ranking import next_pair, record_verdict
 from harmonica.db import SessionLocal, get_session, init_db
 from harmonica.history import playback_event_signal
 from harmonica.models import (
@@ -36,9 +36,10 @@ from harmonica.models import (
     WeightGroup,
 )
 from harmonica.normalization import plain_rating_averages
-from harmonica.playlist import generate_and_persist_playlist
+from harmonica.playlist import generate_and_persist_playlist, preferred_asset
 from harmonica.scanner import scan_library
 from harmonica.schemas import (
+    CoverComparisonPair,
     CoverRenditionRead,
     CoverSetRead,
     CoverVerdictCreate,
@@ -135,6 +136,44 @@ def create_app() -> FastAPI:
     @app.get("/cover-sets/{sub_group}", response_model=CoverSetRead)
     def read_cover_set(sub_group: str, session: SessionDep) -> CoverSetRead:
         return cover_set_read(session, sub_group)
+
+    def comparison_item(
+        track: Track, role: str, peer_id: int, sub_group: str
+    ) -> QueueItemRead | None:
+        asset = preferred_asset(track)
+        if asset is None:
+            return None  # no playable media — can't stage a head-to-head
+        return QueueItemRead(
+            position=-1,  # synthetic: spliced into the queue client-side, not a stored run item
+            track=track_to_schema(track),
+            media_asset_id=asset.id,
+            media_url=f"/media/{asset.id}",
+            score=0.0,
+            explanation={
+                "comparison": {"set_id": sub_group, "role": role, "peer_track_id": peer_id}
+            },
+        )
+
+    @app.get("/cover-comparisons/next", response_model=CoverComparisonPair | None)
+    def next_cover_comparison(
+        sub_group: str,
+        session: SessionDep,
+        settings: SettingsDep,
+    ) -> CoverComparisonPair | None:
+        if not settings.cover_comparison_enabled:
+            return None
+        pair = next_pair(session, sub_group, settings)
+        if pair is None:
+            return None
+        track_a = session.scalar(track_query().where(Track.id == pair[0]))
+        track_b = session.scalar(track_query().where(Track.id == pair[1]))
+        if track_a is None or track_b is None:
+            return None
+        item_a = comparison_item(track_a, "a", pair[1], sub_group)
+        item_b = comparison_item(track_b, "b", pair[0], sub_group)
+        if item_a is None or item_b is None:
+            return None
+        return CoverComparisonPair(sub_group=sub_group, a=item_a, b=item_b)
 
     @app.post("/cover-verdicts", response_model=CoverSetRead)
     def submit_cover_verdict(

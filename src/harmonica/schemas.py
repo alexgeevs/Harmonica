@@ -218,6 +218,14 @@ class CoverRenditionRead(BaseModel):
     comparison_count: int
 
 
+class CoverComparisonPair(BaseModel):
+    """The next A/B pair to play back-to-back for a head-to-head, as two ready-to-queue items."""
+
+    sub_group: str
+    a: QueueItemRead
+    b: QueueItemRead
+
+
 class CoverSetRead(BaseModel):
     """The post-verdict state of a cover set: its lifecycle phase and each rendition's relative
     Bradley-Terry strength (mean ~0; higher = preferred)."""

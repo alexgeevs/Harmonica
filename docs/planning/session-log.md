@@ -209,3 +209,22 @@ phantom-average-player Gaussian prior for regularisation and half-credit tie han
   ledger** above (BT was Claude's choice; the log-base/non-decay-nudge/individual-cover-rating ideas
   were the user's). 8 new tests (BT properties + verdict endpoint + individual-rating pick); 66 green;
   ruff + web build clean. Phase E (the A/B playback UX) is next.
+
+### 2026-06-29 — Phase E: A/B comparison playback UX
+- **User:** "Yes, please do proceed." (with Phase E.)
+- **Claude (final):** Built the head-to-head comparison experience (all behind two-level covers, so
+  inert by default). Backend: `next_pair()` picks the most *informative* pair (closest current
+  Bradley-Terry strength × least evidence so far), a `_settle_phase()` that stops prompting once a
+  set is well-separated or hits a verdict ceiling, and `GET /cover-comparisons/next` returning the
+  two renditions as ready-to-queue items (each flagged with `{comparison: role/peer/set}`; only
+  returns a pair when both have playable media + the set is eligible). New config knobs
+  (min-covers 4, cooldown 3 songs, min-per-cover 3, max-total 40, active 4-of-5). Frontend: a
+  `useCoverComparison` hook detects when the listener is "active" (rated ≥4 of the last 5 songs) and,
+  on landing on an eligible cover-set song, fetches the pair and `spliceNext()`s the two renditions
+  to play back-to-back; a `ComparisonCard` then appears during the *second* rendition asking "which
+  is better?" (first / about the same / this one) with a **replay-the-first** button that plays the
+  prior take from the same %-through in a throwaway `<audio>` so the main player + loudness meter are
+  untouched. Verdicts POST to the Phase-D endpoint and feed the BT refit. 4 new tests (pair
+  eligibility/settle/info-gain + the playable-pair endpoint); 70 green; ruff + web build clean.
+  Remaining cover work: Phase F (export/import round-trip of the cover tables) and Phase G (polish:
+  surface set "settled/compare-again", readiness, docs).

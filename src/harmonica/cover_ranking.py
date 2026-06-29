@@ -73,23 +73,86 @@ def recompute_set(session: Session, sub_group: str, settings: Settings) -> dict[
             row.comparison_count = counts.get(track_id, 0)
             row.updated_at = now_utc()
 
+    phase = _settle_phase(track_ids, counts, strengths, len(verdicts), settings)
     set_state = session.get(CoverSetState, sub_group)
     total = len(verdicts)
     if set_state is None:
         session.add(
             CoverSetState(
                 sub_group=sub_group,
-                comparison_phase="bootstrapping" if total else "stars",
+                comparison_phase=phase,
                 total_comparisons=total,
             )
         )
     else:
         set_state.total_comparisons = total
-        if total and set_state.comparison_phase == "stars":
-            set_state.comparison_phase = "bootstrapping"
+        # Never un-settle automatically (only an explicit "compare again" reopens a set).
+        if set_state.comparison_phase != "settled":
+            set_state.comparison_phase = phase
         set_state.updated_at = now_utc()
 
     return strengths
+
+
+def _settle_phase(
+    track_ids: list[int],
+    counts: dict[int, int],
+    strengths: dict[int, float],
+    total: int,
+    settings: Settings,
+) -> str:
+    """A set settles (stops prompting) once a hard verdict ceiling is hit, or every rendition has
+    enough comparisons AND the ranking is well-separated (adjacent log-strength gaps all clear)."""
+    if total == 0:
+        return "stars"
+    if total >= settings.cover_comparison_max_total:
+        return "settled"
+    enough = all(
+        counts.get(tid, 0) >= settings.cover_comparison_min_per_cover for tid in track_ids
+    )
+    if enough and len(track_ids) >= 2:
+        ordered = sorted((strengths.get(tid, 0.0) for tid in track_ids), reverse=True)
+        gaps = [ordered[i] - ordered[i + 1] for i in range(len(ordered) - 1)]
+        if gaps and min(gaps) > settings.cover_comparison_settle_gap:
+            return "settled"
+    return "bootstrapping"
+
+
+def next_pair(
+    session: Session,
+    sub_group: str,
+    settings: Settings,
+) -> tuple[int, int] | None:
+    """Pick the most informative A/B pair for a set, or None if it isn't eligible. Informative =
+    closest in current strength (outcome most uncertain) and least evidence so far, so verdicts go
+    where they resolve the ranking fastest."""
+    state = session.get(CoverSetState, sub_group)
+    if state is not None and state.comparison_phase == "settled":
+        return None
+    renditions = list(
+        session.scalars(
+            select(CoverRenditionState).where(CoverRenditionState.sub_group == sub_group)
+        )
+    )
+    if not renditions:
+        # No cache yet (no verdicts) — fall back to the raw set membership.
+        ids = set_track_ids(session, sub_group)
+        if len(ids) < settings.cover_comparison_min_covers:
+            return None
+        return (ids[0], ids[1]) if len(ids) >= 2 else None
+    if len(renditions) < settings.cover_comparison_min_covers:
+        return None
+
+    best: tuple[float, int, int] | None = None
+    for i in range(len(renditions)):
+        for j in range(i + 1, len(renditions)):
+            a, b = renditions[i], renditions[j]
+            closeness = 1.0 / (1.0 + abs(a.bt_strength - b.bt_strength))
+            sparsity = 1.0 / (1.0 + a.comparison_count + b.comparison_count)
+            info = closeness * sparsity
+            if best is None or info > best[0]:
+                best = (info, a.track_id, b.track_id)
+    return (best[1], best[2]) if best else None
 
 
 def record_verdict(

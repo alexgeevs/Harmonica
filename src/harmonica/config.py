@@ -92,6 +92,17 @@ class Settings(BaseSettings):
     cover_perf_max_multiplier: float = 1.4
     cover_perf_gamma: float = 1.0
     cover_bt_prior_strength: float = 1.0
+    # A/B comparison UX (Phase E). Eligible only when a set has >= min_covers renditions and the
+    # listener is "active" (>= active_min_rated of the last active_window songs got a rating). The
+    # set settles (stops prompting) once well-separated or a hard ceiling of verdicts is reached.
+    cover_comparison_enabled: bool = True
+    cover_comparison_min_covers: int = 4
+    cover_comparison_cooldown_songs: int = 3
+    cover_comparison_min_per_cover: int = 3
+    cover_comparison_max_total: int = 40
+    cover_comparison_settle_gap: float = 0.2
+    cover_active_window: int = 5
+    cover_active_min_rated: int = 4
 
     @property
     def db_url(self) -> str:

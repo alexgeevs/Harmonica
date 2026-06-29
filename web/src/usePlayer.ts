@@ -526,6 +526,17 @@ export function usePlayer() {
     });
   }, []);
 
+  // Insert items immediately after the current track (used to stage an A/B cover comparison).
+  const spliceNext = useCallback((items: QueueItem[]) => {
+    if (items.length === 0) {
+      return;
+    }
+    setQueue((current) => {
+      const at = Math.min(indexRef.current + 1, current.length);
+      return [...current.slice(0, at), ...items, ...current.slice(at)];
+    });
+  }, []);
+
   const clear = useCallback(() => {
     wantsPlayRef.current = false;
     startedKeyRef.current = null;
@@ -566,6 +577,7 @@ export function usePlayer() {
       toggleMute,
       removeAt,
       moveItem,
+      spliceNext,
       clear
     }),
     [
@@ -592,6 +604,7 @@ export function usePlayer() {
       toggleMute,
       removeAt,
       moveItem,
+      spliceNext,
       clear
     ]
   );

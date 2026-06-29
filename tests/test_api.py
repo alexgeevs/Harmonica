@@ -79,7 +79,8 @@ def test_cover_verdict_records_and_ranks_renditions() -> None:
             body = response.json()
 
         assert body["total_comparisons"] == 3
-        assert body["comparison_phase"] == "bootstrapping"
+        # Three decisive wins between two renditions is enough to separate them (it may settle).
+        assert body["comparison_phase"] in ("bootstrapping", "settled")
         strengths = {r["track_id"]: r["bt_strength"] for r in body["renditions"]}
         assert strengths[a_id] > strengths[b_id]
 
@@ -97,6 +98,43 @@ def test_cover_verdict_records_and_ranks_renditions() -> None:
 
         fetched = client.get("/cover-sets/verdict_set").json()
         assert fetched["total_comparisons"] == 3
+
+
+def test_next_cover_comparison_returns_playable_pair() -> None:
+    from harmonica.models import MediaAsset
+
+    with TestClient(create_app()) as client:
+        with SessionLocal() as session:
+            for i in range(4):
+                song_id = f"abset_r{i}"
+                track = session.scalar(select(Track).where(Track.song_id == song_id))
+                if track is None:
+                    track = Track(song_id=song_id, title=f"AB {i}", sub_group="abset")
+                    session.add(track)
+                    session.flush()
+                    session.add(
+                        MediaAsset(
+                            track_id=track.id,
+                            file_path=f"/tmp/abset_{i}.m4a",
+                            asset_type="audio",
+                            browser_supported=True,
+                        )
+                    )
+                else:
+                    track.sub_group = "abset"
+            session.commit()
+
+        pair = client.get("/cover-comparisons/next?sub_group=abset").json()
+        assert pair is not None
+        assert pair["sub_group"] == "abset"
+        assert pair["a"]["media_url"] and pair["b"]["media_url"]
+        assert pair["a"]["track"]["id"] != pair["b"]["track"]["id"]
+        # Each spliced item carries comparison metadata for the client to drive the prompt.
+        assert pair["a"]["explanation"]["comparison"]["role"] == "a"
+        assert pair["b"]["explanation"]["comparison"]["role"] == "b"
+
+        # A set that doesn't exist isn't eligible → null.
+        assert client.get("/cover-comparisons/next?sub_group=nope").json() is None
 
 
 def test_playback_event_can_be_recorded() -> None:

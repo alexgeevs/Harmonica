@@ -32,6 +32,7 @@ import { displayArtist, formatTime, pct, whyMath, whyReasons } from "./format";
 import CurateView from "./CurateView";
 import { matchPreset, PRESETS, type Preset } from "./presets";
 import { usePlayer, type PlayerApi } from "./usePlayer";
+import { comparisonMeta, useCoverComparison } from "./useCoverComparison";
 import type {
   AppSettings,
   DeviceConfigDetail,
@@ -110,6 +111,9 @@ export default function App() {
       /* localStorage may be unavailable (private mode); profile stays in memory. */
     }
   }, [activeConfig]);
+
+  // Cover A/B comparison (Phase E): inert unless two-level covers are on and a set is eligible.
+  useCoverComparison(player, tracks, Boolean(settings?.cover_two_level_enabled));
 
   const videoStageRef = useRef<HTMLDivElement>(null);
   const videoParkRef = useRef<HTMLDivElement>(null);
@@ -701,6 +705,8 @@ function QueueView(props: {
           />
         ) : null}
 
+        <ComparisonCard player={player} />
+
         {item ? <WhyThisSong item={item} showMath={props.showMath} /> : null}
 
         <div className="generate-card">
@@ -856,6 +862,120 @@ function RateCard(props: {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+// Shown while the SECOND rendition of an A/B pair is playing: ask which was better, with a quick
+// replay of the first to compare. Reuses a throwaway <audio> for the replay so the main player (and
+// its loudness meter) is never disturbed — the verdict feeds the Bradley-Terry ranking.
+function ComparisonCard(props: { player: PlayerApi }) {
+  const { player } = props;
+  const previewRef = useRef<HTMLAudioElement | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [submitted, setSubmitted] = useState<string | null>(null);
+
+  const item = player.currentItem;
+  const meta = comparisonMeta(item);
+
+  useEffect(() => {
+    // Stop any replay when the comparison track changes or the card unmounts.
+    return () => {
+      previewRef.current?.pause();
+      previewRef.current = null;
+    };
+  }, [player.currentKey]);
+
+  if (!item || !meta || meta.role !== "b") {
+    return null;
+  }
+  const aItem = player.queue.find((q) => {
+    const m = comparisonMeta(q);
+    return m?.role === "a" && m.set_id === meta.set_id && q.track.id === meta.peer_track_id;
+  });
+  const itemKey = `${item.position}:${item.track.id}`;
+  const alreadyDone = submitted === itemKey;
+
+  function stopPreview() {
+    previewRef.current?.pause();
+    setPreviewing(false);
+  }
+
+  function replayFirst() {
+    if (!aItem?.media_url) {
+      return;
+    }
+    player.pause();
+    let audio = previewRef.current;
+    if (!audio) {
+      audio = new Audio();
+      previewRef.current = audio;
+      audio.addEventListener("ended", () => setPreviewing(false));
+    }
+    audio.src = aItem.media_url;
+    const fraction = player.duration > 0 ? player.currentTime / player.duration : 0;
+    const startAt = aItem.track.clip_start_seconds ?? 0;
+    audio.currentTime = startAt;
+    const applyFraction = () => {
+      const dur = audio?.duration ?? 0;
+      if (audio && fraction > 0 && dur > 0) {
+        audio.currentTime = Math.min(Math.max(startAt, fraction * dur), dur - 0.5);
+      }
+      audio?.removeEventListener("loadedmetadata", applyFraction);
+    };
+    audio.addEventListener("loadedmetadata", applyFraction);
+    void audio.play().catch(() => setPreviewing(false));
+    setPreviewing(true);
+  }
+
+  function submit(winner: number | null) {
+    stopPreview();
+    setSubmitted(itemKey);
+    void api
+      .submitCoverVerdict({
+        sub_group: meta!.set_id,
+        track_a_id: meta!.peer_track_id,
+        track_b_id: item!.track.id,
+        winner_track_id: winner,
+        pct_b: player.duration > 0 ? player.currentTime / player.duration : null
+      })
+      .catch(() => {
+        /* best-effort; the raw verdict log tolerates a retry next time */
+      });
+  }
+
+  if (alreadyDone) {
+    return (
+      <div className="compare-card done">
+        <Sparkles size={15} /> Thanks — noted which version you prefer.
+      </div>
+    );
+  }
+
+  const firstTitle = aItem?.track.title ?? "the first version";
+  return (
+    <div className="compare-card">
+      <h4>
+        <ListMusic size={15} /> Which version is better?
+      </h4>
+      <p className="compare-sub">
+        You're hearing a second take of <strong>{item.track.title}</strong>. Compare it with the one
+        just before it.
+      </p>
+      <div className="compare-actions">
+        <button className="compare-vote" onClick={() => submit(meta.peer_track_id)}>
+          The first was better
+        </button>
+        <button className="compare-vote neutral" onClick={() => submit(null)}>
+          About the same
+        </button>
+        <button className="compare-vote" onClick={() => submit(item.track.id)}>
+          This one's better
+        </button>
+      </div>
+      <button className="compare-replay" onClick={previewing ? stopPreview : replayFirst}>
+        {previewing ? "Stop — back to this version" : `▸ Replay ${firstTitle} to compare`}
+      </button>
     </div>
   );
 }

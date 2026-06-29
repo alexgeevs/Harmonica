@@ -156,8 +156,9 @@ songs have already been rated, hopefully most more than once."
   verdicts. Shipped 2026-06-29: `cover_comparisons`/`cover_rendition_state`/`cover_set_state` tables,
   `bt.py` (regularised Bradley-Terry — **Claude's choice of method**), `cover_ranking.py` recompute,
   `POST /cover-verdicts`. The A/B playback/prompt UX itself is Phase E.
-- **Phase E.** Comparison UX: consecutive playback, "which was better", brief replay, "active" detection,
-  pair selection, phase-out back to stars.
+- **Phase E.** ✅ Comparison UX: consecutive playback, "which was better", brief replay, "active"
+  detection, pair selection, phase-out back to stars. Shipped 2026-06-29 (`useCoverComparison.ts`,
+  `ComparisonCard`, `next_pair`/settle in `cover_ranking.py`, `GET /cover-comparisons/next`).
 
 *(A multi-agent design review refined the detailed math/schema below — see the next section, appended
 after the review.)*

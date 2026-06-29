@@ -212,6 +212,31 @@ export type RunSummary = {
   preview_titles: string[];
 };
 
+// Cover A/B comparison (Phase E). When two renditions are spliced into the queue for a head-to-head,
+// each carries this metadata inside its explanation under the `comparison` key.
+export type CoverComparisonMeta = {
+  set_id: string;
+  role: "a" | "b";
+  peer_track_id: number;
+};
+
+export type CoverComparisonPair = {
+  sub_group: string;
+  a: QueueItem;
+  b: QueueItem;
+};
+
+export type CoverVerdict = {
+  sub_group: string;
+  track_a_id: number;
+  track_b_id: number;
+  winner_track_id: number | null;
+  pct_a?: number | null;
+  pct_b?: number | null;
+  session_id?: string | null;
+  run_id?: number | null;
+};
+
 // A plain-language reason describing why a track was queued.
 export type WhyReason = {
   icon: "group" | "star" | "spark" | "video" | "cooldown" | "history" | "variant";

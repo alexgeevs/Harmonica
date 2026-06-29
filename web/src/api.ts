@@ -1,5 +1,7 @@
 import type {
   AppSettings,
+  CoverComparisonPair,
+  CoverVerdict,
   DeviceConfigDetail,
   DeviceConfigSummary,
   LibraryExport,
@@ -95,6 +97,14 @@ export const api = {
   playbackEvents: (limit = 200) =>
     request<PlaybackEvent[]>(`/playback-events?limit=${limit}`),
   getRun: (id: number) => request<QueueRun>(`/playlist-runs/${id}`),
+  // --- Cover A/B comparison (Phase E; only active when two-level covers are enabled). ---
+  // Returns the next pair to play head-to-head, or null when the set isn't eligible/has settled.
+  nextCoverComparison: (subGroup: string) =>
+    request<CoverComparisonPair | null>(
+      `/cover-comparisons/next?sub_group=${encodeURIComponent(subGroup)}`
+    ),
+  submitCoverVerdict: (verdict: CoverVerdict) =>
+    request("/cover-verdicts", { method: "POST", body: JSON.stringify(verdict) }),
   // Saved-queue endpoints are additive on the backend; callers should tolerate 404.
   listRuns: (limit = 50) => request<RunSummary[]>(`/playlist-runs?limit=${limit}`),
   renameRun: (id: number, name: string) =>
