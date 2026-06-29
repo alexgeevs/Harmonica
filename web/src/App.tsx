@@ -1724,7 +1724,7 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
   {
     title: "Covers (experimental)",
     note: "Choosing between different renditions of the same song. Off by default.",
-    keys: ["cover_two_level_enabled"]
+    keys: ["cover_two_level_enabled", "cover_count_log_base", "cover_original_bonus"]
   }
 ];
 

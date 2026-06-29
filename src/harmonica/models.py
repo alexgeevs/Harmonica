@@ -200,6 +200,67 @@ class RatingSample(Base):
     )
 
 
+class CoverComparison(Base):
+    """Append-only raw log of A/B cover verdicts ("which rendition is better?"). Bradley-Terry
+    strengths are always recomputed from these rows, never stored as a running online value, so the
+    fit is order-independent and a bad verdict can be deleted and the ranking recomputed cleanly.
+    See docs/planning/rating-normalization-and-covers.md (Phase D)."""
+
+    __tablename__ = "cover_comparisons"
+    __table_args__ = (Index("ix_cover_comparisons_set_created", "sub_group", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sub_group: Mapped[str] = mapped_column(String(255), index=True)
+    track_a_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    track_b_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    # NULL winner = "about the same" (a tie), which Bradley-Terry handles as half-credit each side.
+    winner_track_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tracks.id", ondelete="SET NULL"), nullable=True
+    )
+    pct_a: Mapped[float | None] = mapped_column(Float, nullable=True)  # %-through at verdict
+    pct_b: Mapped[float | None] = mapped_column(Float, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("playlist_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, index=True
+    )
+
+
+class CoverRenditionState(Base):
+    """Cache of a rendition's Bradley-Terry log-strength (mean ~0 within its set) so the cover pick
+    doesn't refit per slot. Refreshed whenever a verdict lands. Never displayed as an absolute
+    star — performance is purely *relative* within the cover set."""
+
+    __tablename__ = "cover_rendition_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    track_id: Mapped[int] = mapped_column(
+        ForeignKey("tracks.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    sub_group: Mapped[str] = mapped_column(String(255), index=True)
+    bt_strength: Mapped[float] = mapped_column(Float, default=0.0)
+    comparison_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, onupdate=now_utc
+    )
+
+
+class CoverSetState(Base):
+    """Per-set A/B lifecycle flag (Phase E uses it to start/stop prompting; Phase D just keeps the
+    running comparison total)."""
+
+    __tablename__ = "cover_set_state"
+
+    sub_group: Mapped[str] = mapped_column(String(255), primary_key=True)
+    comparison_phase: Mapped[str] = mapped_column(String(16), default="stars")
+    total_comparisons: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, onupdate=now_utc
+    )
+
+
 class PlaylistRun(Base):
     __tablename__ = "playlist_runs"
 

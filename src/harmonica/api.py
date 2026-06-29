@@ -14,10 +14,13 @@ from sqlalchemy.orm import Session, selectinload
 
 from harmonica.bootstrap import ensure_default_rating_factors
 from harmonica.config import Settings, get_settings
+from harmonica.cover_ranking import record_verdict
 from harmonica.db import SessionLocal, get_session, init_db
 from harmonica.history import playback_event_signal
 from harmonica.models import (
     CooldownTag,
+    CoverRenditionState,
+    CoverSetState,
     DeviceConfig,
     DeviceConfigTrack,
     GroupMembership,
@@ -36,6 +39,9 @@ from harmonica.normalization import plain_rating_averages
 from harmonica.playlist import generate_and_persist_playlist
 from harmonica.scanner import scan_library
 from harmonica.schemas import (
+    CoverRenditionRead,
+    CoverSetRead,
+    CoverVerdictCreate,
     DeviceConfigClaim,
     DeviceConfigCreate,
     DeviceConfigDetail,
@@ -103,6 +109,67 @@ def create_app() -> FastAPI:
     ) -> SettingsRead:
         update_setting_values(session, payload.values, settings)
         return SettingsRead(**settings_payload(session, settings))
+
+    def cover_set_read(session: Session, sub_group: str) -> CoverSetRead:
+        renditions = session.scalars(
+            select(CoverRenditionState)
+            .where(CoverRenditionState.sub_group == sub_group)
+            .order_by(CoverRenditionState.bt_strength.desc())
+        ).all()
+        state = session.get(CoverSetState, sub_group)
+        return CoverSetRead(
+            sub_group=sub_group,
+            comparison_phase=state.comparison_phase if state else "stars",
+            total_comparisons=state.total_comparisons if state else 0,
+            renditions=[
+                CoverRenditionRead(
+                    track_id=row.track_id,
+                    sub_group=row.sub_group,
+                    bt_strength=row.bt_strength,
+                    comparison_count=row.comparison_count,
+                )
+                for row in renditions
+            ],
+        )
+
+    @app.get("/cover-sets/{sub_group}", response_model=CoverSetRead)
+    def read_cover_set(sub_group: str, session: SessionDep) -> CoverSetRead:
+        return cover_set_read(session, sub_group)
+
+    @app.post("/cover-verdicts", response_model=CoverSetRead)
+    def submit_cover_verdict(
+        payload: CoverVerdictCreate,
+        session: SessionDep,
+        settings: SettingsDep,
+    ) -> CoverSetRead:
+        # Both tracks must really belong to the named cover set, and a winner (if given) must be one
+        # of them — otherwise the Bradley-Terry fit would be silently fed a bogus comparison.
+        members = set(
+            session.scalars(select(Track.id).where(Track.sub_group == payload.sub_group)).all()
+        )
+        if payload.track_a_id not in members or payload.track_b_id not in members:
+            raise HTTPException(status_code=400, detail="Both renditions must be in the cover set.")
+        if payload.track_a_id == payload.track_b_id:
+            raise HTTPException(status_code=400, detail="A rendition cannot be compared to itself.")
+        if payload.winner_track_id is not None and payload.winner_track_id not in (
+            payload.track_a_id,
+            payload.track_b_id,
+        ):
+            raise HTTPException(status_code=400, detail="Winner must be one of the two renditions.")
+        record_verdict(
+            session,
+            sub_group=payload.sub_group,
+            track_a_id=payload.track_a_id,
+            track_b_id=payload.track_b_id,
+            winner_track_id=payload.winner_track_id,
+            settings=settings,
+            pct_a=payload.pct_a,
+            pct_b=payload.pct_b,
+            session_id=payload.session_id,
+            run_id=payload.run_id,
+        )
+        session.commit()
+        return cover_set_read(session, payload.sub_group)
 
     @app.get("/rating-factors", response_model=list[RatingFactorRead])
     def list_rating_factors(session: SessionDep) -> list[RatingFactorRead]:

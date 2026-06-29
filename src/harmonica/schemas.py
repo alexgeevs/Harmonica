@@ -189,11 +189,43 @@ class SettingsRead(BaseModel):
     rediscovery_halflife_days: float
     why_show_math: bool
     cover_two_level_enabled: bool
+    cover_count_log_base: float
+    cover_original_bonus: float
     controls: list[SettingControlRead]
 
 
 class SettingsUpdate(BaseModel):
     values: dict[str, int | float | bool]
+
+
+class CoverVerdictCreate(BaseModel):
+    """A user's A/B verdict on which rendition of a song is better."""
+
+    sub_group: str
+    track_a_id: int
+    track_b_id: int
+    winner_track_id: int | None = None  # null = "about the same"
+    pct_a: float | None = None
+    pct_b: float | None = None
+    session_id: str | None = None
+    run_id: int | None = None
+
+
+class CoverRenditionRead(BaseModel):
+    track_id: int
+    sub_group: str
+    bt_strength: float
+    comparison_count: int
+
+
+class CoverSetRead(BaseModel):
+    """The post-verdict state of a cover set: its lifecycle phase and each rendition's relative
+    Bradley-Terry strength (mean ~0; higher = preferred)."""
+
+    sub_group: str
+    comparison_phase: str
+    total_comparisons: int
+    renditions: list[CoverRenditionRead]
 
 
 class DeviceConfigCreate(BaseModel):

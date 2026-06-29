@@ -101,6 +101,8 @@ export type SettingControl = {
     | "rediscovery_halflife_days"
     | "why_show_math"
     | "cover_two_level_enabled"
+    | "cover_count_log_base"
+    | "cover_original_bonus"
   >;
   label: string;
   description: string;
@@ -152,6 +154,8 @@ export type AppSettings = {
   rediscovery_halflife_days: number;
   why_show_math: boolean;
   cover_two_level_enabled: boolean;
+  cover_count_log_base: number;
+  cover_original_bonus: number;
   controls: SettingControl[];
 };
 

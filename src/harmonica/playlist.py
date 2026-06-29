@@ -13,7 +13,9 @@ from harmonica.algorithm import (
     generate_playlist,
     write_jsonl_log,
 )
+from harmonica.bt import performance_multiplier
 from harmonica.config import Settings
+from harmonica.cover_ranking import rendition_states
 from harmonica.db import engine
 from harmonica.history import (
     cold_start_multiplier,
@@ -23,6 +25,7 @@ from harmonica.history import (
     summarize_history,
 )
 from harmonica.models import (
+    CoverRenditionState,
     GroupMembership,
     MediaAsset,
     PlaylistItem,
@@ -75,6 +78,8 @@ def load_algorithm_inputs(
     now = now_utc()
     history_summary = summarize_history(session, tracks, settings, now=now)
     groups = list(session.scalars(select(WeightGroup)))
+    # Bradley-Terry rendition strengths (Phase D) only matter when two-level covers are on.
+    cover_states = rendition_states(session) if settings.cover_two_level_enabled else {}
 
     # Feature 1: normalised per-song rating (history-aware, mood-stripped). When disabled,
     # fall back to the legacy single-star path so behaviour is unchanged.
@@ -142,7 +147,9 @@ def load_algorithm_inputs(
                 rating_multiplier=song_mult,
                 song_rating_multiplier=song_mult,
                 is_original_rendition=bool(getattr(track, "is_original_rendition", False)),
-                perf_mult=cover_performance_multiplier(track, settings),
+                perf_mult=cover_performance_multiplier(
+                    track, settings, cover_states.get(track.id)
+                ),
                 original_prior_mult=(
                     1.0 + settings.cover_original_bonus
                     if getattr(track, "is_original_rendition", False)
@@ -173,10 +180,23 @@ def load_algorithm_inputs(
     return algorithm_tracks, group_map, history_summary
 
 
-def cover_performance_multiplier(track: Track, settings: Settings) -> float:
-    """Within-set rendition preference from a directly-rated ``performance`` star (Phase C). Phase D
-    will replace this with a Bradley-Terry strength learned from A/B verdicts. Neutral (1.0) until a
-    performance rating exists, so it never affects how often a song plays — only which rendition."""
+def cover_performance_multiplier(
+    track: Track,
+    settings: Settings,
+    rendition_state: CoverRenditionState | None = None,
+) -> float:
+    """Within-set rendition preference: which rendition to play, never how often the song plays.
+
+    Precedence: a learned Bradley-Terry strength from A/B verdicts (Phase D) > a directly-rated
+    ``performance`` star (Phase C) > neutral (1.0). Bounded so a winning rendition can't take over.
+    """
+    if rendition_state is not None and rendition_state.comparison_count > 0:
+        return performance_multiplier(
+            rendition_state.bt_strength,
+            settings.cover_perf_gamma,
+            settings.cover_perf_min_multiplier,
+            settings.cover_perf_max_multiplier,
+        )
     for rating in track.ratings:
         if rating.factor and rating.factor.key == "performance" and rating.value is not None:
             return rating_to_song_multiplier(float(rating.value), settings)
@@ -298,4 +318,6 @@ def settings_snapshot(settings: Settings) -> dict[str, object]:
         "rediscovery_halflife_days": settings.rediscovery_halflife_days,
         "why_show_math": settings.why_show_math,
         "cover_two_level_enabled": settings.cover_two_level_enabled,
+        "cover_count_log_base": settings.cover_count_log_base,
+        "cover_original_bonus": settings.cover_original_bonus,
     }

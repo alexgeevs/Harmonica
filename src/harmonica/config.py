@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     cover_two_level_enabled: bool = False
     cover_count_log_base: float = 4.0
     cover_original_bonus: float = 0.1
+    # Bradley-Terry within-set "performance" (Phase D): bounded multiplier picking WHICH rendition,
+    # derived from A/B verdicts. gamma scales log-strength → ratio; the prior shrinks thin evidence.
+    cover_perf_min_multiplier: float = 0.7
+    cover_perf_max_multiplier: float = 1.4
+    cover_perf_gamma: float = 1.0
+    cover_bt_prior_strength: float = 1.0
 
     @property
     def db_url(self) -> str:

@@ -286,9 +286,18 @@ def generate_playlist_two_level(
                     if track_repeat_counts.get(tracks[i].id, 0.0) < 1.0 and not tracks[i].is_rated
                 ]
                 pick_from = uncovered or members
+            # The song's frequency uses the SHARED (averaged) rating; here, after the song is
+            # chosen, the pick between renditions also weighs each cover's OWN individual rating
+            # (computed but never shown to the user) on top of performance + the original nudge.
+            # song_rating_multiplier holds each rendition's individual overall — the unit averaged
+            # these for its shared frequency weight, so reading it here adds no frequency bias.
             cover_weights = [
                 _finite(
-                    (_context_weight(scored[i][1]) * chosen_unit.v[i])
+                    (
+                        _context_weight(scored[i][1])
+                        * chosen_unit.v[i]
+                        * tracks[i].song_rating_multiplier
+                    )
                     * (0.5 if settings.avoid_consecutive_compressed
                        and prev_compressed and tracks[i].is_compressed else 1.0)
                 )

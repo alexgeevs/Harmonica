@@ -44,6 +44,61 @@ def test_new_optional_features_default_off_and_toggle() -> None:
         client.patch("/settings", json={"values": {"why_show_math": False}})
 
 
+def test_cover_verdict_records_and_ranks_renditions() -> None:
+    with TestClient(create_app()) as client:
+        with SessionLocal() as session:
+            ids = []
+            for suffix in ("a", "b"):
+                song_id = f"verdict_set_{suffix}"
+                track = session.scalar(select(Track).where(Track.song_id == song_id))
+                if track is None:
+                    track = Track(
+                        song_id=song_id, title=f"Rendition {suffix}", sub_group="verdict_set"
+                    )
+                    session.add(track)
+                else:
+                    track.sub_group = "verdict_set"
+                session.commit()
+                session.refresh(track)
+                ids.append(track.id)
+            a_id, b_id = ids
+
+        # A is judged better than B three times.
+        body = None
+        for _ in range(3):
+            response = client.post(
+                "/cover-verdicts",
+                json={
+                    "sub_group": "verdict_set",
+                    "track_a_id": a_id,
+                    "track_b_id": b_id,
+                    "winner_track_id": a_id,
+                },
+            )
+            assert response.status_code == 200
+            body = response.json()
+
+        assert body["total_comparisons"] == 3
+        assert body["comparison_phase"] == "bootstrapping"
+        strengths = {r["track_id"]: r["bt_strength"] for r in body["renditions"]}
+        assert strengths[a_id] > strengths[b_id]
+
+        # A bogus winner is rejected rather than silently fed to the fit.
+        bad = client.post(
+            "/cover-verdicts",
+            json={
+                "sub_group": "verdict_set",
+                "track_a_id": a_id,
+                "track_b_id": b_id,
+                "winner_track_id": 999999,
+            },
+        )
+        assert bad.status_code == 400
+
+        fetched = client.get("/cover-sets/verdict_set").json()
+        assert fetched["total_comparisons"] == 3
+
+
 def test_playback_event_can_be_recorded() -> None:
     with TestClient(create_app()) as client:
         with SessionLocal() as session:

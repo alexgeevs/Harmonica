@@ -11,6 +11,32 @@ algorithm rationale see `rating-normalization-and-covers.md`; for verbatim early
 
 ---
 
+## Idea attribution ledger
+
+Who originated each design idea, for future reference (the user asked to track this on 2026-06-29).
+The dated entries below also tag attribution inline; this is the at-a-glance summary.
+
+**User-originated ideas.** Rating normalisation (accumulate ratings, regress mood outliers toward a
+song's mean using a library-wide SD once most songs are rated); cover A/B comparison (flip between
+two renditions, say which is better, brief replay to compare); two-level selection (pick song, then
+cover); cover count boosts appearance **logarithmically**; the **log base is a tunable setting**;
+`overall` = 50% direct + 50% other factors; the original rendition is **slightly favoured by a fixed,
+settable, non-decaying nudge**; shared factors shown at song level except a cover-specific
+`performance`; displayed rating = plain average (outliers measured against it); per-user rating-scale
+calibration (a 4–5-only rater's 4 treated as ~2); weak cross-song type link; the **satiation pattern**
+(binge ~2 weeks then burn out) and wanting to avoid quality depreciation from repetition; **after a
+song is selected, also use each cover's own individual (hidden) star ratings to pick the rendition.**
+
+**Claude-originated ideas.** The specific normalisation maths (pooled within-series SD yardstick,
+winsorising + empirical-Bayes shrinkage + smooth alpha ramp, leave-session-out mood bias); the
+satiation **guard** + dormant-favourite **rediscovery** wall-clock multiplier mechanisms; the
+"Not now" / "More like this" ephemeral session-steering controls; the optional "show the maths"
+explanation view; and — **chosen by Claude (the user explicitly did not know the method)** — using
+**Bradley-Terry** to turn the A/B cover verdicts into a single relative `performance` ranking, with a
+phantom-average-player Gaussian prior for regularisation and half-credit tie handling.
+
+---
+
 ### 2026-06-24/25 — Onboarding & first build
 - **User:** Explore the repo; talk to the Codex session; create a `CLAUDE.md` (push frequently to
   `main` under my name); achieve the project vision by end of day; ask clarifying questions first.
@@ -161,3 +187,25 @@ algorithm rationale see `rating-normalization-and-covers.md`; for verbatim early
   with cover fields in the explanation, and the original-rendition nudge. Frontend "why this song"
   surfaces "one of N versions / the original recording / your favourite rendition" when enabled.
   6 new tests; 58 green; ruff + web build clean. Phase D (A/B comparison + Bradley-Terry) is next.
+
+### 2026-06-29 — Cover refinements + Phase D (Bradley-Terry)
+- **User:** The cover log **base should be a selectable setting**. The original nudge should **not
+  decay** (but stays a setting). **After a song is selected, the algorithm may also look at each
+  cover's individual star ratings (not shown to the user) to pick the rendition.** Do Phase D — but
+  "I don't quite know what Bradley-Terry is, I would want an explanation." Later: note in the md that
+  **Claude** came up with the BT approach (not the user), and generally track who did what.
+- **Claude (final):** (1) Exposed **`cover_count_log_base`** and **`cover_original_bonus`** as real
+  settings sliders in the "Covers (experimental)" section; the original nudge is a fixed
+  `1 + bonus` (non-decaying). (2) The within-set rendition pick now also multiplies by each cover's
+  **own individual rating** (carried in `song_rating_multiplier`, which the unit already averages for
+  the song-level frequency, so this adds no frequency bias — only steers WHICH rendition). (3) Built
+  **Phase D**: three additive tables (`cover_comparisons` raw verdict log, `cover_rendition_state`
+  BT-strength cache, `cover_set_state` lifecycle), a `bt.py` regularised **Bradley-Terry** fit
+  (Zermelo/MM iteration, phantom-average-player Gaussian prior so thin/undefeated evidence stays
+  finite, half-credit ties, mean-0 log-strengths, order-independent), a `cover_ranking.py` recompute
+  service, and `POST /cover-verdicts` (+ `GET /cover-sets/{sub_group}`) that validates the pair,
+  appends the verdict, refits, and caches. `perf_mult` now prefers a learned BT strength (bounded
+  `exp(γ·strength)` in [0.7, 1.4]) over a manual `performance` star. Added the **idea-attribution
+  ledger** above (BT was Claude's choice; the log-base/non-decay-nudge/individual-cover-rating ideas
+  were the user's). 8 new tests (BT properties + verdict endpoint + individual-rating pick); 66 green;
+  ruff + web build clean. Phase E (the A/B playback UX) is next.

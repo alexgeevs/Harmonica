@@ -152,7 +152,10 @@ songs have already been rated, hopefully most more than once."
   Shipped 2026-06-29 in `src/harmonica/covers.py` behind the default-off `cover_two_level_enabled`
   flag; golden-parity test guarantees no change to the legacy path. `performance` is sourced from a
   directly-rated star for now (Bradley-Terry deferred to Phase D).
-- **Phase D.** Cover-comparison data model (comparisons table) + performance derivation from A/B verdicts.
+- **Phase D.** ✅ Cover-comparison data model (comparisons table) + performance derivation from A/B
+  verdicts. Shipped 2026-06-29: `cover_comparisons`/`cover_rendition_state`/`cover_set_state` tables,
+  `bt.py` (regularised Bradley-Terry — **Claude's choice of method**), `cover_ranking.py` recompute,
+  `POST /cover-verdicts`. The A/B playback/prompt UX itself is Phase E.
 - **Phase E.** Comparison UX: consecutive playback, "which was better", brief replay, "active" detection,
   pair selection, phase-out back to stars.
 

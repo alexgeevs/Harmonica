@@ -144,6 +144,20 @@ def test_only_one_rendition_per_slot_and_explanation_surfaces_covers(tmp_path) -
         assert "unit_weight" in item.explanation
 
 
+def test_individual_cover_rating_steers_the_rendition_pick(tmp_path) -> None:
+    """The shared song rating drives how often the song plays, but the pick BETWEEN renditions also
+    uses each cover's own (hidden) individual rating — a better-rated rendition wins more often."""
+    better = _track(1, sub_group="anthem", rating=1.8)
+    worse = _track(2, sub_group="anthem", rating=0.6)
+    config = Settings(home=tmp_path, cover_two_level_enabled=True, cold_start_enabled=False)
+
+    picks = Counter()
+    for i in range(2000):
+        item = generate_playlist([better, worse], {}, 1, config, seed=f"r{i}")[0]
+        picks[item.track.id] += 1
+    assert picks[1] > picks[2]
+
+
 def test_original_rendition_is_favoured_within_a_set(tmp_path) -> None:
     original = _track(1, sub_group="duo", is_original=True, original_prior=1.1)
     cover = _track(2, sub_group="duo")

@@ -428,6 +428,35 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         control="switch",
         default=False,
     ),
+    SettingDefinition(
+        key="cover_count_log_base",
+        label="Cover-count log base",
+        description=(
+            "How much a song's many covers boost how often it appears. The boost is logarithmic: "
+            "higher base = smaller boost. Base 4 → a song with 10 covers shows ~2.7× as often, "
+            "never 10×."
+        ),
+        value_type="number",
+        control="slider",
+        default=4.0,
+        minimum=1.5,
+        maximum=12.0,
+        step=0.5,
+    ),
+    SettingDefinition(
+        key="cover_original_bonus",
+        label="Original-rendition nudge",
+        description=(
+            "A small, fixed extra weight for the original recording when choosing between covers "
+            "of a song. 0 = no preference; it never overrides a clearly better cover."
+        ),
+        value_type="number",
+        control="slider",
+        default=0.1,
+        minimum=0.0,
+        maximum=0.5,
+        step=0.05,
+    ),
 )
 
 SETTING_MAP = {definition.key: definition for definition in SETTING_DEFINITIONS}
