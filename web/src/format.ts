@@ -57,12 +57,12 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
 
   const rating = metricNumber(ex.rating_multiplier);
   if (rating >= 1.15) {
-    reasons.push({ icon: "star", tone: "boost", text: `You rate this highly (×${rating.toFixed(2)})` });
+    reasons.push({ icon: "star", tone: "boost", text: "You rate this highly" });
   } else if (rating <= 0.85) {
     reasons.push({
       icon: "star",
       tone: "suppress",
-      text: `Rated lower than average, so it comes up less (×${rating.toFixed(2)})`
+      text: "You rate this lower than most, so it comes up less often"
     });
   }
 
@@ -154,6 +154,46 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
 export function whyHeadline(item: QueueItem | null): string {
   const reasons = whyReasons(item);
   return reasons[0]?.text ?? "";
+}
+
+// The full multiplier-by-multiplier maths behind a pick, for the optional "show the maths" view.
+// One row per factor in the exact order the algorithm multiplies them, so base × every row = score.
+export type WhyMathRow = { label: string; value: number; neutral: boolean };
+export type WhyMath = {
+  base: number;
+  rows: WhyMathRow[];
+  score: number;
+};
+
+// Factors in product order (mirrors score_track in algorithm.py). base_score is the starting
+// value; everything else is a multiplier applied to it.
+const MATH_FACTORS: { key: string; label: string }[] = [
+  { key: "manual_multiplier", label: "Manual nudge" },
+  { key: "rating_multiplier", label: "Your rating" },
+  { key: "history_multiplier", label: "Skip history" },
+  { key: "cold_start_multiplier", label: "New-song boost" },
+  { key: "satiation_multiplier", label: "Played a lot lately" },
+  { key: "rediscovery_multiplier", label: "Dormant favourite" },
+  { key: "visual_multiplier", label: "Has a video" },
+  { key: "song_cooldown", label: "Resting this song" },
+  { key: "sub_group_cooldown", label: "Resting this version" }
+];
+
+/** Build the numeric breakdown shown when "show the maths" is enabled. Null if no explanation. */
+export function whyMath(item: QueueItem | null): WhyMath | null {
+  if (!item) {
+    return null;
+  }
+  const ex = item.explanation ?? {};
+  if (ex.base_score == null && ex.score == null) {
+    return null;
+  }
+  const base = metricNumber(ex.base_score, 0);
+  const rows = MATH_FACTORS.map((factor) => {
+    const value = metricNumber((ex as Record<string, unknown>)[factor.key], 1);
+    return { label: factor.label, value, neutral: Math.abs(value - 1) < 0.005 };
+  });
+  return { base, rows, score: metricNumber(ex.score, 0) };
 }
 
 export function pct(part: number, whole: number): number {

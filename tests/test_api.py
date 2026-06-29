@@ -28,6 +28,22 @@ def test_settings_can_be_updated() -> None:
         client.patch("/settings", json={"values": {"beta": original["beta"]}})
 
 
+def test_new_optional_features_default_off_and_toggle() -> None:
+    with TestClient(create_app()) as client:
+        body = client.get("/settings").json()
+        # The maths view and two-level covers are opt-in: present and off by default.
+        assert body["why_show_math"] is False
+        assert body["cover_two_level_enabled"] is False
+        keys = {control["key"] for control in body["controls"]}
+        assert {"why_show_math", "cover_two_level_enabled"} <= keys
+        # Satiation/rediscovery remain disableable switches.
+        assert {"satiation_enabled", "rediscovery_enabled"} <= keys
+
+        toggled = client.patch("/settings", json={"values": {"why_show_math": True}})
+        assert toggled.json()["why_show_math"] is True
+        client.patch("/settings", json={"values": {"why_show_math": False}})
+
+
 def test_playback_event_can_be_recorded() -> None:
     with TestClient(create_app()) as client:
         with SessionLocal() as session:

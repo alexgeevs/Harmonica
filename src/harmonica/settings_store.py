@@ -406,6 +406,28 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         step=1,
         unit="days",
     ),
+    SettingDefinition(
+        key="why_show_math",
+        label="Show the maths in “why this song”",
+        description=(
+            "Add the full calculation — every multiplier and the final score — beneath the plain "
+            "explanation. The plain reasons are always shown; this just reveals the numbers."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=False,
+    ),
+    SettingDefinition(
+        key="cover_two_level_enabled",
+        label="Two-level cover selection",
+        description=(
+            "Experimental. Pick a song first, then choose which rendition (cover) of it to play, "
+            "with more-covered songs surfacing a little more often. Off by default."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=False,
+    ),
 )
 
 SETTING_MAP = {definition.key: definition for definition in SETTING_DEFINITIONS}

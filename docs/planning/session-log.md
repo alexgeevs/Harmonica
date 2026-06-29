@@ -123,3 +123,21 @@ algorithm rationale see `rating-normalization-and-covers.md`; for verbatim early
   Also extended **"why this song"** to surface the highest-trust messages it was hiding (you-heard-this-
   recently, eased-off-this-type, resting-it, long-lost-favourite). Fixed a tz bug (SQLite returns naive
   datetimes). 51 tests green. Next: Phase C (two-level covers).
+
+### 2026-06-29 — Optionality + clearer "why this song"
+- **User:** The satiation guard must be optional (disableable in settings), and so must the rediscovery
+  feature. "Why this song" should be **easier to understand**, with a **longer mathematical explanation
+  that can be enabled in settings** (the formula and result). Phase C (two-level covers) should also be
+  **optional and off by default**. "Proceed."
+- **Claude (final):** Confirmed satiation + rediscovery were *already* optional switches (both
+  multipliers early-return 1.0 when their flag is off). Simplified the plain "why this song" reasons —
+  dropped the raw ×N.NN multiplier numbers from the prose (e.g. "You rate this highly" instead of
+  "(×1.20)"). Added a **"Show the maths in 'why this song'"** setting (boolean, default **off**): when
+  on, the panel reveals a collapsible breakdown — group base × every multiplier (manual, rating, skip
+  history, new-song, satiation, rediscovery, video, song-rest, version-rest) = final score, with a note
+  that score is a relative pick-chance, not a percentage, and neutral 1.00 factors dimmed. Added a
+  **`cover_two_level_enabled`** setting (default **off**) plus `cover_count_log_base`/`cover_original_bonus`
+  config scaffolding ahead of the Phase C build, surfaced as a "Covers (experimental)" settings section.
+  New settings flow through config → settings_store → schema → web types/UI and the run snapshot.
+  Added an API test asserting both new toggles default off and are real controls. 52 tests green, ruff
+  clean, web build clean. Next: build the Phase C selection logic behind its (default-off) flag.

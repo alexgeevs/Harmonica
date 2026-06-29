@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, configsSupported, savedQueuesSupported } from "./api";
-import { displayArtist, formatTime, pct, whyReasons } from "./format";
+import { displayArtist, formatTime, pct, whyMath, whyReasons } from "./format";
 import CurateView from "./CurateView";
 import { matchPreset, PRESETS, type Preset } from "./presets";
 import { usePlayer, type PlayerApi } from "./usePlayer";
@@ -392,6 +392,7 @@ export default function App() {
               videoStageRef={videoStageRef}
               ratingFactors={ratingFactors}
               liveTracks={tracks}
+              showMath={Boolean(settings?.why_show_math)}
               onRate={rateTrack}
               onGenerate={generateQueue}
               onLoadRun={loadSavedRun}
@@ -639,6 +640,7 @@ function QueueView(props: {
   videoStageRef: React.RefObject<HTMLDivElement>;
   ratingFactors: RatingFactor[];
   liveTracks: Track[];
+  showMath: boolean;
   onRate: (track: Track, factorKey: string, value: number | null) => void;
   onGenerate: (length: number, seed: string) => void;
   onLoadRun: (id: number) => void;
@@ -699,7 +701,7 @@ function QueueView(props: {
           />
         ) : null}
 
-        {item ? <WhyThisSong item={item} /> : null}
+        {item ? <WhyThisSong item={item} showMath={props.showMath} /> : null}
 
         <div className="generate-card">
           <h4>Build a session</h4>
@@ -858,8 +860,9 @@ function RateCard(props: {
   );
 }
 
-function WhyThisSong(props: { item: QueueItem }) {
+function WhyThisSong(props: { item: QueueItem; showMath: boolean }) {
   const reasons = whyReasons(props.item);
+  const math = props.showMath ? whyMath(props.item) : null;
   return (
     <div className="why-card">
       <h4>
@@ -873,7 +876,46 @@ function WhyThisSong(props: { item: QueueItem }) {
           </li>
         ))}
       </ul>
+      {math ? <WhyMaths math={math} /> : null}
     </div>
+  );
+}
+
+// The optional, opt-in numeric breakdown: the group "base" score times every multiplier, landing
+// on the final score the queue weights by. A higher score just means a higher chance of being
+// picked next — it is not a percentage.
+function WhyMaths(props: { math: ReturnType<typeof whyMath> }) {
+  const math = props.math;
+  if (!math) {
+    return null;
+  }
+  const fmt = (value: number) => (Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(2));
+  return (
+    <details className="why-maths" open>
+      <summary>The maths</summary>
+      <table>
+        <tbody>
+          <tr className="why-maths-base">
+            <td>Group base</td>
+            <td>{fmt(math.base)}</td>
+          </tr>
+          {math.rows.map((row) => (
+            <tr key={row.label} className={row.neutral ? "why-maths-neutral" : ""}>
+              <td>× {row.label}</td>
+              <td>{fmt(row.value)}</td>
+            </tr>
+          ))}
+          <tr className="why-maths-total">
+            <td>= Score</td>
+            <td>{fmt(math.score)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="why-maths-note">
+        Score = group base × every factor above. A higher score means a higher chance of being
+        picked next, not a percentage. Factors at 1.00 are neutral.
+      </p>
+    </details>
   );
 }
 
@@ -1673,6 +1715,16 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
       "rediscovery_strength",
       "rediscovery_halflife_days"
     ]
+  },
+  {
+    title: "Explanations",
+    note: "How much detail the “why this song” panel shows while you listen.",
+    keys: ["why_show_math"]
+  },
+  {
+    title: "Covers (experimental)",
+    note: "Choosing between different renditions of the same song. Off by default.",
+    keys: ["cover_two_level_enabled"]
   }
 ];
 

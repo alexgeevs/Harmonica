@@ -76,6 +76,17 @@ class Settings(BaseSettings):
     rating_calibration_min_rated_songs: int = 20
     rating_calibration_z_cap: float = 2.0
 
+    # Show the full multiplier-by-multiplier maths behind "why this song" (off by default; the
+    # plain-language reasons are always shown, this just adds the formula and the numbers).
+    why_show_math: bool = False
+
+    # Two-level cover selection (Feature 2 / Phase C). Off by default: when enabled the queue
+    # first picks a song, then picks which rendition (cover) of it to play, with cover-count
+    # boosting a song's chance logarithmically. See rating-normalization-and-covers.md.
+    cover_two_level_enabled: bool = False
+    cover_count_log_base: float = 4.0
+    cover_original_bonus: float = 0.1
+
     @property
     def db_url(self) -> str:
         if self.database_url:

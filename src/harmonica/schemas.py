@@ -187,6 +187,8 @@ class SettingsRead(BaseModel):
     rediscovery_enabled: bool
     rediscovery_strength: float
     rediscovery_halflife_days: float
+    why_show_math: bool
+    cover_two_level_enabled: bool
     controls: list[SettingControlRead]
 
 

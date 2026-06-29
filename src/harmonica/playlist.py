@@ -276,4 +276,6 @@ def settings_snapshot(settings: Settings) -> dict[str, object]:
         "rediscovery_enabled": settings.rediscovery_enabled,
         "rediscovery_strength": settings.rediscovery_strength,
         "rediscovery_halflife_days": settings.rediscovery_halflife_days,
+        "why_show_math": settings.why_show_math,
+        "cover_two_level_enabled": settings.cover_two_level_enabled,
     }

@@ -99,6 +99,8 @@ export type SettingControl = {
     | "rediscovery_enabled"
     | "rediscovery_strength"
     | "rediscovery_halflife_days"
+    | "why_show_math"
+    | "cover_two_level_enabled"
   >;
   label: string;
   description: string;
@@ -148,6 +150,8 @@ export type AppSettings = {
   rediscovery_enabled: boolean;
   rediscovery_strength: number;
   rediscovery_halflife_days: number;
+  why_show_math: boolean;
+  cover_two_level_enabled: boolean;
   controls: SettingControl[];
 };
 
