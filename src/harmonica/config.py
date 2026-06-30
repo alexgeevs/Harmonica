@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from functools import lru_cache
 from pathlib import Path
 
@@ -34,6 +35,9 @@ class Settings(BaseSettings):
     database_url: str | None = None
     media_root: Path | None = None
     log_dir: Path | None = None
+    # HMAC secret for signing per-profile auth tokens. If unset, a random key is generated once
+    # and persisted under the Harmonica home so tokens survive restarts.
+    secret_key: str | None = None
     host: str = "127.0.0.1"
     port: int = 8765
 
@@ -139,6 +143,19 @@ class Settings(BaseSettings):
     @property
     def logs_path(self) -> Path:
         return self.log_dir or self.home / "logs"
+
+    def effective_secret_key(self) -> str:
+        """The HMAC secret for signing profile tokens. Uses ``secret_key`` if set, else a random
+        key generated once and persisted to ``home/secret.key`` (so tokens survive restarts)."""
+        if self.secret_key:
+            return self.secret_key
+        key_path = self.home / "secret.key"
+        if key_path.exists():
+            return key_path.read_text(encoding="utf-8").strip()
+        value = secrets.token_hex(32)
+        self.home.mkdir(parents=True, exist_ok=True)
+        key_path.write_text(value, encoding="utf-8")
+        return value
 
     def ensure_dirs(self) -> None:
         self.home.mkdir(parents=True, exist_ok=True)

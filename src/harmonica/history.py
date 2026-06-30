@@ -45,6 +45,7 @@ def summarize_history(
     tracks: list[Track],
     settings: Settings,
     now: datetime | None = None,
+    owner_config_id: int | None = None,
 ) -> HistorySummary:
     # `now` is injected (not read inside the loop) so a generation stays deterministic.
     now = _as_utc(now or now_utc())
@@ -55,13 +56,16 @@ def summarize_history(
         summary.cold_start_active = cold_start_is_active(tracks, summary)
         return summary
 
-    events = list(
-        session.scalars(
-            select(PlaybackEvent)
-            .options(selectinload(PlaybackEvent.track).selectinload(Track.memberships))
-            .order_by(PlaybackEvent.created_at)
-        )
+    # Per-user scoping: an owned request only sees that profile's playback history; a request with
+    # no owner (legacy/local) sees every event, unchanged.
+    events_query = (
+        select(PlaybackEvent)
+        .options(selectinload(PlaybackEvent.track).selectinload(Track.memberships))
+        .order_by(PlaybackEvent.created_at)
     )
+    if owner_config_id is not None:
+        events_query = events_query.where(PlaybackEvent.owner_config_id == owner_config_id)
+    events = list(session.scalars(events_query))
     total_events = len(events)
     track_by_id = {track.id: track for track in tracks}
 

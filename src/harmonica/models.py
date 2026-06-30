@@ -190,6 +190,10 @@ class RatingSample(Base):
     )
     value: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0..5, or NULL = cleared
     source: Mapped[str] = mapped_column(String(16), default="user")  # 'user' | 'import'
+    # Owning user profile (device config). NULL = legacy/global single-user data.
+    owner_config_id: Mapped[int | None] = mapped_column(
+        ForeignKey("device_configs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     # Client "sitting" id used by session-mood correction (Phase B); may be null.
     session_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     run_id: Mapped[int | None] = mapped_column(
@@ -211,6 +215,10 @@ class CoverComparison(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     sub_group: Mapped[str] = mapped_column(String(255), index=True)
+    # Owning user profile (device config). NULL = legacy/global single-user data.
+    owner_config_id: Mapped[int | None] = mapped_column(
+        ForeignKey("device_configs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     track_a_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
     track_b_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
     # NULL winner = "about the same" (a tie), which Bradley-Terry handles as half-credit each side.
@@ -261,6 +269,29 @@ class CoverSetState(Base):
     )
 
 
+class UserCoverSetState(Base):
+    """Per-user A/B lifecycle for a cover set. The global ``CoverSetState`` (sub_group is its PK)
+    and ``CoverRenditionState`` (track_id is unique) can't hold per-owner rows, so an owned profile
+    persists only its set phase here; its rendition strengths are recomputed in-memory from its own
+    owner-scoped ``CoverComparison`` verdicts (BT is always refit from the raw log anyway)."""
+
+    __tablename__ = "user_cover_set_state"
+    __table_args__ = (
+        UniqueConstraint("owner_config_id", "sub_group", name="uq_user_cover_set"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_config_id: Mapped[int] = mapped_column(
+        ForeignKey("device_configs.id", ondelete="CASCADE"), index=True
+    )
+    sub_group: Mapped[str] = mapped_column(String(255), index=True)
+    comparison_phase: Mapped[str] = mapped_column(String(16), default="stars")
+    total_comparisons: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, onupdate=now_utc
+    )
+
+
 class PlaylistRun(Base):
     __tablename__ = "playlist_runs"
 
@@ -269,6 +300,10 @@ class PlaylistRun(Base):
     seed: Mapped[str | None] = mapped_column(String(120), nullable=True)
     length: Mapped[int] = mapped_column(Integer)
     settings_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Owning user profile (device config). NULL = legacy/global single-user data.
+    owner_config_id: Mapped[int | None] = mapped_column(
+        ForeignKey("device_configs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     items: Mapped[list[PlaylistItem]] = relationship(
@@ -347,6 +382,10 @@ class PlaybackEvent(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     event_type: Mapped[str] = mapped_column(String(40), index=True)
     track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    # Owning user profile (device config). NULL = legacy/global single-user data.
+    owner_config_id: Mapped[int | None] = mapped_column(
+        ForeignKey("device_configs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     media_asset_id: Mapped[int | None] = mapped_column(
         ForeignKey("media_assets.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -442,3 +481,21 @@ def ensure_additive_playback_event_columns(engine: Engine) -> None:
         for name, statement in additions.items():
             if name not in columns:
                 connection.exec_driver_sql(statement)
+
+
+def ensure_additive_owner_columns(engine: Engine) -> None:
+    """Add the per-user ``owner_config_id`` column to the listening tables of a pre-existing DB.
+    NULL on every existing row = legacy/global single-user data (the multi-tenant scoping treats a
+    request with no owner as "see everything", so old databases keep behaving exactly as before)."""
+    if engine.dialect.name != "sqlite":
+        return
+    tables = ("playback_events", "playlist_runs", "rating_samples", "cover_comparisons")
+    with engine.begin() as connection:
+        for table in tables:
+            columns = {
+                row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})").all()
+            }
+            if "owner_config_id" not in columns:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE {table} ADD COLUMN owner_config_id INTEGER"
+                )

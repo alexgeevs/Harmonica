@@ -11,7 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from harmonica.config import path_within_root
-from harmonica.models import GroupMembership, MediaAsset, Track, WeightGroup
+from harmonica.models import (
+    DeviceConfigTrack,
+    GroupMembership,
+    MediaAsset,
+    Track,
+    WeightGroup,
+)
 
 AUDIO_EXTENSIONS = {".aac", ".aiff", ".alac", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav"}
 VIDEO_EXTENSIONS = {".m4v", ".mkv", ".mov", ".mp4", ".webm"}
@@ -28,7 +34,12 @@ class ScanResult:
     skipped_existing_assets: int = 0
 
 
-def scan_library(session: Session, root: Path, create_tag_groups: bool = True) -> ScanResult:
+def scan_library(
+    session: Session,
+    root: Path,
+    create_tag_groups: bool = True,
+    owner_config_id: int | None = None,
+) -> ScanResult:
     root = root.expanduser().resolve()
     result = ScanResult()
     for path in sorted(root.rglob("*")):
@@ -43,6 +54,8 @@ def scan_library(session: Session, root: Path, create_tag_groups: bool = True) -
         existing_asset = session.scalar(select(MediaAsset).where(MediaAsset.file_path == str(path)))
         if existing_asset:
             result.skipped_existing_assets += 1
+            # Still add the (shared) track to the scanning profile's library.
+            _link_owner(session, owner_config_id, existing_asset.track_id)
             continue
         tags = read_tags(path)
         checksum = sha256_file(path)
@@ -65,8 +78,24 @@ def scan_library(session: Session, root: Path, create_tag_groups: bool = True) -
         result.created_assets += 1
         if create_tag_groups:
             ensure_initial_groups(session, track, tags)
+        session.flush()
+        _link_owner(session, owner_config_id, track.id)
     session.commit()
     return result
+
+
+def _link_owner(session: Session, owner_config_id: int | None, track_id: int) -> None:
+    """Add a (shared) track to the scanning profile's private library, idempotently."""
+    if owner_config_id is None:
+        return
+    exists = session.scalar(
+        select(DeviceConfigTrack).where(
+            DeviceConfigTrack.config_id == owner_config_id,
+            DeviceConfigTrack.track_id == track_id,
+        )
+    )
+    if exists is None:
+        session.add(DeviceConfigTrack(config_id=owner_config_id, track_id=track_id))
 
 
 def read_tags(path: Path) -> dict[str, str | None]:

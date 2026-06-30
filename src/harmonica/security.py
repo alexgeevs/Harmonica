@@ -31,3 +31,30 @@ def verify_passphrase(passphrase: str, stored: str) -> bool:
         "sha256", passphrase.encode("utf-8"), bytes.fromhex(salt_hex), int(iterations)
     )
     return hmac.compare_digest(expected, actual)
+
+
+def issue_config_token(config_id: int, secret: str) -> str:
+    """A signed bearer token binding a request to a profile id. Issued only after the passphrase
+    is verified (create/claim), so a client cannot forge another profile's identity."""
+    message = str(config_id)
+    signature = hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return f"{message}.{signature}"
+
+
+def verify_config_token(token: str, secret: str) -> int | None:
+    """Return the profile id a token attests to, or None if the signature doesn't verify."""
+    try:
+        message, signature = token.split(".", 1)
+    except ValueError:
+        return None
+    expected = hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        return None
+    try:
+        return int(message)
+    except ValueError:
+        return None

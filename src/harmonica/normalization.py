@@ -208,11 +208,16 @@ class SongRatings:
 
 
 def plain_rating_averages(
-    session: Session, track_ids: list[int] | None = None
+    session: Session,
+    track_ids: list[int] | None = None,
+    owner_config_id: int | None = None,
 ) -> dict[int, dict[str, float]]:
     """The user-facing rating per (track, factor): the plain AVERAGE of the live rating
     series (everything after the most recent clear). This is what the UI shows and what
-    outliers are judged against — NOT the internal normalised value."""
+    outliers are judged against — NOT the internal normalised value.
+
+    Scoped to one profile's samples when ``owner_config_id`` is given; a NULL owner (legacy/local)
+    reads every sample, unchanged."""
     factor_key = {f.id: f.key for f in session.scalars(select(RatingFactor))}
     query = select(
         RatingSample.track_id, RatingSample.factor_id, RatingSample.value
@@ -224,6 +229,8 @@ def plain_rating_averages(
     )
     if track_ids is not None:
         query = query.where(RatingSample.track_id.in_(track_ids))
+    if owner_config_id is not None:
+        query = query.where(RatingSample.owner_config_id == owner_config_id)
     series: dict[tuple[int, int], list[float]] = {}
     for track_id, factor_id, value in session.execute(query).all():
         values = series.setdefault((track_id, factor_id), [])
@@ -314,30 +321,33 @@ def compute_song_ratings(
     all_tracks: list[Track],
     variant_counts: dict[str | None, int],
     settings: Settings,
+    owner_config_id: int | None = None,
 ) -> SongRatings:
-    """Library-wide factor stats + per-track normalised effective values and ``overall``.
+    """Factor stats + per-track normalised effective values and ``overall``.
 
-    Stats (mean/SD/coverage/readiness) are whole-library; effective values are computed for
-    every track so device-scoped callers can simply look theirs up."""
+    Stats (mean/SD/coverage/readiness) are computed over the supplied ``all_tracks`` and, when
+    ``owner_config_id`` is given, that profile's samples only — so each user's normalisation is
+    calibrated to their own library and ratings. A NULL owner reads every sample (legacy)."""
     factors = list(session.scalars(select(RatingFactor)))
     rated_factors = [f for f in factors if f.key != PERFORMANCE_KEY]
 
     # Build each (factor, track) series chronologically, tagging every value with the
     # "sitting" it came from (session_id, or a calendar-day fallback). A NULL resets it.
-    rows = session.execute(
-        select(
-            RatingSample.factor_id,
-            RatingSample.track_id,
-            RatingSample.value,
-            RatingSample.session_id,
-            RatingSample.created_at,
-        ).order_by(
-            RatingSample.track_id,
-            RatingSample.factor_id,
-            RatingSample.created_at,
-            RatingSample.id,
-        )
-    ).all()
+    sample_query = select(
+        RatingSample.factor_id,
+        RatingSample.track_id,
+        RatingSample.value,
+        RatingSample.session_id,
+        RatingSample.created_at,
+    ).order_by(
+        RatingSample.track_id,
+        RatingSample.factor_id,
+        RatingSample.created_at,
+        RatingSample.id,
+    )
+    if owner_config_id is not None:
+        sample_query = sample_query.where(RatingSample.owner_config_id == owner_config_id)
+    rows = session.execute(sample_query).all()
     # series[factor_id][track_id] = [(value, session_key), ...]
     series_by_factor: dict[int, dict[int, list[tuple[float, str]]]] = {}
     for factor_id, track_id, value, session_id, created_at in rows:

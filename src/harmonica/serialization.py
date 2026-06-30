@@ -14,6 +14,7 @@ from harmonica.cover_ranking import recompute_set
 from harmonica.models import (
     CooldownTag,
     CoverComparison,
+    DeviceConfigTrack,
     GroupMembership,
     MediaAsset,
     RatingFactor,
@@ -64,17 +65,21 @@ def export_library(session: Session, output_path: Path) -> None:
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def export_library_payload(session: Session) -> dict[str, Any]:
-    tracks = list(
-        session.scalars(
-            select(Track).options(
-                selectinload(Track.assets),
-                selectinload(Track.memberships).selectinload(GroupMembership.group),
-                selectinload(Track.ratings).selectinload(TrackRating.factor),
-                selectinload(Track.cooldown_tags).selectinload(TrackCooldownTag.tag),
-            )
-        )
+def export_library_payload(
+    session: Session, owner_config_id: int | None = None
+) -> dict[str, Any]:
+    track_select = select(Track).options(
+        selectinload(Track.assets),
+        selectinload(Track.memberships).selectinload(GroupMembership.group),
+        selectinload(Track.ratings).selectinload(TrackRating.factor),
+        selectinload(Track.cooldown_tags).selectinload(TrackCooldownTag.tag),
     )
+    if owner_config_id is not None:
+        # An owned export carries only that profile's own library (privacy: never another user's).
+        track_select = track_select.join(
+            DeviceConfigTrack, DeviceConfigTrack.track_id == Track.id
+        ).where(DeviceConfigTrack.config_id == owner_config_id)
+    tracks = list(session.scalars(track_select))
     groups = list(session.scalars(select(WeightGroup)))
     factors = list(session.scalars(select(RatingFactor)))
     return {
@@ -103,16 +108,23 @@ def export_library_payload(session: Session) -> dict[str, Any]:
         # Raw, append-only history the algorithm derives from. Keyed by song_id/factor_key so it
         # survives a move to another device (where local row ids differ). Device-local session/run
         # ids are stripped — they have no meaning on the destination.
-        "rating_samples": rating_samples_payload(session),
-        "cover_comparisons": cover_comparisons_payload(session),
+        "rating_samples": rating_samples_payload(session, owner_config_id=owner_config_id),
+        "cover_comparisons": cover_comparisons_payload(session, owner_config_id=owner_config_id),
     }
 
 
-def rating_samples_payload(session: Session) -> list[dict[str, Any]]:
+def rating_samples_payload(
+    session: Session, owner_config_id: int | None = None
+) -> list[dict[str, Any]]:
     song_by_id = dict(session.execute(select(Track.id, Track.song_id)).all())
     key_by_id = dict(session.execute(select(RatingFactor.id, RatingFactor.key)).all())
     out: list[dict[str, Any]] = []
-    for row in session.scalars(select(RatingSample).order_by(RatingSample.created_at)):
+    sample_select = select(RatingSample).order_by(RatingSample.created_at)
+    if owner_config_id is not None:
+        sample_select = sample_select.where(RatingSample.owner_config_id == owner_config_id)
+    else:
+        sample_select = sample_select.where(RatingSample.owner_config_id.is_(None))
+    for row in session.scalars(sample_select):
         song_id = song_by_id.get(row.track_id)
         factor_key = key_by_id.get(row.factor_id)
         if song_id is None or factor_key is None:
@@ -129,10 +141,19 @@ def rating_samples_payload(session: Session) -> list[dict[str, Any]]:
     return out
 
 
-def cover_comparisons_payload(session: Session) -> list[dict[str, Any]]:
+def cover_comparisons_payload(
+    session: Session, owner_config_id: int | None = None
+) -> list[dict[str, Any]]:
     song_by_id = dict(session.execute(select(Track.id, Track.song_id)).all())
     out: list[dict[str, Any]] = []
-    for row in session.scalars(select(CoverComparison).order_by(CoverComparison.created_at)):
+    comparison_select = select(CoverComparison).order_by(CoverComparison.created_at)
+    if owner_config_id is not None:
+        comparison_select = comparison_select.where(
+            CoverComparison.owner_config_id == owner_config_id
+        )
+    else:
+        comparison_select = comparison_select.where(CoverComparison.owner_config_id.is_(None))
+    for row in session.scalars(comparison_select):
         song_a = song_by_id.get(row.track_a_id)
         song_b = song_by_id.get(row.track_b_id)
         if song_a is None or song_b is None:
@@ -158,86 +179,138 @@ def import_library(session: Session, input_path: Path) -> None:
     import_library_payload(session, payload)
 
 
+def _find_existing_track(session: Session, track_payload: dict[str, Any]) -> Track | None:
+    """Resolve an incoming track to one already in the shared pool: by ``song_id``, then by any
+    asset ``checksum`` (same file content), then by ``file_path``. Enables dedupe-and-redirect so a
+    second user importing the same song reuses the existing track/file."""
+    track = session.scalar(select(Track).where(Track.song_id == track_payload["song_id"]))
+    if track is not None:
+        return track
+    for asset in track_payload.get("assets", []):
+        checksum = asset.get("checksum")
+        if checksum:
+            existing = session.scalar(select(MediaAsset).where(MediaAsset.checksum == checksum))
+            if existing is not None:
+                return existing.track
+        file_path = asset.get("file_path")
+        if file_path:
+            existing = session.scalar(select(MediaAsset).where(MediaAsset.file_path == file_path))
+            if existing is not None:
+                return existing.track
+    return None
+
+
+def _link_owner(session: Session, owner_config_id: int | None, track_id: int) -> None:
+    """Add the track to the owner's private library (idempotent). No-op for legacy/local import."""
+    if owner_config_id is None:
+        return
+    exists = session.scalar(
+        select(DeviceConfigTrack).where(
+            DeviceConfigTrack.config_id == owner_config_id,
+            DeviceConfigTrack.track_id == track_id,
+        )
+    )
+    if exists is None:
+        session.add(DeviceConfigTrack(config_id=owner_config_id, track_id=track_id))
+
+
 def import_library_payload(
     session: Session,
     payload: dict[str, Any],
     settings: Settings | None = None,
+    owner_config_id: int | None = None,
 ) -> None:
     factor_map = upsert_rating_factors(session, payload.get("rating_factors", []))
     group_map = upsert_groups(session, payload.get("groups", []))
 
     for track_payload in payload.get("tracks", []):
-        track = session.scalar(select(Track).where(Track.song_id == track_payload["song_id"]))
-        if track is None:
+        track = _find_existing_track(session, track_payload)
+        is_new = track is None
+        if is_new:
             track = Track(
                 song_id=track_payload["song_id"],
                 title=track_payload.get("title") or "Untitled",
             )
             session.add(track)
             session.flush()
-        track.title = track_payload.get("title") or track.title
-        track.artist = track_payload.get("artist")
-        track.album = track_payload.get("album")
-        track.has_lyrics = bool(track_payload.get("has_lyrics", True))
-        track.sub_group = track_payload.get("sub_group")
-        track.manual_multiplier = _finite(track_payload.get("manual_multiplier", 1.0), 1.0)
-        if "is_original_rendition" in track_payload:
-            track.is_original_rendition = bool(track_payload.get("is_original_rendition"))
-        if "clip_start_seconds" in track_payload:
-            track.clip_start_seconds = track_payload.get("clip_start_seconds")
-        if "clip_end_seconds" in track_payload:
-            track.clip_end_seconds = track_payload.get("clip_end_seconds")
-        if "audio_only" in track_payload:
-            track.audio_only = bool(track_payload.get("audio_only"))
 
-        for asset_payload in track_payload.get("assets", []):
-            upsert_asset(session, track, asset_payload)
-        for membership_payload in track_payload.get("groups", []):
-            group_name = membership_payload["name"]
-            group = group_map.get(group_name)
-            if group is None:
-                group = WeightGroup(
-                    name=group_name,
-                    group_type=membership_payload.get("group_type", "other"),
+        # Shared content (metadata, assets, groups, tags) is written only when this import is
+        # CREATING the track, or when it's a legacy/local (no-owner) import. An owned import that
+        # matched an existing shared track just links to it — never overwriting another user's data.
+        if is_new or owner_config_id is None:
+            track.title = track_payload.get("title") or track.title
+            track.artist = track_payload.get("artist")
+            track.album = track_payload.get("album")
+            track.has_lyrics = bool(track_payload.get("has_lyrics", True))
+            track.sub_group = track_payload.get("sub_group")
+            track.manual_multiplier = _finite(track_payload.get("manual_multiplier", 1.0), 1.0)
+            if "is_original_rendition" in track_payload:
+                track.is_original_rendition = bool(track_payload.get("is_original_rendition"))
+            if "clip_start_seconds" in track_payload:
+                track.clip_start_seconds = track_payload.get("clip_start_seconds")
+            if "clip_end_seconds" in track_payload:
+                track.clip_end_seconds = track_payload.get("clip_end_seconds")
+            if "audio_only" in track_payload:
+                track.audio_only = bool(track_payload.get("audio_only"))
+
+            for asset_payload in track_payload.get("assets", []):
+                upsert_asset(session, track, asset_payload)
+            for membership_payload in track_payload.get("groups", []):
+                group_name = membership_payload["name"]
+                group = group_map.get(group_name)
+                if group is None:
+                    group = WeightGroup(
+                        name=group_name,
+                        group_type=membership_payload.get("group_type", "other"),
+                    )
+                    session.add(group)
+                    session.flush()
+                    group_map[group.name] = group
+                membership = session.scalar(
+                    select(GroupMembership).where(
+                        GroupMembership.track_id == track.id,
+                        GroupMembership.group_id == group.id,
+                    )
                 )
-                session.add(group)
-                session.flush()
-                group_map[group.name] = group
-            membership = session.scalar(
-                select(GroupMembership).where(
-                    GroupMembership.track_id == track.id,
-                    GroupMembership.group_id == group.id,
+                if membership is None:
+                    membership = GroupMembership(track=track, group=group)
+                    session.add(membership)
+                membership.share = membership_payload.get("share")
+            for tag_name in track_payload.get("cooldown_tags", []):
+                upsert_track_tag(session, track, tag_name)
+
+        # The shared latest-star cache is legacy-only; an owned profile's ratings ride in
+        # rating_samples (owner-stamped below), never in the shared TrackRating rows.
+        if owner_config_id is None:
+            for rating_key, value in track_payload.get("ratings", {}).items():
+                factor = factor_map.get(rating_key)
+                if factor is None:
+                    continue
+                rating = session.scalar(
+                    select(TrackRating).where(
+                        TrackRating.track_id == track.id,
+                        TrackRating.factor_id == factor.id,
+                    )
                 )
-            )
-            if membership is None:
-                membership = GroupMembership(track=track, group=group)
-                session.add(membership)
-            membership.share = membership_payload.get("share")
-        for tag_name in track_payload.get("cooldown_tags", []):
-            upsert_track_tag(session, track, tag_name)
-        for rating_key, value in track_payload.get("ratings", {}).items():
-            factor = factor_map.get(rating_key)
-            if factor is None:
-                continue
-            rating = session.scalar(
-                select(TrackRating).where(
-                    TrackRating.track_id == track.id,
-                    TrackRating.factor_id == factor.id,
-                )
-            )
-            if rating is None:
-                rating = TrackRating(track=track, factor=factor)
-                session.add(rating)
-            rating.value = _clamp_rating(value)
+                if rating is None:
+                    rating = TrackRating(track=track, factor=factor)
+                    session.add(rating)
+                rating.value = _clamp_rating(value)
+
+        _link_owner(session, owner_config_id, track.id)
     session.flush()
 
-    import_rating_samples(session, payload.get("rating_samples", []), factor_map)
-    affected_sets = import_cover_comparisons(session, payload.get("cover_comparisons", []))
+    import_rating_samples(
+        session, payload.get("rating_samples", []), factor_map, owner_config_id=owner_config_id
+    )
+    affected_sets = import_cover_comparisons(
+        session, payload.get("cover_comparisons", []), owner_config_id=owner_config_id
+    )
     # Caches (Bradley-Terry strengths / set phase) are NEVER trusted from an export — they're
     # recomputed from the raw verdicts we just imported, so they're always self-consistent here.
     resolved_settings = settings or get_settings()
     for sub_group in affected_sets:
-        recompute_set(session, sub_group, resolved_settings)
+        recompute_set(session, sub_group, resolved_settings, owner_config_id=owner_config_id)
     session.commit()
 
 
@@ -245,10 +318,13 @@ def import_rating_samples(
     session: Session,
     payloads: list[dict[str, Any]],
     factor_map: dict[str, RatingFactor],
+    owner_config_id: int | None = None,
 ) -> None:
     track_by_song = {track.song_id: track for track in session.scalars(select(Track))}
+    # The owner is part of the idempotency key, so re-importing under one profile won't duplicate,
+    # yet two different profiles can each hold their own copy of the same history.
     seen = {
-        (row.track_id, row.factor_id, row.value, _iso(row.created_at))
+        (row.owner_config_id, row.track_id, row.factor_id, row.value, _iso(row.created_at))
         for row in session.scalars(select(RatingSample))
     }
     for entry in payloads:
@@ -258,7 +334,7 @@ def import_rating_samples(
             continue
         created_at = _parse_iso(entry.get("created_at"))
         value = _clamp_rating(entry.get("value"))
-        key = (track.id, factor.id, value, _iso(created_at))
+        key = (owner_config_id, track.id, factor.id, value, _iso(created_at))
         if key in seen:
             continue  # idempotent: re-importing the same export won't duplicate history
         seen.add(key)
@@ -267,6 +343,7 @@ def import_rating_samples(
             factor_id=factor.id,
             value=value,
             source=entry.get("source", "import"),
+            owner_config_id=owner_config_id,
         )
         if created_at is not None:
             sample.created_at = created_at
@@ -276,10 +353,11 @@ def import_rating_samples(
 def import_cover_comparisons(
     session: Session,
     payloads: list[dict[str, Any]],
+    owner_config_id: int | None = None,
 ) -> set[str]:
     track_by_song = {track.song_id: track for track in session.scalars(select(Track))}
     seen = {
-        (row.sub_group, row.track_a_id, row.track_b_id, _iso(row.created_at))
+        (row.owner_config_id, row.sub_group, row.track_a_id, row.track_b_id, _iso(row.created_at))
         for row in session.scalars(select(CoverComparison))
     }
     affected: set[str] = set()
@@ -292,12 +370,13 @@ def import_cover_comparisons(
         winner_song = entry.get("winner_song_id")
         winner = track_by_song.get(winner_song) if winner_song else None
         created_at = _parse_iso(entry.get("created_at"))
-        key = (sub_group, track_a.id, track_b.id, _iso(created_at))
+        key = (owner_config_id, sub_group, track_a.id, track_b.id, _iso(created_at))
         if key in seen:
             continue
         seen.add(key)
         comparison = CoverComparison(
             sub_group=sub_group,
+            owner_config_id=owner_config_id,
             track_a_id=track_a.id,
             track_b_id=track_b.id,
             winner_track_id=winner.id if winner is not None else None,

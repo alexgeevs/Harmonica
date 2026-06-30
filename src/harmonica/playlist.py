@@ -51,6 +51,7 @@ def load_algorithm_inputs(
     session: Session,
     settings: Settings,
     included_track_ids: set[int] | None = None,
+    owner_config_id: int | None = None,
 ) -> tuple[list[AlgorithmTrack], dict[int, AlgorithmGroup], object]:
     all_tracks = list(
         session.scalars(
@@ -61,13 +62,16 @@ def load_algorithm_inputs(
             )
         )
     )
-    # A device config can restrict the library to an explicit set of songs. Stats stay
-    # whole-library (all_tracks); only the candidate pool is scoped.
+    # A device config / user profile restricts the library to an explicit set of songs. The
+    # candidate pool is always scoped to it; per-user listening/ratings/history are scoped to the
+    # owner. A request with no owner (legacy/local) keeps the whole-library behaviour.
     tracks = (
         [track for track in all_tracks if track.id in included_track_ids]
         if included_track_ids is not None
         else all_tracks
     )
+    # Per-user normalisation is calibrated to the owner's own library; legacy stays whole-library.
+    ratings_tracks = tracks if owner_config_id is not None else all_tracks
     variant_counts = dict(
         session.execute(
             select(Track.sub_group, func.count(Track.id))
@@ -76,15 +80,23 @@ def load_algorithm_inputs(
         ).all()
     )
     now = now_utc()
-    history_summary = summarize_history(session, tracks, settings, now=now)
+    history_summary = summarize_history(
+        session, tracks, settings, now=now, owner_config_id=owner_config_id
+    )
     groups = list(session.scalars(select(WeightGroup)))
     # Bradley-Terry rendition strengths (Phase D) only matter when two-level covers are on.
-    cover_states = rendition_states(session) if settings.cover_two_level_enabled else {}
+    cover_states = (
+        rendition_states(session, settings, owner_config_id=owner_config_id)
+        if settings.cover_two_level_enabled
+        else {}
+    )
 
     # Feature 1: normalised per-song rating (history-aware, mood-stripped). When disabled,
     # fall back to the legacy single-star path so behaviour is unchanged.
     song_ratings = (
-        compute_song_ratings(session, all_tracks, variant_counts, settings)
+        compute_song_ratings(
+            session, ratings_tracks, variant_counts, settings, owner_config_id=owner_config_id
+        )
         if settings.rating_normalization_enabled
         else None
     )
@@ -148,7 +160,7 @@ def load_algorithm_inputs(
                 song_rating_multiplier=song_mult,
                 is_original_rendition=bool(getattr(track, "is_original_rendition", False)),
                 perf_mult=cover_performance_multiplier(
-                    track, settings, cover_states.get(track.id)
+                    track, settings, cover_states.get(track.id), owner_config_id=owner_config_id
                 ),
                 original_prior_mult=(
                     1.0 + settings.cover_original_bonus
@@ -184,6 +196,7 @@ def cover_performance_multiplier(
     track: Track,
     settings: Settings,
     rendition_state: CoverRenditionState | None = None,
+    owner_config_id: int | None = None,
 ) -> float:
     """Within-set rendition preference: which rendition to play, never how often the song plays.
 
@@ -197,9 +210,13 @@ def cover_performance_multiplier(
             settings.cover_perf_min_multiplier,
             settings.cover_perf_max_multiplier,
         )
-    for rating in track.ratings:
-        if rating.factor and rating.factor.key == "performance" and rating.value is not None:
-            return rating_to_song_multiplier(float(rating.value), settings)
+    # The directly-rated ``performance`` star lives on the shared/global rating cache, so only the
+    # legacy/local (no-owner) path consults it; an owned profile relies on its own verdicts (above)
+    # or stays neutral, never reading another user's star.
+    if owner_config_id is None:
+        for rating in track.ratings:
+            if rating.factor and rating.factor.key == "performance" and rating.value is not None:
+                return rating_to_song_multiplier(float(rating.value), settings)
     return 1.0
 
 
@@ -220,9 +237,12 @@ def generate_and_persist_playlist(
     write_debug_log: bool = True,
     ui_active: bool = False,
     included_track_ids: set[int] | None = None,
+    owner_config_id: int | None = None,
 ) -> tuple[PlaylistRun, list[GeneratedItem]]:
     ensure_additive_playlist_run_columns(engine)
-    tracks, groups, history_summary = load_algorithm_inputs(session, settings, included_track_ids)
+    tracks, groups, history_summary = load_algorithm_inputs(
+        session, settings, included_track_ids, owner_config_id=owner_config_id
+    )
     track_distances = {
         track_id: signal.repeat_distance
         for track_id, signal in history_summary.track_signals.items()
@@ -237,26 +257,33 @@ def generate_and_persist_playlist(
         track_id: signal.repeat_count
         for track_id, signal in history_summary.track_signals.items()
     }
-    items = generate_playlist(
-        tracks,
-        groups,
-        length,
-        settings,
-        seed=seed,
-        ui_active=ui_active,
-        initial_track_distances=track_distances,
-        initial_group_distances=history_summary.group_distances,
-        initial_sub_group_distances=history_summary.sub_group_distances,
-        initial_track_repeat_credits=track_repeat_credits,
-        initial_group_repeat_credits=history_summary.group_repeat_credits,
-        initial_sub_group_repeat_credits=history_summary.sub_group_repeat_credits,
-        initial_track_repeat_counts=track_repeat_counts,
-        cold_start_active=history_summary.cold_start_active,
+    # A brand-new profile has an empty library: produce an empty run rather than letting the
+    # generator try to draw from a zero-length candidate pool.
+    items = (
+        generate_playlist(
+            tracks,
+            groups,
+            length,
+            settings,
+            seed=seed,
+            ui_active=ui_active,
+            initial_track_distances=track_distances,
+            initial_group_distances=history_summary.group_distances,
+            initial_sub_group_distances=history_summary.sub_group_distances,
+            initial_track_repeat_credits=track_repeat_credits,
+            initial_group_repeat_credits=history_summary.group_repeat_credits,
+            initial_sub_group_repeat_credits=history_summary.sub_group_repeat_credits,
+            initial_track_repeat_counts=track_repeat_counts,
+            cold_start_active=history_summary.cold_start_active,
+        )
+        if tracks
+        else []
     )
     run = PlaylistRun(
         seed=str(seed) if seed is not None else None,
         length=length,
         settings_json=json.dumps(settings_snapshot(settings)),
+        owner_config_id=owner_config_id,
     )
     session.add(run)
     session.flush()

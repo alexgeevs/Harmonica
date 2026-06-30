@@ -5,7 +5,7 @@ import mimetypes
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy import delete, select
@@ -13,12 +13,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from harmonica.bootstrap import ensure_default_rating_factors
 from harmonica.config import Settings, get_settings, path_within_root
-from harmonica.cover_ranking import next_pair, record_verdict
+from harmonica.cover_ranking import next_pair, owner_set_state, record_verdict, set_summary
 from harmonica.db import SessionLocal, get_session, init_db
 from harmonica.history import playback_event_signal
 from harmonica.models import (
     CooldownTag,
-    CoverRenditionState,
     CoverSetState,
     DeviceConfig,
     DeviceConfigTrack,
@@ -66,12 +65,56 @@ from harmonica.schemas import (
     TrackRead,
     TrackUpdate,
 )
-from harmonica.security import hash_passphrase, verify_passphrase
+from harmonica.security import (
+    hash_passphrase,
+    issue_config_token,
+    verify_config_token,
+    verify_passphrase,
+)
 from harmonica.serialization import export_library_payload, import_library_payload
 from harmonica.settings_store import get_effective_settings, settings_payload, update_setting_values
 
 SessionDep = Annotated[Session, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+
+
+def get_owner(
+    request: Request, session: SessionDep, settings: SettingsDep
+) -> DeviceConfig | None:
+    """Resolve the requesting user profile, or None for legacy/local (whole-library) mode.
+
+    Identity comes from a signed ``Authorization: Bearer <token>`` (tamper-proof — issued only after
+    a verified passphrase). The raw ``X-Harmonica-Config-Id`` header is a transitional fallback that
+    gives structural separation but NOT access control (a client could name any profile id); it is
+    accepted only when no bearer token is present."""
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        config_id = verify_config_token(auth[7:].strip(), settings.effective_secret_key())
+        if config_id is None:
+            raise HTTPException(status_code=401, detail="Invalid profile token")
+    else:
+        raw = request.headers.get("x-harmonica-config-id")
+        if not raw:
+            return None
+        try:
+            config_id = int(raw)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid profile id") from exc
+    config = session.get(DeviceConfig, config_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return config
+
+
+OwnerDep = Annotated[DeviceConfig | None, Depends(get_owner)]
+
+
+def owner_library_ids(owner: DeviceConfig | None) -> set[int] | None:
+    """The set of track ids in a profile's private library, or None for legacy/local (whole
+    library). An empty set means a brand-new profile that hasn't imported anything yet."""
+    if owner is None:
+        return None
+    return {link.track_id for link in owner.tracks}
 
 
 def create_app() -> FastAPI:
@@ -110,41 +153,52 @@ def create_app() -> FastAPI:
         update_setting_values(session, payload.values, settings)
         return SettingsRead(**settings_payload(session, settings))
 
-    def cover_set_read(session: Session, sub_group: str) -> CoverSetRead:
-        renditions = session.scalars(
-            select(CoverRenditionState)
-            .where(CoverRenditionState.sub_group == sub_group)
-            .order_by(CoverRenditionState.bt_strength.desc())
-        ).all()
-        state = session.get(CoverSetState, sub_group)
+    def cover_set_read(
+        session: Session,
+        sub_group: str,
+        settings: Settings,
+        owner: DeviceConfig | None = None,
+    ) -> CoverSetRead:
+        owner_id = owner.id if owner else None
+        phase, total, rows = set_summary(session, sub_group, settings, owner_config_id=owner_id)
         return CoverSetRead(
             sub_group=sub_group,
-            comparison_phase=state.comparison_phase if state else "stars",
-            total_comparisons=state.total_comparisons if state else 0,
+            comparison_phase=phase,
+            total_comparisons=total,
             renditions=[
                 CoverRenditionRead(
-                    track_id=row.track_id,
-                    sub_group=row.sub_group,
-                    bt_strength=row.bt_strength,
-                    comparison_count=row.comparison_count,
+                    track_id=track_id,
+                    sub_group=sub_group,
+                    bt_strength=strength,
+                    comparison_count=count,
                 )
-                for row in renditions
+                for track_id, strength, count in rows
             ],
         )
 
     @app.get("/cover-sets/{sub_group}", response_model=CoverSetRead)
-    def read_cover_set(sub_group: str, session: SessionDep) -> CoverSetRead:
-        return cover_set_read(session, sub_group)
+    def read_cover_set(
+        sub_group: str, session: SessionDep, settings: SettingsDep, owner: OwnerDep
+    ) -> CoverSetRead:
+        return cover_set_read(session, sub_group, settings, owner)
 
     @app.post("/cover-sets/{sub_group}/reopen", response_model=CoverSetRead)
-    def reopen_cover_set(sub_group: str, session: SessionDep) -> CoverSetRead:
+    def reopen_cover_set(
+        sub_group: str, session: SessionDep, settings: SettingsDep, owner: OwnerDep
+    ) -> CoverSetRead:
         # "Compare again": a settled set goes back to prompting. Verdicts are kept; the ranking just
         # reopens to fresh evidence (e.g. a rendition was re-encoded, or tastes changed).
-        state = session.get(CoverSetState, sub_group)
-        if state is not None and state.comparison_phase == "settled":
-            state.comparison_phase = "bootstrapping"
-            session.commit()
-        return cover_set_read(session, sub_group)
+        if owner is not None:
+            owner_state = owner_set_state(session, sub_group, owner.id)
+            if owner_state is not None and owner_state.comparison_phase == "settled":
+                owner_state.comparison_phase = "bootstrapping"
+                session.commit()
+        else:
+            state = session.get(CoverSetState, sub_group)
+            if state is not None and state.comparison_phase == "settled":
+                state.comparison_phase = "bootstrapping"
+                session.commit()
+        return cover_set_read(session, sub_group, settings, owner)
 
     def comparison_item(
         track: Track, role: str, peer_id: int, sub_group: str
@@ -168,10 +222,11 @@ def create_app() -> FastAPI:
         sub_group: str,
         session: SessionDep,
         settings: SettingsDep,
+        owner: OwnerDep,
     ) -> CoverComparisonPair | None:
         if not settings.cover_comparison_enabled:
             return None
-        pair = next_pair(session, sub_group, settings)
+        pair = next_pair(session, sub_group, settings, owner_config_id=owner.id if owner else None)
         if pair is None:
             return None
         track_a = session.scalar(track_query().where(Track.id == pair[0]))
@@ -189,6 +244,7 @@ def create_app() -> FastAPI:
         payload: CoverVerdictCreate,
         session: SessionDep,
         settings: SettingsDep,
+        owner: OwnerDep,
     ) -> CoverSetRead:
         # Both tracks must really belong to the named cover set, and a winner (if given) must be one
         # of them — otherwise the Bradley-Terry fit would be silently fed a bogus comparison.
@@ -215,9 +271,10 @@ def create_app() -> FastAPI:
             pct_b=payload.pct_b,
             session_id=payload.session_id,
             run_id=payload.run_id,
+            owner_config_id=owner.id if owner else None,
         )
         session.commit()
-        return cover_set_read(session, payload.sub_group)
+        return cover_set_read(session, payload.sub_group, settings, owner)
 
     @app.get("/rating-factors", response_model=list[RatingFactorRead])
     def list_rating_factors(session: SessionDep) -> list[RatingFactorRead]:
@@ -231,18 +288,28 @@ def create_app() -> FastAPI:
         return [group_to_schema(group) for group in groups]
 
     @app.get("/tracks", response_model=list[TrackRead])
-    def list_tracks(session: SessionDep) -> list[TrackRead]:
+    def list_tracks(session: SessionDep, owner: OwnerDep) -> list[TrackRead]:
+        library_ids = owner_library_ids(owner)
+        if library_ids is not None and not library_ids:
+            return []  # brand-new profile: empty library
         query = track_query().order_by(Track.artist, Track.album, Track.title)
+        if library_ids is not None:
+            query = query.where(Track.id.in_(library_ids))
         tracks = session.scalars(query).all()
-        averages = plain_rating_averages(session)
+        averages = plain_rating_averages(session, owner_config_id=owner.id if owner else None)
         return [track_to_schema(track, averages.get(track.id) or {}) for track in tracks]
 
     @app.get("/tracks/{track_id}", response_model=TrackRead)
-    def read_track(track_id: int, session: SessionDep) -> TrackRead:
+    def read_track(track_id: int, session: SessionDep, owner: OwnerDep) -> TrackRead:
+        library_ids = owner_library_ids(owner)
+        if library_ids is not None and track_id not in library_ids:
+            raise HTTPException(status_code=404, detail="Track not found")
         track = session.scalar(track_query().where(Track.id == track_id))
         if track is None:
             raise HTTPException(status_code=404, detail="Track not found")
-        averages = plain_rating_averages(session, [track_id])
+        averages = plain_rating_averages(
+            session, [track_id], owner_config_id=owner.id if owner else None
+        )
         return track_to_schema(track, averages.get(track_id) or {})
 
     @app.patch("/tracks/{track_id}", response_model=TrackRead)
@@ -250,17 +317,23 @@ def create_app() -> FastAPI:
         track_id: int,
         payload: TrackUpdate,
         session: SessionDep,
+        owner: OwnerDep,
     ) -> TrackRead:
         ensure_default_rating_factors(session)
+        library_ids = owner_library_ids(owner)
+        if library_ids is not None and track_id not in library_ids:
+            raise HTTPException(status_code=404, detail="Track not found")
         track = session.scalar(track_query().where(Track.id == track_id))
         if track is None:
             raise HTTPException(status_code=404, detail="Track not found")
-        apply_track_update(session, track, payload)
+        apply_track_update(session, track, payload, owner_config_id=owner.id if owner else None)
         session.commit()
         track = session.scalar(track_query().where(Track.id == track_id))
         if track is None:
             raise HTTPException(status_code=404, detail="Track not found after update")
-        averages = plain_rating_averages(session, [track_id])
+        averages = plain_rating_averages(
+            session, [track_id], owner_config_id=owner.id if owner else None
+        )
         return track_to_schema(track, averages.get(track_id) or {})
 
     @app.post("/scan", response_model=ScanResponse)
@@ -268,6 +341,7 @@ def create_app() -> FastAPI:
         payload: ScanRequest,
         session: SessionDep,
         settings: SettingsDep,
+        owner: OwnerDep,
     ) -> ScanResponse:
         # Only scan inside the media root, so /scan can't be aimed at "/" to index
         # (and then serve) arbitrary files or exhaust the host walking the disk.
@@ -282,6 +356,7 @@ def create_app() -> FastAPI:
             session,
             root,
             create_tag_groups=payload.create_tag_groups,
+            owner_config_id=owner.id if owner else None,
         )
         return ScanResponse(**result.__dict__)
 
@@ -290,17 +365,28 @@ def create_app() -> FastAPI:
         payload: QueueGenerateRequest,
         session: SessionDep,
         settings: SettingsDep,
+        owner: OwnerDep,
     ) -> QueueRunRead:
         ensure_default_rating_factors(session)
         effective_settings = get_effective_settings(session, settings)
         included_track_ids: set[int] | None = None
-        if payload.config_id is not None:
+        owner_config_id: int | None = None
+        # An authenticated profile (header) is the authority: its library is the candidate pool
+        # (empty allowed = empty library) and its listening profile owns the run. The legacy
+        # body `config_id` path is kept only for no-owner (local) callers.
+        config = owner
+        if config is None and payload.config_id is not None:
             config = session.get(DeviceConfig, payload.config_id)
             if config is None:
                 raise HTTPException(status_code=404, detail="Config not found")
+        if config is not None:
             effective_settings = apply_config_settings(effective_settings, config)
             ids = [link.track_id for link in config.tracks]
-            included_track_ids = set(ids) if ids else None  # empty selection = all songs
+            if owner is not None:
+                included_track_ids = set(ids)  # owned: empty stays empty
+                owner_config_id = owner.id
+            else:
+                included_track_ids = set(ids) if ids else None  # legacy: empty selection = all
         run, _items = generate_and_persist_playlist(
             session,
             effective_settings,
@@ -309,21 +395,25 @@ def create_app() -> FastAPI:
             write_debug_log=payload.explain,
             ui_active=payload.ui_active,
             included_track_ids=included_track_ids,
+            owner_config_id=owner_config_id,
         )
         return load_run_response(session, run.id)
 
     @app.get("/playlist-runs", response_model=list[PlaylistRunSummary])
-    def list_playlist_runs(session: SessionDep, limit: int = 50) -> list[PlaylistRunSummary]:
+    def list_playlist_runs(
+        session: SessionDep, owner: OwnerDep, limit: int = 50
+    ) -> list[PlaylistRunSummary]:
         bounded_limit = min(max(limit, 1), 200)
         runs = session.scalars(
-            run_summary_query()
+            scope_runs(run_summary_query(), owner)
             .order_by(PlaylistRun.created_at.desc(), PlaylistRun.id.desc())
             .limit(bounded_limit)
         ).all()
         return [playlist_run_to_summary(run) for run in runs]
 
     @app.get("/playlist-runs/{run_id}", response_model=QueueRunRead)
-    def read_playlist_run(run_id: int, session: SessionDep) -> QueueRunRead:
+    def read_playlist_run(run_id: int, session: SessionDep, owner: OwnerDep) -> QueueRunRead:
+        require_owned_run(session, run_id, owner)
         return load_run_response(session, run_id)
 
     @app.patch("/playlist-runs/{run_id}", response_model=PlaylistRunSummary)
@@ -331,8 +421,9 @@ def create_app() -> FastAPI:
         run_id: int,
         payload: PlaylistRunRename,
         session: SessionDep,
+        owner: OwnerDep,
     ) -> PlaylistRunSummary:
-        run = session.scalar(run_summary_query().where(PlaylistRun.id == run_id))
+        run = session.scalar(scope_runs(run_summary_query(), owner).where(PlaylistRun.id == run_id))
         if run is None:
             raise HTTPException(status_code=404, detail="Playlist run not found")
         run.name = clean_playlist_run_name(payload.name)
@@ -343,16 +434,17 @@ def create_app() -> FastAPI:
         return playlist_run_to_summary(run)
 
     @app.delete("/playlist-runs/{run_id}", status_code=204)
-    def delete_playlist_run(run_id: int, session: SessionDep) -> Response:
-        run = session.get(PlaylistRun, run_id)
-        if run is None:
-            raise HTTPException(status_code=404, detail="Playlist run not found")
+    def delete_playlist_run(run_id: int, session: SessionDep, owner: OwnerDep) -> Response:
+        run = require_owned_run(session, run_id, owner)
         session.delete(run)
         session.commit()
         return Response(status_code=204)
 
     @app.get("/playlist-runs/{run_id}/m3u8")
-    def export_run_m3u8(run_id: int, session: SessionDep) -> PlainTextResponse:
+    def export_run_m3u8(
+        run_id: int, session: SessionDep, owner: OwnerDep
+    ) -> PlainTextResponse:
+        require_owned_run(session, run_id, owner)
         run = session.scalar(run_query().where(PlaylistRun.id == run_id))
         if run is None:
             raise HTTPException(status_code=404, detail="Playlist run not found")
@@ -381,12 +473,14 @@ def create_app() -> FastAPI:
     def create_playback_event(
         payload: PlaybackEventCreate,
         session: SessionDep,
+        owner: OwnerDep,
     ) -> PlaybackEventRead:
         if session.get(Track, payload.track_id) is None:
             raise HTTPException(status_code=404, detail="Track not found")
         event = PlaybackEvent(
             event_type=payload.event_type,
             track_id=payload.track_id,
+            owner_config_id=owner.id if owner else None,
             media_asset_id=payload.media_asset_id,
             playlist_run_id=payload.playlist_run_id,
             queue_position=payload.queue_position,
@@ -404,25 +498,46 @@ def create_app() -> FastAPI:
     @app.get("/playback-events", response_model=list[PlaybackEventRead])
     def list_playback_events(
         session: SessionDep,
+        owner: OwnerDep,
         limit: int = 100,
     ) -> list[PlaybackEventRead]:
         bounded_limit = min(max(limit, 1), 500)
+        query = select(PlaybackEvent)
+        if owner is not None:
+            query = query.where(PlaybackEvent.owner_config_id == owner.id)
+        else:
+            query = query.where(PlaybackEvent.owner_config_id.is_(None))
         events = session.scalars(
-            select(PlaybackEvent)
-            .order_by(PlaybackEvent.created_at.desc())
-            .limit(bounded_limit)
+            query.order_by(PlaybackEvent.created_at.desc()).limit(bounded_limit)
         ).all()
         return [playback_event_to_schema(event) for event in events]
 
     @app.get("/stats/summary", response_model=StatsSummaryRead)
-    def stats_summary(session: SessionDep) -> StatsSummaryRead:
-        tracks = list(session.scalars(track_query()))
-        events = list(session.scalars(select(PlaybackEvent)))
-        rated_track_ids = {
-            track.id
-            for track in tracks
-            if any(rating.value is not None for rating in track.ratings)
-        }
+    def stats_summary(session: SessionDep, owner: OwnerDep) -> StatsSummaryRead:
+        library_ids = owner_library_ids(owner)
+        track_q = track_query()
+        event_q = select(PlaybackEvent)
+        if owner is not None:
+            # Scope to the profile's library (a sentinel -1 keeps an empty library returning none).
+            track_q = track_q.where(Track.id.in_(library_ids or {-1}))
+            event_q = event_q.where(PlaybackEvent.owner_config_id == owner.id)
+        else:
+            event_q = event_q.where(PlaybackEvent.owner_config_id.is_(None))
+        tracks = list(session.scalars(track_q))
+        events = list(session.scalars(event_q))
+        # A track counts as rated when this profile has a non-null rating for it (owned: from the
+        # profile's own samples; legacy: the shared latest-star cache).
+        if owner is not None:
+            averages = plain_rating_averages(
+                session, list(library_ids) if library_ids else [], owner_config_id=owner.id
+            )
+            rated_track_ids = set(averages.keys())
+        else:
+            rated_track_ids = {
+                track.id
+                for track in tracks
+                if any(rating.value is not None for rating in track.ratings)
+            }
         video_track_ids = {
             track.id
             for track in tracks
@@ -457,12 +572,19 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/library/export-json")
-    def export_library_json(session: SessionDep) -> dict[str, Any]:
-        return export_library_payload(session)
+    def export_library_json(session: SessionDep, owner: OwnerDep) -> dict[str, Any]:
+        return export_library_payload(session, owner_config_id=owner.id if owner else None)
 
     @app.post("/library/import-json")
-    def import_library_json(payload: LibraryImportRequest, session: SessionDep) -> dict[str, Any]:
-        import_library_payload(session, payload.payload)
+    def import_library_json(
+        payload: LibraryImportRequest,
+        session: SessionDep,
+        settings: SettingsDep,
+        owner: OwnerDep,
+    ) -> dict[str, Any]:
+        import_library_payload(
+            session, payload.payload, settings=settings, owner_config_id=owner.id if owner else None
+        )
         return {"ok": True}
 
     # --- Device configs (multi-device profiles; see docs/planning/multi-device-architecture.md) ---
@@ -481,7 +603,9 @@ def create_app() -> FastAPI:
         ]
 
     @app.post("/configs", response_model=DeviceConfigDetail)
-    def create_config(payload: DeviceConfigCreate, session: SessionDep) -> DeviceConfigDetail:
+    def create_config(
+        payload: DeviceConfigCreate, session: SessionDep, settings: SettingsDep
+    ) -> DeviceConfigDetail:
         if session.scalar(select(DeviceConfig).where(DeviceConfig.name == payload.name)):
             raise HTTPException(status_code=409, detail="A config with that name already exists")
         config = DeviceConfig(
@@ -493,20 +617,25 @@ def create_app() -> FastAPI:
         session.flush()
         set_config_tracks(session, config, payload.track_ids)
         session.commit()
-        return config_to_detail(session, config.id)
+        token = issue_config_token(config.id, settings.effective_secret_key())
+        return config_to_detail(session, config.id, token=token)
 
     @app.post("/configs/claim", response_model=DeviceConfigDetail)
-    def claim_config(payload: DeviceConfigClaim, session: SessionDep) -> DeviceConfigDetail:
+    def claim_config(
+        payload: DeviceConfigClaim, session: SessionDep, settings: SettingsDep
+    ) -> DeviceConfigDetail:
         config = session.scalar(select(DeviceConfig).where(DeviceConfig.name == payload.name))
         if config is None or not verify_passphrase(payload.passphrase, config.passphrase_hash):
             raise HTTPException(status_code=401, detail="Unknown config name or wrong passphrase")
-        return config_to_detail(session, config.id)
+        token = issue_config_token(config.id, settings.effective_secret_key())
+        return config_to_detail(session, config.id, token=token)
 
     @app.patch("/configs/{config_id}", response_model=DeviceConfigDetail)
     def update_config(
         config_id: int,
         payload: DeviceConfigUpdate,
         session: SessionDep,
+        settings: SettingsDep,
     ) -> DeviceConfigDetail:
         config = session.get(DeviceConfig, config_id)
         if config is None or not verify_passphrase(payload.passphrase, config.passphrase_hash):
@@ -516,7 +645,8 @@ def create_app() -> FastAPI:
         if payload.track_ids is not None:
             set_config_tracks(session, config, payload.track_ids)
         session.commit()
-        return config_to_detail(session, config_id)
+        token = issue_config_token(config.id, settings.effective_secret_key())
+        return config_to_detail(session, config_id, token=token)
 
     return app
 
@@ -532,7 +662,9 @@ def set_config_tracks(session: Session, config: DeviceConfig, track_ids: list[in
         session.add(DeviceConfigTrack(config_id=config.id, track_id=track_id))
 
 
-def config_to_detail(session: Session, config_id: int) -> DeviceConfigDetail:
+def config_to_detail(
+    session: Session, config_id: int, token: str | None = None
+) -> DeviceConfigDetail:
     config = session.get(DeviceConfig, config_id)
     if config is None:
         raise HTTPException(status_code=404, detail="Config not found")
@@ -541,6 +673,7 @@ def config_to_detail(session: Session, config_id: int) -> DeviceConfigDetail:
         name=config.name,
         settings=json.loads(config.settings_json or "{}"),
         included_track_ids=[link.track_id for link in config.tracks],
+        token=token,
     )
 
 
@@ -571,6 +704,24 @@ def run_summary_query():
     return select(PlaylistRun).options(
         selectinload(PlaylistRun.items).selectinload(PlaylistItem.track),
     )
+
+
+def scope_runs(query, owner: DeviceConfig | None):
+    """Restrict a PlaylistRun query to the requesting profile's own runs (legacy/local sees only
+    unowned runs)."""
+    if owner is None:
+        return query.where(PlaylistRun.owner_config_id.is_(None))
+    return query.where(PlaylistRun.owner_config_id == owner.id)
+
+
+def require_owned_run(
+    session: Session, run_id: int, owner: DeviceConfig | None
+) -> PlaylistRun:
+    run = session.get(PlaylistRun, run_id)
+    expected = owner.id if owner else None
+    if run is None or run.owner_config_id != expected:
+        raise HTTPException(status_code=404, detail="Playlist run not found")
+    return run
 
 
 def load_run_response(session: Session, run_id: int) -> QueueRunRead:
@@ -715,28 +866,41 @@ def playback_event_to_schema(event: PlaybackEvent) -> PlaybackEventRead:
     )
 
 
-def apply_track_update(session: Session, track: Track, payload: TrackUpdate) -> None:
+def apply_track_update(
+    session: Session,
+    track: Track,
+    payload: TrackUpdate,
+    owner_config_id: int | None = None,
+) -> None:
     fields = payload.model_dump(exclude_unset=True)
-    for field in [
-        "title",
-        "artist",
-        "album",
-        "has_lyrics",
-        "sub_group",
-        "manual_multiplier",
-        "clip_start_seconds",
-        "clip_end_seconds",
-        "audio_only",
-        "is_original_rendition",
-    ]:
-        if field in fields:
-            setattr(track, field, fields[field])
-    if payload.groups is not None:
-        replace_groups(session, track, payload.groups)
-    if payload.cooldown_tags is not None:
-        replace_tags(session, track, payload.cooldown_tags)
+    # Track metadata/groups/tags are SHARED content; an owned profile only edits its own ratings.
+    if owner_config_id is None:
+        for field in [
+            "title",
+            "artist",
+            "album",
+            "has_lyrics",
+            "sub_group",
+            "manual_multiplier",
+            "clip_start_seconds",
+            "clip_end_seconds",
+            "audio_only",
+            "is_original_rendition",
+        ]:
+            if field in fields:
+                setattr(track, field, fields[field])
+        if payload.groups is not None:
+            replace_groups(session, track, payload.groups)
+        if payload.cooldown_tags is not None:
+            replace_tags(session, track, payload.cooldown_tags)
     if payload.ratings is not None:
-        upsert_ratings(session, track, payload.ratings, session_id=payload.rating_session_id)
+        upsert_ratings(
+            session,
+            track,
+            payload.ratings,
+            session_id=payload.rating_session_id,
+            owner_config_id=owner_config_id,
+        )
 
 
 def replace_groups(session: Session, track: Track, groups: list[TrackGroupWrite]) -> None:
@@ -773,6 +937,7 @@ def upsert_ratings(
     track: Track,
     ratings: dict[str, float | None],
     session_id: str | None = None,
+    owner_config_id: int | None = None,
 ) -> None:
     factor_map = {factor.key: factor for factor in session.scalars(select(RatingFactor))}
     for key, value in ratings.items():
@@ -780,17 +945,32 @@ def upsert_ratings(
         if factor is None:
             continue
         clamped = None if value is None else min(max(float(value), 0.0), 5.0)
-        rating = session.scalar(
-            select(TrackRating).where(
-                TrackRating.track_id == track.id,
-                TrackRating.factor_id == factor.id,
+        if owner_config_id is None:
+            # Legacy/local: update the shared latest-star cache and compare against it.
+            rating = session.scalar(
+                select(TrackRating).where(
+                    TrackRating.track_id == track.id,
+                    TrackRating.factor_id == factor.id,
+                )
             )
-        )
-        previous = rating.value if rating is not None else None
-        if rating is None:
-            rating = TrackRating(track=track, factor=factor)
-            session.add(rating)
-        rating.value = clamped
+            previous = rating.value if rating is not None else None
+            if rating is None:
+                rating = TrackRating(track=track, factor=factor)
+                session.add(rating)
+            rating.value = clamped
+        else:
+            # Owned: ratings are private history only — never touch the shared TrackRating cache.
+            # Change-detection compares against this profile's own most recent sample.
+            previous = session.scalar(
+                select(RatingSample.value)
+                .where(
+                    RatingSample.track_id == track.id,
+                    RatingSample.factor_id == factor.id,
+                    RatingSample.owner_config_id == owner_config_id,
+                )
+                .order_by(RatingSample.created_at.desc(), RatingSample.id.desc())
+                .limit(1)
+            )
         # Append to the append-only history ONLY on a genuine change, so the track
         # editor's "save all fields" can't spam duplicate samples for unchanged factors.
         if clamped != previous:
@@ -801,5 +981,6 @@ def upsert_ratings(
                     value=clamped,
                     source="user",
                     session_id=session_id,
+                    owner_config_id=owner_config_id,
                 )
             )

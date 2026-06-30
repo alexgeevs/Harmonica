@@ -31,6 +31,7 @@ def init_db() -> None:
     models.ensure_additive_playlist_run_columns(engine)
     models.ensure_additive_track_columns(engine)
     models.ensure_additive_playback_event_columns(engine)
+    models.ensure_additive_owner_columns(engine)
     models.backfill_rating_samples(engine)
 
 

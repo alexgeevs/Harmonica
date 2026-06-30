@@ -264,6 +264,9 @@ class DeviceConfigDetail(BaseModel):
     name: str
     settings: dict[str, int | float | bool] = Field(default_factory=dict)
     included_track_ids: list[int] = Field(default_factory=list)
+    # Signed bearer token proving this profile's identity; sent back on create/claim only (the
+    # client stores it and presents it as `Authorization: Bearer` so its data stays scoped).
+    token: str | None = None
 
 
 class PlaybackEventCreate(BaseModel):
