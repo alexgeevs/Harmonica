@@ -38,6 +38,17 @@ class Settings(BaseSettings):
     # HMAC secret for signing per-profile auth tokens. If unset, a random key is generated once
     # and persisted under the Harmonica home so tokens survive restarts.
     secret_key: str | None = None
+    # Built web UI to serve from the daemon itself (so "run the daemon, open the bound URL" is the
+    # whole app — identical locally on 127.0.0.1 and on a NAS over the LAN). Defaults to the repo's
+    # web/dist when present; override for a packaged/Docker layout. Absent → daemon is API-only.
+    web_dist: Path | None = None
+
+    @property
+    def effective_web_dist(self) -> Path | None:
+        if self.web_dist is not None:
+            return self.web_dist.expanduser().resolve()
+        default = Path(__file__).resolve().parents[2] / "web" / "dist"
+        return default if default.is_dir() else None
     host: str = "127.0.0.1"
     port: int = 8765
 

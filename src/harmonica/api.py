@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -647,6 +648,14 @@ def create_app() -> FastAPI:
         session.commit()
         token = issue_config_token(config.id, settings.effective_secret_key())
         return config_to_detail(session, config_id, token=token)
+
+    # Serve the built web UI from the daemon itself, so the local hosted-browser experience is just
+    # "run the daemon, open the bound URL" — the same single artifact that, bound to 0.0.0.0, is the
+    # NAS version. Mounted LAST so every API route above takes precedence; the SPA only catches the
+    # remaining paths (index, assets, manifest, icons). API-only if no build is present.
+    dist = get_settings().effective_web_dist
+    if dist is not None:
+        app.mount("/", StaticFiles(directory=dist, html=True), name="web")
 
     return app
 

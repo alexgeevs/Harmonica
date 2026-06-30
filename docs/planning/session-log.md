@@ -306,3 +306,20 @@ phantom-average-player Gaussian prior for regularisation and half-credit tie han
 - **Attribution:** the multi-user model + dedupe-redirect + empty-new-user were the user's; the
   derive-from-logs design (avoiding constraint rebuilds), the header/token auth mechanism, and the
   per-owner normalisation semantics were Claude's.
+
+### 2026-06-30 — One build for local + NAS (daemon serves the UI)
+- **User (discussion):** local and NAS "can be the same" (loopback+local daemon vs LAN IP+NAS daemon
+  aren't really different); the local browser version shouldn't carry other-version cruft. **Default
+  must be local, loopback-only (no ports opened to other devices); NAS is opt-in, never default.**
+  "Up to you mostly."
+- **Claude (final):** Confirmed local≡NAS are one application differing only by bind address + where
+  the process runs. Closed the one real gap: the daemon now **serves the built web UI** itself
+  (`StaticFiles` mounted last so every API route wins; SPA + assets + manifest served, unknown paths
+  still 404). So the hosted experience is just "run the daemon, open the bound URL" — identical on
+  `127.0.0.1` (default, loopback) and, bound to `0.0.0.0`, on a NAS. Additive: no `web/dist` →
+  daemon stays API-only; the Vite dev-proxy workflow is untouched. New `Settings.web_dist`
+  (`HARMONICA_WEB_DIST`) + `effective_web_dist` (defaults to repo `web/dist`). Host default stays
+  `127.0.0.1`. 81 tests green, ruff clean. Deliberately deferred (not default / out of scope this
+  turn): Docker/NAS packaging, and optionally hiding the profile UI in local single-user mode.
+  Taxonomy locked: (1) hosted daemon+web = one build, local or NAS; (2) the same build as an
+  installable PWA; (3) the Android native client = the only separate version.
