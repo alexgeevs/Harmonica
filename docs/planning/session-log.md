@@ -281,3 +281,28 @@ phantom-average-player Gaussian prior for regularisation and half-credit tie han
   users listen to); the NAS Docker deployment target.
 - **Claude-originated:** all the specific security findings + the `path_within_root` media-root
   confinement design and the import-sanitisation guards.
+
+### 2026-06-30 — Per-user multi-tenancy (private libraries + listening data)
+- **User:** "Listening data should definitely per user. Increase the separation between them." Then:
+  full personal profile (history/stats/queues/ratings/cover-verdicts all private); other users must
+  not see your songs; a **new user starts empty** and imports their own library; duplicates **don't
+  re-import** but **redirect** to the existing shared file. Chose scope = **everything incl. auth**.
+- **Claude (final):** Turned the global library into a multi-tenant model where a **`DeviceConfig`
+  profile = a user**. **Phase 1** — additive nullable `owner_config_id` on `playback_events`,
+  `playlist_runs`, `rating_samples`, `cover_comparisons`; a `get_owner` request dependency
+  (header/token → profile, or None = legacy); owner threaded through `history`, `normalization`
+  (per-owner library-wide SD), `playlist`, and the cover BT ranking. The three constraint-blocked
+  caches (`TrackRating`, `CoverRenditionState`, `CoverSetState`) are sidestepped by **deriving
+  per-user state from the append-only logs** (no SQLite rebuilds) + a small additive
+  `user_cover_set_state`. Empty profile → empty queue (guarded). **Phase 2** — owner-aware import
+  that dedupes by `song_id`→`checksum`→`file_path` and **links instead of duplicating**, never
+  mutating another user's shared content; owner-aware scan + per-owner export. **Phase 3** — the web
+  client sends the profile identity on every request (one place in `api.ts`) and shows an
+  "empty library → import" hint. **Phase 4** — signed HMAC bearer tokens issued on create/claim and
+  verified in `get_owner`, making the separation tamper-proof (the raw id header remains a documented
+  structural-only fallback). New `tests/test_multitenant.py` (7 tests: isolation, dedupe, per-user
+  ratings, idempotency, empty profile, private queues, forged token); **81 green**, ruff + web build
+  clean. Legacy/no-profile mode stays byte-identical. Full reference: `multi-user-tenancy.md`.
+- **Attribution:** the multi-user model + dedupe-redirect + empty-new-user were the user's; the
+  derive-from-logs design (avoiding constraint rebuilds), the header/token auth mechanism, and the
+  per-owner normalisation semantics were Claude's.

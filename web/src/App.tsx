@@ -86,20 +86,10 @@ export default function App() {
   const [activeConfig, setActiveConfig] = useState<DeviceConfigDetail | null>(loadStoredConfig);
   const [configsOk, setConfigsOk] = useState(false);
 
-  // The set of song ids a profile restricts to (empty list = no restriction).
-  const scopedIds = useMemo(() => {
-    if (!activeConfig || activeConfig.included_track_ids.length === 0) {
-      return null;
-    }
-    return new Set(activeConfig.included_track_ids);
-  }, [activeConfig]);
-
-  // Library browsing respects the active profile's scope; the player itself is
-  // already scoped server-side because generation passes config_id.
-  const libraryTracks = useMemo(
-    () => (scopedIds ? tracks.filter((track) => scopedIds.has(track.id)) : tracks),
-    [tracks, scopedIds]
-  );
+  // With a profile active, every request carries its identity header, so `tracks` (from
+  // GET /tracks) is already exactly this profile's private library — empty for a brand-new
+  // profile until it imports/scans. No client-side filtering needed.
+  const libraryTracks = tracks;
 
   useEffect(() => {
     try {
@@ -364,8 +354,11 @@ export default function App() {
             <div className="health-banner profile">
               <Smartphone size={16} />
               <span>
-                Profile <strong>{activeConfig.name}</strong> is active
-                {scopedIds ? ` · ${scopedIds.size} of ${tracks.length} songs` : " · all songs"}.
+                Profile <strong>{activeConfig.name}</strong> is active · {tracks.length}{" "}
+                {tracks.length === 1 ? "song" : "songs"} in your library.
+                {tracks.length === 0
+                  ? " It's empty — import or scan songs to fill it (duplicates reuse the shared file)."
+                  : ""}
               </span>
               <button className="link-button" onClick={switchToLocal}>
                 Switch to local

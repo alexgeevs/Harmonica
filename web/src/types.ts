@@ -297,4 +297,7 @@ export type DeviceConfigDetail = {
   name: string;
   settings: Record<string, number | boolean>;
   included_track_ids: number[];
+  // Signed bearer token returned on create/claim; the client stores it and sends it as
+  // `Authorization: Bearer` so this profile's data stays private and tamper-proof.
+  token?: string | null;
 };

@@ -22,10 +22,29 @@ const ratingSessionId =
     ? crypto.randomUUID()
     : `sit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+const ACTIVE_CONFIG_KEY = "harmonica.activeConfig";
+
+/** Identify the active profile on every request so its library + listening data stay private.
+ * A signed bearer token (from create/claim) is tamper-proof; the raw id header is a fallback.
+ * No active profile → no header → legacy/local whole-library mode. */
+function authHeaders(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(ACTIVE_CONFIG_KEY);
+    if (!raw) return {};
+    const config = JSON.parse(raw) as { id?: number; token?: string | null };
+    if (config?.token) return { Authorization: `Bearer ${config.token}` };
+    if (typeof config?.id === "number") return { "X-Harmonica-Config-Id": String(config.id) };
+  } catch {
+    // ignore malformed storage — fall back to local mode
+  }
+  return {};
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
       ...(options?.headers ?? {})
     },
     ...options
@@ -118,11 +137,13 @@ export const api = {
       body: JSON.stringify({ name })
     }),
   deleteRun: (id: number) =>
-    fetch(`/playlist-runs/${id}`, { method: "DELETE" }).then((response) => {
-      if (!response.ok && response.status !== 404) {
-        throw new Error(`Delete failed: ${response.status}`);
+    fetch(`/playlist-runs/${id}`, { method: "DELETE", headers: authHeaders() }).then(
+      (response) => {
+        if (!response.ok && response.status !== 404) {
+          throw new Error(`Delete failed: ${response.status}`);
+        }
       }
-    }),
+    ),
   updateTrackFields: (id: number, fields: Record<string, unknown>) =>
     request<Track>(`/tracks/${id}`, {
       method: "PATCH",
