@@ -59,8 +59,6 @@ class TrackRead(BaseModel):
     groups: list[TrackGroupRead] = Field(default_factory=list)
     cooldown_tags: list[str] = Field(default_factory=list)
     ratings: dict[str, float | None] = Field(default_factory=dict)
-    # Normalised effective rating per factor (algorithm view); raw stars stay in `ratings`.
-    ratings_effective: dict[str, float | None] = Field(default_factory=dict)
 
 
 class TrackGroupWrite(BaseModel):
