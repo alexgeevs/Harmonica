@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,26 @@ def _parse_iso(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _finite(value: Any, default: float) -> float:
+    """Coerce to a finite float, falling back to ``default`` for None/NaN/inf/garbage.
+
+    Imported library data is untrusted: this keeps NaN/inf out of the scoring maths
+    (where they would poison or crash queue generation)."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
+def _clamp_rating(value: Any) -> float | None:
+    """Sanitise an imported star value to the same [0, 5] range the live PATCH path
+    enforces; preserve an explicit ``None`` (unrated)."""
+    if value is None:
+        return None
+    return min(max(_finite(value, 0.0), 0.0), 5.0)
 
 
 def export_library(session: Session, output_path: Path) -> None:
@@ -159,7 +180,7 @@ def import_library_payload(
         track.album = track_payload.get("album")
         track.has_lyrics = bool(track_payload.get("has_lyrics", True))
         track.sub_group = track_payload.get("sub_group")
-        track.manual_multiplier = float(track_payload.get("manual_multiplier", 1.0))
+        track.manual_multiplier = _finite(track_payload.get("manual_multiplier", 1.0), 1.0)
         if "is_original_rendition" in track_payload:
             track.is_original_rendition = bool(track_payload.get("is_original_rendition"))
         if "clip_start_seconds" in track_payload:
@@ -207,7 +228,7 @@ def import_library_payload(
             if rating is None:
                 rating = TrackRating(track=track, factor=factor)
                 session.add(rating)
-            rating.value = value
+            rating.value = _clamp_rating(value)
     session.flush()
 
     import_rating_samples(session, payload.get("rating_samples", []), factor_map)
@@ -236,7 +257,7 @@ def import_rating_samples(
         if track is None or factor is None:
             continue
         created_at = _parse_iso(entry.get("created_at"))
-        value = entry.get("value")
+        value = _clamp_rating(entry.get("value"))
         key = (track.id, factor.id, value, _iso(created_at))
         if key in seen:
             continue  # idempotent: re-importing the same export won't duplicate history

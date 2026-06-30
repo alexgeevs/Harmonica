@@ -173,6 +173,50 @@ def test_next_cover_comparison_returns_playable_pair() -> None:
         assert client.get("/cover-comparisons/next?sub_group=nope").json() is None
 
 
+def test_media_serving_is_confined_to_media_root(tmp_path) -> None:
+    from harmonica.config import Settings, get_settings
+    from harmonica.models import MediaAsset
+
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    inside = media_root / "song.m4a"
+    inside.write_bytes(b"\x00\x01\x02")
+    outside = tmp_path / "secret.txt"
+    outside.write_text("top secret")
+
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: Settings(media_root=media_root)
+    with TestClient(app) as client:
+        with SessionLocal() as session:
+            track = session.scalar(select(Track).where(Track.song_id == "media_confine_test"))
+            if track is None:
+                track = Track(song_id="media_confine_test", title="Confine")
+                session.add(track)
+                session.flush()
+            # Drop any assets from a previous run so ids are fresh.
+            for stale in list(track.assets):
+                session.delete(stale)
+            session.flush()
+            inside_asset = MediaAsset(
+                track_id=track.id, file_path=str(inside), asset_type="audio"
+            )
+            outside_asset = MediaAsset(
+                track_id=track.id, file_path=str(outside), asset_type="audio"
+            )
+            session.add_all([inside_asset, outside_asset])
+            session.commit()
+            inside_id, outside_id = inside_asset.id, outside_asset.id
+
+        # A file inside the media root serves; one outside is treated as missing.
+        assert client.get(f"/media/{inside_id}").status_code == 200
+        assert client.get(f"/media/{outside_id}").status_code == 404
+        # /scan refuses a root outside the media root, accepts one inside it.
+        assert client.post("/scan", json={"library": str(tmp_path)}).status_code == 400
+        scan_dir = media_root / "sub"
+        scan_dir.mkdir()
+        assert client.post("/scan", json={"library": str(scan_dir)}).status_code == 200
+
+
 def test_playback_event_can_be_recorded() -> None:
     with TestClient(create_app()) as client:
         with SessionLocal() as session:

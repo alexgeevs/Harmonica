@@ -12,6 +12,20 @@ def default_harmonica_home() -> Path:
     return Path(os.environ.get("HARMONICA_HOME", ".harmonica")).expanduser().resolve()
 
 
+def path_within_root(candidate: str | Path, root: Path) -> Path | None:
+    """Resolve ``candidate`` (following symlinks, normalising ``..``) and return it
+    only if it stays inside ``root``; otherwise ``None``.
+
+    The single guard against path traversal and symlink escape when serving or
+    scanning media. ``root`` is expected to already be resolved.
+    """
+    try:
+        resolved = Path(candidate).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return resolved if resolved.is_relative_to(root) else None
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HARMONICA_", env_file=".env", extra="ignore")
 
@@ -103,6 +117,18 @@ class Settings(BaseSettings):
     cover_comparison_settle_gap: float = 0.2
     cover_active_window: int = 5
     cover_active_min_rated: int = 4
+
+    @property
+    def effective_media_root(self) -> Path:
+        """Root directory that every servable / scannable media file must stay within.
+
+        Defaults to ``Storage`` relative to the working directory (matching the
+        importer's layout); override with ``HARMONICA_MEDIA_ROOT`` — e.g. the mounted
+        volume inside the NAS Docker container. This is the boundary that stops a
+        crafted ``file_path`` (from an imported library or a scan) being read off disk.
+        """
+        root = self.media_root if self.media_root is not None else Path("Storage")
+        return root.expanduser().resolve()
 
     @property
     def db_url(self) -> str:

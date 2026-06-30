@@ -577,3 +577,29 @@ algorithm and the app as a whole before/while implementing.
 Captured decisions in `rating-normalization-and-covers.md` (incl. verbatim Q&A). Launched a four-phase
 multi-agent design review (map → design → adversarial critique → synthesis) to lock the detailed math and
 schema before implementing. Implementation proceeds from the synthesised blueprint.
+
+## 2026-06-30: Multi-user model, NAS deployment & security posture
+
+### User Input
+
+While reviewing a code-slim + security pass, the user set product/deployment direction:
+1. **Deployment:** the daemon will run **inside a Docker container on the NAS** (so the container is
+   the effective filesystem/network boundary).
+2. **Multi-user model:** if two users overlap in the music they pick, the **same source file should
+   be reusable for both** (de-duplicated media), **but** a user must **not** be able to see what
+   other users listen to from the UI or anywhere else (listening privacy between users).
+3. **Current data is placeholder:** media lives under `Storage/` in the Harmonica dir for now, the
+   playlist is a placeholder, and the **attributions aren't fully set up correctly** yet.
+4. Asked to fix the **very bad** security issues, keep changes small, then assess if the project is
+   ready.
+
+### Result
+
+Fixed the one **critical** finding (arbitrary local file read via `/media`) plus the compounding
+medium ones, all backend-only, UI untouched: a `path_within_root` guard confines media serving,
+`/scan`, and the scan walk to `settings.effective_media_root` (defaults to `Storage/`; set
+`HARMONICA_MEDIA_ROOT` to the mounted volume in Docker), and imported numerics are sanitised.
+The **multi-user privacy** requirement is **recorded but not yet enforced**: there is no API auth
+beyond the per-config passphrase and listening data is not scoped per user. That — plus correcting
+the placeholder attributions — is on the list for the "is it ready?" review before any multi-user or
+off-localhost exposure.

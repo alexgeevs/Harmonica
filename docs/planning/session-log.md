@@ -243,3 +243,41 @@ phantom-average-player Gaussian prior for regularisation and half-credit tie han
   toggle** (the earlier-deferred control); a full feature reference at
   `docs/planning/covers-feature.md`. 3 new tests (round-trip + idempotency + reopen); 73 green; ruff
   + web build clean. The covers feature (C–G) is complete and remains off by default.
+
+### 2026-06-30 — Code-slim pass + security red-team
+- **User:** Hypothesised the codebase had lots of redundant code; asked for an ultracode pass
+  (≤20 agents) to find what could be cut **without removing any functionality or algorithm**, UI left
+  as-is; then a 5-agent red-team for security problems.
+- **Claude (final), cleanup:** 19-agent pass (9 region finders → 9 adversarial verifiers → 1
+  synthesis). Verdict: **the backend is already lean** — the hypothesis didn't hold. Only verified
+  dead code was the always-empty `TrackRead.ratings_effective` schema field (`track_to_schema` never
+  set it, nothing read it) — **removed**. Reported (not touched) judgment calls: 3 backend-unused
+  cover knobs (`cover_comparison_cooldown_songs`, `cover_active_window`, `cover_active_min_rated`,
+  whose values live as hardcoded mirrors client-side), `covers.weighted_choice_among` (a deliberate
+  type-clean wrapper duplicating `algorithm.weighted_choice_from_indices`), and a behaviour-identical
+  doubled term in `bt.py`. Verification rejected the obvious false-positives (route/CLI handlers,
+  chained `api.*` calls, the `ratings.py` normalisation-off fallback path).
+- **Claude (final), security:** 5-agent red-team; all five independently converged on one **critical**
+  issue → fixed. **Arbitrary local file read via `/media/{asset_id}`**: it served `Path(file_path)`
+  with only an `is_file()` check and the `media_root` setting was wired to nothing, so a crafted
+  `file_path` (from an imported library, or `/scan` aimed anywhere) could read any file the process
+  could (`/etc/passwd`, the SQLite DB with passphrase hashes, …). **Fix:** a single `path_within_root`
+  guard (resolves symlinks, checks containment) now confines `/media` serving, `/scan` roots, and the
+  per-file scan walk to `settings.effective_media_root` (defaults to `Storage/`, override
+  `HARMONICA_MEDIA_ROOT` for the NAS Docker volume). Also sanitised imported numerics (NaN/inf/garbage
+  rejected, stars clamped to [0,5] like the live PATCH path) to stop algorithm poisoning/crashes from
+  untrusted import JSON. New `test_media_serving_is_confined_to_media_root`; 74 green; ruff clean.
+  **What's solid (verified):** SQL fully parameterised; no eval/exec/pickle/subprocess; passphrase KDF
+  is correct (PBKDF2-SHA256, 120k iters, random salt, constant-time compare); settings PATCH
+  allowlisted; no SSRF.
+- **Deferred for the "is it ready?" review (documented, not built):** there is **no API auth** beyond
+  the per-config passphrase, and listening data (history/stats/queues) is **not scoped per user** — so
+  the multi-user privacy goal below isn't enforced yet. Acceptable while bound to localhost / inside
+  the NAS container; needs a token + per-user scoping before any real multi-user/LAN exposure.
+
+#### Attribution (this session)
+- **User-originated:** the redundancy hypothesis and the request to cut conservatively; the
+  multi-user model (shared source files for overlapping songs, but users must not see what other
+  users listen to); the NAS Docker deployment target.
+- **Claude-originated:** all the specific security findings + the `path_within_root` media-root
+  confinement design and the import-sanitisation guards.

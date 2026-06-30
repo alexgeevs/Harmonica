@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import mimetypes
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Response
@@ -13,7 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from harmonica.bootstrap import ensure_default_rating_factors
-from harmonica.config import Settings, get_settings
+from harmonica.config import Settings, get_settings, path_within_root
 from harmonica.cover_ranking import next_pair, record_verdict
 from harmonica.db import SessionLocal, get_session, init_db
 from harmonica.history import playback_event_signal
@@ -268,11 +267,20 @@ def create_app() -> FastAPI:
     def scan(
         payload: ScanRequest,
         session: SessionDep,
+        settings: SettingsDep,
     ) -> ScanResponse:
+        # Only scan inside the media root, so /scan can't be aimed at "/" to index
+        # (and then serve) arbitrary files or exhaust the host walking the disk.
+        root = path_within_root(payload.library, settings.effective_media_root)
+        if root is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Scan path must be inside the configured media root.",
+            )
         ensure_default_rating_factors(session)
         result = scan_library(
             session,
-            Path(payload.library),
+            root,
             create_tag_groups=payload.create_tag_groups,
         )
         return ScanResponse(**result.__dict__)
@@ -355,12 +363,16 @@ def create_app() -> FastAPI:
         return PlainTextResponse("\n".join(lines) + "\n", media_type="audio/x-mpegurl")
 
     @app.get("/media/{asset_id}")
-    def stream_media(asset_id: int, session: SessionDep) -> FileResponse:
+    def stream_media(
+        asset_id: int, session: SessionDep, settings: SettingsDep
+    ) -> FileResponse:
         asset = session.get(MediaAsset, asset_id)
         if asset is None:
             raise HTTPException(status_code=404, detail="Media asset not found")
-        path = Path(asset.file_path)
-        if not path.is_file():
+        # Confine serving to the media root: a crafted file_path (e.g. from an
+        # imported library) pointing outside it is treated as missing, not served.
+        path = path_within_root(asset.file_path, settings.effective_media_root)
+        if path is None or not path.is_file():
             raise HTTPException(status_code=404, detail="Media file missing from disk")
         media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         return FileResponse(path, media_type=media_type, filename=path.name)

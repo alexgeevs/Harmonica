@@ -10,6 +10,7 @@ from mutagen import File as MutagenFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from harmonica.config import path_within_root
 from harmonica.models import GroupMembership, MediaAsset, Track, WeightGroup
 
 AUDIO_EXTENSIONS = {".aac", ".aiff", ".alac", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav"}
@@ -33,6 +34,11 @@ def scan_library(session: Session, root: Path, create_tag_groups: bool = True) -
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in MEDIA_EXTENSIONS:
             continue
+        # Drop anything whose real (symlink-resolved) path escapes the scan root.
+        resolved = path_within_root(path, root)
+        if resolved is None:
+            continue
+        path = resolved
         result.scanned += 1
         existing_asset = session.scalar(select(MediaAsset).where(MediaAsset.file_path == str(path)))
         if existing_asset:
