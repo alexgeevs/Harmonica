@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Check,
   ClipboardCheck,
   Clock,
   Download,
@@ -510,7 +511,7 @@ function Sidebar(props: { view: View; onView: (view: View) => void; trackCount: 
       </nav>
       <div className="sidebar-foot">
         <Sparkles size={14} />
-        <span>Tuned to play what you love without wearing it out.</span>
+        <span>Your library, sequenced by what you'll love hearing next — not random shuffle.</span>
       </div>
     </aside>
   );
@@ -1908,8 +1909,8 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
     keys: ["why_show_math"]
   },
   {
-    title: "Covers (experimental)",
-    note: "Choosing between different renditions of the same song. Off by default.",
+    title: "Covers",
+    note: "When a song has several renditions, let the queue pick which one to play. Off by default — turn it on if your library has covers.",
     keys: ["cover_two_level_enabled", "cover_count_log_base", "cover_original_bonus"]
   }
 ];
@@ -1943,9 +1944,8 @@ function SettingsView(props: {
   const extraKeys = props.settings.controls.map((c) => c.key as string).filter((key) => !known.has(key));
 
   function applyPreset(preset: Preset) {
-    const next = { ...draft, ...preset.values };
-    setDraft(next);
-    props.onSave(next);
+    // Stage the preset into the draft; nothing takes effect until "Apply changes" is clicked.
+    setDraft((current) => ({ ...current, ...preset.values }));
   }
 
   function renderControls(keys: string[]) {
@@ -2013,9 +2013,15 @@ function SettingsView(props: {
       </div>
 
       <div className="settings-side">
-        <button className="primary save-button" disabled={props.busy || !dirty} onClick={() => props.onSave(draft)}>
-          <Save size={16} /> {dirty ? "Save settings" : "Saved"}
-        </button>
+        {dirty ? (
+          <button className="primary save-button" disabled={props.busy} onClick={() => props.onSave(draft)}>
+            <Save size={16} /> Apply changes
+          </button>
+        ) : (
+          <div className="save-button applied" role="status" aria-live="polite">
+            <Check size={16} /> Saved
+          </div>
+        )}
         {props.configsEnabled ? (
           <DeviceProfilePanel
             activeConfig={props.activeConfig}
@@ -2235,10 +2241,14 @@ function SettingControlRow(props: {
         <button
           className={props.value ? "switch-control on" : "switch-control"}
           onClick={() => props.onChange(!props.value)}
+          role="switch"
+          aria-checked={Boolean(props.value)}
           type="button"
         >
-          <span />
-          {props.value ? "On" : "Off"}
+          <span className="switch-label">{props.value ? "On" : "Off"}</span>
+          <span className="switch-track">
+            <span className="switch-knob" />
+          </span>
         </button>
       ) : (
         <div className="range-control">

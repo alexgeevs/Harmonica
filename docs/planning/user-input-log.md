@@ -603,3 +603,32 @@ The **multi-user privacy** requirement is **recorded but not yet enforced**: the
 beyond the per-config passphrase and listening data is not scoped per user. That — plus correcting
 the placeholder attributions — is on the list for the "is it ready?" review before any multi-user or
 off-localhost exposure.
+
+## 2026-07-02: Settings UX polish + algorithm-personalisation scope decision
+
+### User Input
+
+After a live look at the running app (250-song local library), the user was "very pleased with the
+UI" and asked for a batch of Settings fixes:
+1. **Toggle switches should visibly move.** The on/off switches only changed colour/label; the knob
+   should slide position when flipped so it reads as a real switch.
+2. **"Covers" shouldn't be labelled experimental.** Questioned why the covers section is marked
+   experimental.
+3. **Settings must be apply-on-click, not live.** The control previously read "Saved" as soon as
+   anything changed; the user wants an **Apply button while there's a pending difference**, turning
+   into a **"Saved" status element once applied** (nothing takes effect until Apply is pressed).
+4. **Reword the sidebar footer** ("play what you love without wearing it out") — didn't like it.
+
+Also a **scope decision**: the user considered having the *algorithm itself* adapt to the user's
+utility function, thought it through, and concluded it isn't feasible — so **that is explicitly NOT
+a feature we will build.** The existing utility-maximising weighting stays as-is.
+
+### Result
+
+Front-end only. Switches rebuilt as a sliding track+knob (accent track when on, animated knob
+travel, `role="switch"`/`aria-checked`); the covers section renamed "Covers" with a plain-language
+note (still off by default); the Settings side panel now shows **"Apply changes"** while the draft
+differs and a non-interactive **"Saved"** status chip once clean, and **presets now stage into the
+draft instead of auto-applying** (consistent with apply-on-click); sidebar footer reworded to
+"Your library, sequenced by what you'll love hearing next — not random shuffle." Build + typecheck
+clean; daemon serves the new bundle live.
