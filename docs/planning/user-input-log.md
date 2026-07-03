@@ -777,11 +777,39 @@ tags, cover/sub-group rework, additive-only schema, review "Venn" artifact, impo
 plan, and the still-open questions). Presented to the user for approval before the classification
 **prompt MD** is written and before any code.
 
+### Input 8 — proceed with deliverables; build presets in parallel
+
+The user approved moving from discussion to artifacts: (a) **write the classification prompt** (done),
+then (b) **build the import + verification guide now**, and (c) **spin up sub-agents specialised in
+the algorithm presets to design new targeted presets**, since the algorithm has changed since the
+presets were last built (2026-06-25) — they run **in parallel** with the main work. Also refined:
+the **~2 aboutness cap is a soft guideline, not a hard limit** — if a big topic and a small/niche
+topic both truthfully fit, keep both (a truthful distinctive tag is never dropped just to stay under
+the cap).
+
+### Deliverables produced (all on `main`)
+
+- **`docs/agents/song-classification-prompt.md`** — the classification agent prompt: truth test,
+  ordered procedure (research → cover check → Option-C artists → aboutness → cooldown tags →
+  confidence/review), naming/reuse, import-ready payload (extensions as ignored-today keys), the
+  review "Venn" map, DO/DON'T + self-check.
+- **`docs/agents/classification-import-and-verify.md`** — the import + verification guide. Documents
+  the key gotcha that `import-json` only ADDS memberships (can't remove a song from a bad group), so
+  removal needs a clear-then-import pass.
+- **`scripts/verify_classification.py`** — read-only audit (over-broad groups >25%, over-tagged
+  songs, artist-share sums ≈0.5, sub_group family validity, optional DB-vs-payload cross-check). Ran
+  it on the current placeholder DB: **289 flags** (3 groups at 30% each, songs with up to 8 groups,
+  224 singleton sub_groups) — i.e. it correctly pins exactly what the reclassification will fix.
+- **`scripts/reclassify_from_payload.py`** — the corrective clear-then-import helper (backs up the DB,
+  clears groups/tags/sub_group for the payload's tracks, applies via the canonical importer, prunes
+  emptied groups). This is the deferred one-off corrective pass (§12.4) — provided but not run.
+- **Preset redesign workflow** launched in the background (map current settings → 3 design
+  philosophies → synthesis) to propose new targeted presets against the *current* knobs.
+
 ### Status
 
-Discussion only; **nothing implemented.** Consolidated design captured in
-`classification-architecture.md` and awaiting the user's approval / remaining uncertainties. Agreed
-additive schema so far: `WeightGroup.hidden`, signed strength on cooldown-tag links, per-song artist
-`share` values, cover re-keying of `sub_group`. Still open (surfaced to the user): over-broad groups
-(`Nerdcore`/`Game Songs` ≈76 songs each, `Unknown / review` artist ×49), covers-hidden-while-off
-confirmation, agent autonomy/review-gating, and the one-off corrective reclassify pass.
+Design **approved**; the three requested artifacts (classification prompt, import guide, verification)
+are **built and pushed**. No algorithm/schema changes made (deferred by the user). The extension
+fields (`hidden`, signed cooldown strength, membership `reason`) are captured in the payload but not
+yet persisted — they wait on the deferred additive-schema work. Preset-redesign sub-agents running;
+results to be reviewed with the user next.

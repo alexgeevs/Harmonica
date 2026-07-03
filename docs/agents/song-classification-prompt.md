@@ -175,11 +175,14 @@ a false label is not.
 
 ### A) The import payload (machine-readable)
 
-A JSON object shaped like the library import (`POST /library/import-json`). Include the top-level
-`groups[]` registry (with `group_type` and, for one-offs, `hidden`) and a `tracks[]` array. **Only
-emit the classification fields** below per track — do not restate assets/ratings you didn't change.
-Fields marked *(extension)* are new to the agreed architecture; include them — the importer is being
-extended to consume them, and they are harmless if ignored.
+A JSON object shaped like the library import (`POST /library/import-json`). It must be **directly
+importable today**, so keep the fields the current importer reads in their expected shape:
+`groups[]` entries as `{name, group_type, share}`, and **`cooldown_tags[]` as an array of plain
+strings.** The richer architecture data (each group's `hidden` flag, each cooldown tag's signed
+`strength`/affinity, per-membership `reason`, and your `confidence`/`review` notes) is carried in
+**extra keys the current importer safely ignores** (it reads only known keys) — so the payload both
+imports cleanly now *and* preserves everything for when the schema is extended. Do not fold the extra
+data into the fields the importer reads.
 
 ```json
 {
@@ -201,9 +204,9 @@ extended to consume them, and they are harmless if ignored.
         { "name": "Five Nights at Freddy's", "group_type": "topic", "share": null,
           "reason": "lyrics + title reference the FNaF games; song written for the franchise" }
       ],
-      "cooldown_tags": [
-        { "name": "hype", "strength": 1.0 },
-        { "name": "male vocal", "strength": 1.0 }
+      "cooldown_tags": ["hype", "male vocal"],
+      "cooldown_tag_meta": [
+        { "name": "hype", "strength": 1.0 }
       ],
       "confidence": "high",
       "review": []
@@ -220,13 +223,20 @@ extended to consume them, and they are harmless if ignored.
         { "name": "SCP Foundation", "group_type": "topic", "share": null,
           "reason": "inherited from original T090 — same composition about SCP" }
       ],
-      "cooldown_tags": [ { "name": "melancholic", "strength": 1.0 } ],
+      "cooldown_tags": ["melancholic"],
+      "cooldown_tag_meta": [],
       "confidence": "high",
-      "review": [ "cover of T090 — confirm original/rendition assignment" ]
+      "review": ["cover of T090 — confirm original/rendition assignment"]
     }
   ]
 }
 ```
+
+- `cooldown_tags` is **always plain strings** (import-ready). Only list a tag in `cooldown_tag_meta`
+  when its strength differs from the default `+1.0` — in particular any **negative (affinity)** tag,
+  e.g. `{ "name": "meridian-act1-sequence", "strength": -0.6 }`.
+- `hidden` (on a group), `reason` (on a membership), `confidence`, and `review` are the ignored-today
+  extension keys; always include them so nothing is lost.
 
 Rules the payload must satisfy:
 - Every track keeps its original `song_id`. Every artist membership has an explicit `share` summing to
