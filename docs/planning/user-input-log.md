@@ -632,3 +632,156 @@ differs and a non-interactive **"Saved"** status chip once clean, and **presets 
 draft instead of auto-applying** (consistent with apply-on-click); sidebar footer reworded to
 "Your library, sequenced by what you'll love hearing next — not random shuffle." Build + typecheck
 clean; daemon serves the new bundle live.
+
+## 2026-07-02: Classification architecture discussion (song grouping / Venn / hidden groups) — IN PROGRESS
+
+This entry records an ongoing design discussion (no code written yet). The user asked for a full
+record of every one of their inputs and how the back-and-forth evolved. Chronological:
+
+### Input 1 — the ask, and the motivating reflection
+
+- **Reflection (verbatim intent):** the user "likes this project a lot" and would use it, but their
+  own appetite for music has faded — they suspect from having "listened to the best songs over and
+  over until there was no novelty and started getting no utility." Poetic that the app meant to solve
+  exactly that is finished only now. Not a problem; they expect to return and will keep building it
+  regardless. *(This is the app's founding thesis — repetition-driven utility decay — stated as
+  lived experience. Worth preserving.)*
+- **The request:** knowing the architecture and how the algorithm works, **Claude should write the
+  Markdown prompt file for how a classification agent should classify songs** — by **researching each
+  song online** (the user doubts multimodal models can "listen" yet, so research-based, not audio),
+  **not by listening** — **and how to "draw the Venn Diagrams."**
+- **The trigger:** looking through the local library, "Opportunity Rover" has **14 songs** when only
+  **1** is actually about the Opportunity Rover. A section shouldn't have been created just for that
+  one song, and the original import agent "just threw in a bunch more songs in addition."
+- **Process the user set:** (1) **first discuss** solutions; (2) then Claude writes the classification
+  **prompt MD**; (3) then how to **import** the classification into the app once done; (4) then how to
+  **verify** the import succeeded.
+
+### Input 2 — "explain how the algorithm deals with overlap"
+
+Interrupted a multiple-choice question to ask this directly. Answer given: overlap is handled by
+**fractional membership** (`q = 1/k`, a song in k groups splits its weight, never multiplies) plus
+**per-group log-weight divided by group size** (`m_g(1+β ln N_g)/N_g`), with **group cooldown applied
+inside each group's term** so a recently-played group damps only that one term of an overlapping song.
+
+### Input 3 — "I don't know what the venn diagrams mean… some songs have 3 or 4 tags"
+
+The user clarified they had no specific "Venn diagram" feature in mind — the phrase was their instinct
+reacting to songs carrying **3–4 weight groups**. Established: **some overlap (2 groups) is correct and
+intended; 3–4 is a warning sign** (dilution via `1/k`, and the 3rd/4th slot is where junk hides). The
+"Venn diagram" was reframed as a **QA/review artifact** the classification agent emits (groups, sizes,
+overlaps, auto-flagged smells) so the user can approve a classification **before** import.
+
+### Input 4 — the core grouping-model decisions
+
+- **Weight-group budget:** a song may have **up to 2** weight groups from {topic, theme, mood}, **plus
+  `artist` which is always its own group, present on every song** (including standalones) and assumed
+  reliable ("can't go wrong").
+- **Small-numbers stage is the open worry:** large groups behave well; what about small ones? The user
+  reasoned that a song that is the **sole song by its artist** but also in another group should play a
+  bit more (its artist-half is full-strength while the other half is standard) — and said **"that
+  sounds good."** *(Confirmed correct against the formula: the sole-artist song gets a full `1.0`
+  per-song share from that half.)*
+- **Meridian vs Marlowe Vance (near-coextensive groups):** the user suspected almost every
+  Meridian song is also LMM and asked whether to simplify/merge such cases. Concluded **leave it be** —
+  merging only helps the perfectly-overlapping case and adds complexity for the one stray song. Agreed.
+- **Sub-groups OFF by default** — they are for **covers**: a cover **shares the general weight groups of
+  the original song** and is additionally marked a cover (so it's **less prominent**).
+- **On Claude's proposed shape:** (1) classification prompt — **yes**; it should note the agent **may
+  create a group** when a song genuinely fits with another song *and no group for that overlap exists*,
+  and should clarify the agent **may leave a song with only its artist group**. (2) Review artifact —
+  **"possibly, why not."** (3) import + (4) verify — **"sounds good… this is the backend so your
+  responsibility."**
+- **New question (Minecraft):** "if I have 1 song about minecraft in a library of songs not about
+  minecraft, I would want it to have the classification. What do you think?" → **Answer: yes, tag it.**
+  Key insight established: **the sin in Opportunity Rover was that the label was FALSE for 13 songs, not
+  that the group was small.** A *truthful* singleton group is nearly free (base stays ~1.0, no
+  coupling) and future-proofs. **Rule: every membership must be true of the song; there is no group-size
+  floor.**
+- **Process:** **don't implement yet** — still discussing. **"Possibly call a workflow to figure out
+  what is best (not for the agent prompt, but the group/sub-group architecture), including outside
+  research if relevant. Then let's discuss this again shortly."** → A background research **workflow**
+  was launched (5 parallel investigators — small-N math audit, outside diversity research, taxonomy
+  hygiene, cover architecture, edge-rulebook — → 1 synthesis). Research only, no code.
+
+### Input 5 — Opportunity Rover was a duplicate, and the hidden-group idea
+
+- The user noted the group **"Space" has the same 14 entries**, so it's identical to "Opportunity
+  Rover"; the songs **do** fit "Space" well, so **Space is legitimate** and the agent just
+  **accidentally duplicated** "Opportunity Rover." *(Confirmed: `"Opportunity Rover / Space"` is one
+  compound label the old Storage importer split on `/` into two identical groups. Fix = drop the
+  duplicate, keep Space. The structured `import-json` path has no delimiter-splitting, so this bug
+  class disappears.)* The lone-Opportunity-Rover song **should not be its own group** — it fits Space.
+- **The hidden-group decision (new architecture element):** the user concurs the singleton novelty
+  boost is good, but was thinking **UI-wise**. Split: a singleton on a topic like **Minecraft** (could
+  realistically grow) is fine to show; **Opportunity Rover** (unlikely to ever grow) should get the
+  **novelty→utility boost but NOT be shown to the user**. Rule the user stated: for a singleton group
+  the agent should ask **"Could more songs in future appear in this group?"** — if **no** (even now),
+  the group can be **hidden** — visible on the backend / in the song's own metadata (when clicked), but
+  **not in the library list** or group-browsing surfaces.
+- **Agreed design:** add an **additive `WeightGroup.hidden: bool` (default false)** flag. It is
+  **UI-only** — the algorithm ignores it entirely, so the novelty boost is preserved; only library
+  browse / group lists filter `hidden = false`; the song-detail view still shows hidden groups. Yields
+  a **three-tier vocabulary**: *visible weight group* (scores + browsable: artist, growable
+  themes/moods), *hidden weight group* (scores + not browsable: true one-offs), *cooldown tag* (no
+  long-run score, short-run variety only). Guard: hidden groups still count against the ≤2 topic budget.
+  Open sub-question deferred to round two: when a growable theme (Space) and a one-off both apply, drop
+  the one-off as redundant, or keep it hidden for metadata? (Claude leans **drop**.)
+
+### Input 6 — two side-notes
+
+1. **Presets are probably out of date and will be modified shortly.** If the research agents report
+   based on the current **defaults/presets** (Familiar / Balanced / Discovery / Long game), treat those
+   values as **provisional** — the numbers will likely change soon, so don't anchor the architecture on
+   them.
+2. Asked for **this record** — every user input this conversation and how the back-and-forth went.
+
+### Input 7 — round-two decisions (after the research workflow reported)
+
+The workflow's headline: the algorithm's math is **sound and needs no structural change**; the
+Opportunity Rover failure was purely a **truth-of-membership** failure (fix = per-song truth test +
+canonical-name registry, **no size floor**). Real-library measurement: 250 tracks, 93 artists, **83
+of 93 artists have ≤3 songs** (so the "accurate tagging buys airtime" boost is ≤~13% here). The
+user's round-two calls:
+
+- **Mood → cooldown tag by default (agreed).** The user concurred with the recommendation that a
+  broad mood should ride the short-run cooldown-tag axis, not spend an aboutness weight-group slot;
+  a mood becomes a weight group only if the owner deliberately curates it as a preference bucket.
+- **Frequency-neutral guard stays available (user pushback).** "Just because it's a non-issue here
+  doesn't mean it is elsewhere." So the optional frequency-neutral anchor (adding a truthful lonely
+  tag neither boosts nor dilutes) must exist behind a setting — inert in this library, but there for
+  a library where one artist has many songs. Don't design as if small artist groups are guaranteed.
+- **Multi-artist = Option C (agreed).** Songs with 2–3 genuine performers (collaborations, not just
+  covers) each get their own artist weight group **but share a single artist "slice"**, so the song's
+  total weight is invariant to the number of credited artists (no +8% inflation for having more
+  names) while every collaborator still accrues fair long-run credit. Uses the existing
+  `GroupMembership.share` field with deterministic shares (1/N of the artist slice). The **artist
+  axis is separate from the ≤2 aboutness budget** — collaborations expand the artist axis, never
+  spend a topic/theme slot. A trivial "feat." mention with no real performance may stay a cooldown
+  tag instead.
+- **Cooldown tags can be NEGATIVE (new decision).** Tags should support **affinity**, not only
+  repulsion — e.g. two consecutive musical numbers that "go better together" should be *encouraged*
+  to cluster, not spaced apart. This is the concrete mechanism for the long-standing intent
+  ("a musical playlist can be better listened to consecutively"; clustering-encouraged modes). A
+  cooldown tag gains a **signed strength** (positive = space apart, negative = pull together).
+  Forward-looking extension the user raised: the algorithm could **learn** affinity — if a song
+  consistently earns a higher rating when it *follows* another specific song, that pairing is a
+  candidate for a learned negative-cooldown/affinity link. (Learned pairwise affinity = future; the
+  signed-tag mechanism is designed now.)
+
+### Result / consolidated design
+
+Wrote the agreed architecture to **`docs/planning/classification-architecture.md`** (three-axis
+model, truth test, three-tier vocabulary incl. `hidden` groups, Option-C artists, signed cooldown
+tags, cover/sub-group rework, additive-only schema, review "Venn" artifact, import + verification
+plan, and the still-open questions). Presented to the user for approval before the classification
+**prompt MD** is written and before any code.
+
+### Status
+
+Discussion only; **nothing implemented.** Consolidated design captured in
+`classification-architecture.md` and awaiting the user's approval / remaining uncertainties. Agreed
+additive schema so far: `WeightGroup.hidden`, signed strength on cooldown-tag links, per-song artist
+`share` values, cover re-keying of `sub_group`. Still open (surfaced to the user): over-broad groups
+(`Nerdcore`/`Game Songs` ≈76 songs each, `Unknown / review` artist ×49), covers-hidden-while-off
+confirmation, agent autonomy/review-gating, and the one-off corrective reclassify pass.
