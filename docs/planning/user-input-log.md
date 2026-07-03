@@ -453,6 +453,8 @@ Clarifying answers from the user:
 - **Collaboration:** Claude should orchestrate Codex for backend work for now, then gradually
   transition to doing everything itself. Claude commits and pushes (Codex's sandbox cannot push).
 - **Commits:** Author as `alexgeevs` only, with **no `Co-Authored-By: Claude` trailer**.
+
+
 - **Test data:** The user is supplying a real ~250-song batch from their own playlist (not full
   quality yet). It is a deliberate stress test: musicals,
   artists, overlapping themes, and songs with up to ~5 dubs/covers of themselves across languages.
@@ -813,3 +815,25 @@ are **built and pushed**. No algorithm/schema changes made (deferred by the user
 fields (`hidden`, signed cooldown strength, membership `reason`) are captured in the payload but not
 yet persisted — they wait on the deferred additive-schema work. Preset-redesign sub-agents running;
 results to be reviewed with the user next.
+
+## 2026-07-03: Public website
+
+- **Website (harmonica.org.uk):** the user asked for a public-facing site — small enough to host on
+  GitHub, no cookies, nothing unnecessary; an MD file agents read instead of the HTML (`llms.txt`);
+  clear download links (repo + releases for Android / PC web / NAS, none published yet); legal
+  disclaimers (as-is, open-source, "best set up with an AI agent — doing it by hand is tedious",
+  self-hosted, playing a library the user already keeps); the app's colour scheme; footer
+  contact `contact@harmonica.org.uk`. Three authors (Fable, Sonnet 5, Opus 4.8) each produced a
+  simple and an embedded-preview variant.
+- **Decisions:** site lives in `site/` in this repo (reversible);
+  licence decision **held** (MIT vs Apache-2.0, attribution matters to the
+  user); preview/mock variants rejected ("placeholder
+  vocabulary abominable" — flagged a possible future *UI vocabulary audit*); **Fable simple** picked
+  as `site/index.html`, Opus simple kept as runner-up; "bubbles" (rounded cards/pills) removed in
+  favour of flat divider lists.
+- **Analytics side-note:** GitHub Pages lacks visit analytics; the user wants cookie-free, ideally
+  server-side stats (options discussed: self-host + GoAccess, Cloudflare in front, GoatCounter).
+  Explicitly must not affect the site's design.
+- **Git identity:** commits are authored as `alexgeevs <contact@harmonica.org.uk>`.
+
+
