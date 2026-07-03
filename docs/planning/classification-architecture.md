@@ -1,6 +1,7 @@
 # Harmonica: Song Classification & Grouping Architecture
 
-**Status:** DRAFT — agreed in discussion, pending owner approval. No code written yet.
+**Status:** Architecture AGREED (owner rulings resolved 2026-07-02, §12). No code written yet; next
+artifact is the classification **prompt MD**, then import + verification. Nothing implemented.
 **Date:** 2026-07-02. **Owner input:** `user-input-log.md` → 2026-07-02 "Classification architecture discussion".
 
 This document records the agreed architecture for how songs are classified into weight groups,
@@ -65,9 +66,11 @@ Everything true beyond the promoted set (a 3rd theme, moods, descriptive traits)
 one-off group that will realistically never grow (a genuinely unique subject with no broader home).
 The algorithm **ignores `hidden` entirely** — the song keeps its novelty boost — but library-browse /
 group-list surfaces filter `hidden = false`. The agent's test (owner's words): *"Could more songs
-plausibly join this group in future?"* Yes → visible (Minecraft). No → hidden. Prefer routing a
-would-be one-off into an existing/growable theme first; a one-off that's already covered by a real
-theme is dropped, not hidden.
+plausibly join this group in future?"* Yes → visible (Minecraft). No → hidden. When a growable theme
+(Space) *and* a genuine one-off both truthfully apply, **keep the one-off as a hidden group** and
+surface it in the review map for the owner to decide — do **not** silently drop it. The owner
+deliberately prefers **more** one-offs: each distinct one-off increases novelty and therefore listening
+utility, and the hidden flag keeps them out of the UI's way.
 
 ---
 
@@ -126,10 +129,14 @@ key = the original rendition's `song_id`.**
 - A **cover inherits the original's topic/theme weight groups** (copied `GroupMembership` rows) but
   keeps its **own performing-artist group** (aboutness travels with the composition; artist does not).
 - Covers gain no extra long-run weight (only the logarithmic `L(n)` nudge when the feature is on).
-- **Covers OFF (default):** non-original renditions are **hidden from algorithmic queues** (still
-  browsable/playable on demand), so "off" means "this song has one canonical version." Cold-start
-  coverage treats the **set (its original)** as the unit, so a hidden cover never demands a first-play
-  it can't get.
+- **Feature default is data-derived:** the covers/two-level feature is **ON automatically whenever the
+  library contains ≥1 valid rendition family** (2+ renditions of one work) — if there are real covers,
+  there's something to handle, so it turns itself on. It is **OFF only when no valid family exists**
+  (nothing to do). The setting remains **user-overridable** either way (e.g. to silence A/B prompts).
+- **While OFF** (the rare no-family case, or a manual override): non-original renditions are **hidden
+  from algorithmic queues** (still browsable/playable on demand), so "off" means "one canonical
+  version." Cold-start coverage treats the **set (its original)** as the unit, so a hidden cover never
+  demands a first-play it can't get.
 
 ---
 
@@ -204,18 +211,19 @@ string-key + bool convention).
 
 ---
 
-## 12. Open questions (for owner approval)
+## 12. Owner rulings (resolved 2026-07-02)
 
-1. **Over-broad groups.** `Nerdcore`/`Game Songs` (~76 songs each) and `Unknown / review` (artist ×49)
-   are the same truth-test smell as Opportunity Rover, at scale. Dissolve/replace them with specific
-   franchises + specific artists during the corrective pass? (Recommendation: **yes**.)
-2. **Covers hidden while off.** Confirm non-original renditions are hidden from queues (not competing
-   as separate songs) while the covers feature is off. (Recommendation: **yes**.)
-3. **Agent autonomy.** Auto-assign artist + high-confidence proper-noun source/topic memberships, but
-   route every newly-minted group and every fuzzy theme/mood-as-group to the review map for a quick
-   yes/no? (Recommendation: **yes** — that's where false positives enter.)
-4. **Corrective reclassify pass.** Run one idempotent pass that re-derives `GroupMembership`/`sub_group`
-   via this rulebook and rewrites those rows (additive-safe, no migrations) — after snapshotting the
-   DB? (Recommendation: **yes**.)
-5. **One-off redundancy.** When a growable theme (Space) and a genuine one-off both apply, drop the
-   one-off as redundant, or keep it as a hidden group for metadata? (Recommendation: **drop**.)
+1. **Over-broad groups** (`Nerdcore`/`Game Songs` ~76 each, `Unknown / review` artist ×49) — **DEFER.**
+   This is a **placeholder library**; the owner will replace it, so no cleanup effort is spent here now.
+   The truth-test rulebook still prevents recreating the smell on the real library.
+2. **Covers default is data-derived** — **the feature turns ON automatically if even one valid
+   sub-group (rendition family) exists** in the dataset; OFF only when none exist. Hidden-while-off
+   therefore applies only in the no-family case (or a manual override). Setting stays user-overridable.
+3. **Agent autonomy** — **YES.** Auto-assign artist + high-confidence proper-noun source/topic; route
+   every newly-minted group and every fuzzy theme / mood-as-group to the review map for a yes/no.
+4. **Corrective reclassify pass** — **OK, low-priority** (placeholder library). Design intent for the
+   **future**: an agent should be able to **read the existing dataset and correct wrong entries**
+   in place (not only import fresh classifications). Build the reclassify path to support that.
+5. **One-off redundancy** — **KEEP the one-off as a hidden group** and **surface it to the owner to
+   decide** (hidden in effect meanwhile). The owner deliberately wants **more** one-offs: they increase
+   novelty and therefore utility. (Reverses the earlier "drop" lean.)
