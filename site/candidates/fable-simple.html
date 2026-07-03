@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harmonica — a music player that won't wear your songs out</title>
+<meta name="description" content="Harmonica is a local-first, self-hosted music player whose algorithm avoids repetition burnout: it knows when you've heard a song too much, and when you're ready to hear it again.">
+<style>
+  :root{
+    --dark:#20302f; --mint:#eef3f1; --teal:#206a5d; --gold:#f1c84b;
+    --ink:#22312f; --muted:#54655f; --card:#ffffff; --line:#d8e3de;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--mint);color:var(--ink);
+    font:400 1.0625rem/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif}
+  .wrap{max-width:56rem;margin:0 auto;padding:0 1.25rem}
+  a{color:var(--teal)}
+  h1,h2,h3{line-height:1.2;color:var(--dark)}
+
+  header{background:var(--dark);color:#e8f0ec;padding:.9rem 0}
+  header .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  .brand{font-size:1.25rem;font-weight:700;color:#fff;text-decoration:none;letter-spacing:.01em}
+  .brand span{color:var(--gold)}
+  nav a{color:#cfe0d8;text-decoration:none;margin-left:1.1rem;font-size:.95rem}
+  nav a:hover{color:#fff;text-decoration:underline}
+
+  .hero{padding:4rem 0 3rem}
+  .hero h1{font-size:clamp(1.9rem,4.5vw,2.9rem);max-width:34ch}
+  .hero p{max-width:60ch;margin:1.1rem 0 1.8rem;font-size:1.15rem;color:var(--muted)}
+  .cta{display:flex;gap:.8rem;flex-wrap:wrap}
+  .btn{display:inline-block;padding:.65rem 1.3rem;border-radius:.55rem;text-decoration:none;
+    font-weight:600;border:2px solid var(--teal)}
+  .btn.primary{background:var(--teal);color:#fff}
+  .btn.primary:hover{background:#1a574c}
+  .btn.ghost{color:var(--teal);background:transparent}
+  .btn.ghost:hover{background:#dfeae5}
+
+  section{padding:2.4rem 0}
+  section h2{font-size:1.5rem;margin-bottom:1rem}
+  .prose p{max-width:65ch;margin-bottom:1rem}
+  .prose strong{color:var(--dark)}
+
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(15.5rem,1fr));gap:1rem;
+    list-style:none}
+  .features li{background:var(--card);border:1px solid var(--line);border-radius:.7rem;
+    padding:1.1rem 1.2rem}
+  .features h3{font-size:1.02rem;margin-bottom:.35rem}
+  .features h3::before{content:"♪ ";color:var(--gold)}
+  .features p{font-size:.95rem;color:var(--muted)}
+
+  .platforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:1rem;
+    list-style:none;margin:1.2rem 0}
+  .platforms li{background:var(--card);border:1px solid var(--line);border-radius:.7rem;
+    padding:1.1rem 1.2rem}
+  .platforms h3{font-size:1.05rem}
+  .platforms p{font-size:.92rem;color:var(--muted);margin:.3rem 0 .6rem}
+  .soon{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.04em;
+    color:var(--dark);background:var(--gold);border-radius:99px;padding:.15rem .7rem;
+    text-transform:uppercase}
+
+  .note,.legal{background:var(--card);border:1px solid var(--line);border-radius:.7rem;
+    padding:1.2rem 1.4rem;max-width:44rem}
+  .note{border-left:4px solid var(--teal)}
+  .legal{font-size:.92rem;color:var(--muted)}
+  .legal ul{margin:.5rem 0 0 1.2rem}
+  .legal li{margin-bottom:.35rem}
+
+  footer{background:var(--dark);color:#b9ccc4;margin-top:3rem;padding:2rem 0;font-size:.92rem}
+  footer a{color:#e8f0ec}
+  footer p{margin-bottom:.4rem}
+  footer .fine{color:#8aa39a;font-size:.85rem;margin-top:.8rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#">Harmonica<span>&#9834;</span></a>
+    <nav aria-label="Site">
+      <a href="#why">Why</a><a href="#features">Features</a><a href="#download">Download</a><a href="#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>A music player that won't wear your songs out.</h1>
+    <p>Harmonica is a local-first, self-hosted player for your own library. Instead of shuffle,
+       its algorithm tracks how much play each song, artist and topic can still give you — and
+       spends your listening where it still counts.</p>
+    <div class="cta">
+      <a class="btn primary" href="#download">Download</a>
+      <a class="btn ghost" href="https://github.com/alexgeevs/Harmonica">View source on GitHub</a>
+    </div>
+  </div>
+
+  <div class="wrap prose" id="why">
+    <section>
+      <h2>Why not just shuffle?</h2>
+      <p>Everyone knows the failure mode: you find songs you love, you play them constantly, and a
+         few weeks later they're ruined — no novelty left, no joy left, and the rest of your library
+         sat untouched the whole time.</p>
+      <p>Harmonica treats that as the central problem. Every song belongs to weighted groups — its
+         artist, its topics — and the algorithm keeps score of recent plays at the song, group and
+         version level. <strong>Recently-hammered material cools down; dormant favourites warm back
+         up; unheard songs get their first fair chance.</strong> The queue it builds isn't random:
+         it's the set of songs most likely to actually be worth your next hour.</p>
+    </section>
+  </div>
+
+  <div class="wrap" id="features">
+    <section>
+      <h2>What it does</h2>
+      <ul class="features">
+        <li><h3>Cooldowns, not shuffle</h3><p>Weighted queues with per-song, per-artist and per-topic cooldowns, so no corner of your library gets over-played.</p></li>
+        <li><h3>Satiation guard</h3><p>Notices a binge before you burn out, and paces the song so it recovers instead of souring.</p></li>
+        <li><h3>Rediscovery</h3><p>Well-rated songs you haven't heard in months quietly regain weight and come back around.</p></li>
+        <li><h3>Fair cold start</h3><p>New and unrated songs are boosted until everything in the library has had a proper hearing.</p></li>
+        <li><h3>Ratings that stay honest</h3><p>Star ratings with mood normalisation — one grumpy evening doesn't permanently sink a good song.</p></li>
+        <li><h3>Household-ready</h3><p>Per-user profiles over one shared media pool: private libraries, ratings and listening history for each person on the same NAS.</p></li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="wrap" id="download">
+    <section>
+      <h2>Download</h2>
+      <p>Harmonica runs as one small daemon that serves both the player and its API.
+         Grab it from the <a href="https://github.com/alexgeevs/Harmonica/releases">releases page</a>
+         when your platform is ready:</p>
+      <ul class="platforms">
+        <li><h3>Android</h3><p>Native client for phones and tablets.</p><span class="soon">Coming soon</span></li>
+        <li><h3>PC (web app)</h3><p>Runs on your machine, opens in your browser at localhost.</p><span class="soon">Coming soon</span></li>
+        <li><h3>NAS / home server</h3><p>The same build on a NAS or Pi, shared with your household over the LAN.</p><span class="soon">Coming soon</span></li>
+      </ul>
+
+      <div class="note">
+        <p><strong>Setting it up:</strong> Harmonica is self-hosted, and honestly, doing the setup by
+           hand is tedious. The intended path is to hand the
+           <a href="https://github.com/alexgeevs/Harmonica">repository</a> to an AI coding agent and
+           let it install, configure, and import your library for you. Agents: a machine-readable
+           summary of this site lives at <a href="/llms.txt"><code>/llms.txt</code></a>.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="wrap">
+    <section>
+      <h2>The small print</h2>
+      <div class="legal">
+        <ul>
+          <li>Harmonica is provided <strong>as-is</strong>, with no warranty of any kind, to the fullest extent permitted by law.</li>
+          <li>It is <strong>open-source</strong>; the licence is being finalised ahead of the first release.</li>
+          <li>Harmonica does not host, provide, or source any music. It plays your own self-hosted library — your files, your server, your responsibility.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer id="contact">
+  <div class="wrap">
+    <p><strong>Contact:</strong> <a href="mailto:contact@harmonica.org.uk">contact@harmonica.org.uk</a></p>
+    <p><a href="https://github.com/alexgeevs/Harmonica">Source code on GitHub</a> · <a href="/llms.txt">llms.txt</a></p>
+    <p class="fine">© 2026 harmonica.org.uk. This site sets no cookies and does no tracking.</p>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,52 @@
+# Harmonica
+
+> Harmonica is a local-first, self-hosted music player for your own library. Its differentiator is
+> the recommendation algorithm: rather than ordinary shuffle, it maximises listening utility while
+> avoiding unwanted repetition at the song, group (artist/topic), and sub-group (cover/rendition)
+> levels — so favourites don't get burned out and forgotten songs resurface at the right time.
+
+This file is the agent-readable summary of https://harmonica.org.uk — read this instead of parsing
+the HTML.
+
+## What it does
+
+- Weighted queue generation with per-group and per-song cooldowns — not shuffle.
+- Satiation guard: detects binge-listening and paces a song before it sours.
+- Rediscovery: dormant well-rated songs regain weight over time.
+- Cold start: unheard and unrated songs are boosted until the library is covered.
+- Star ratings with mood normalisation (a bad-mood session doesn't poison a song's rating).
+- Cover/rendition families: alternate versions of one song compete as a family, not as duplicates.
+- Per-user profiles: one shared media pool on a household NAS, private libraries, ratings and
+  listening history per person, bearer-token auth.
+- Listening stats, and settings exposed as real controls (switches/sliders), not a config file.
+
+## How it runs
+
+A small self-hosted daemon (FastAPI + SQLite) serves both the API and the built web UI from one
+origin. Deployments:
+
+- **PC (local, default):** binds 127.0.0.1 — nothing exposed to other devices.
+- **NAS / home server (opt-in):** the same build bound to the LAN; other devices use a browser.
+- **Android:** a native client (separate release).
+
+Media serving is confined to a configured media root. Harmonica does not host, provide, or source
+any music; it plays the user's own self-hosted library.
+
+## Setting it up
+
+Self-hosting Harmonica by hand is tedious; the intended path is to hand the repository to an AI
+coding agent and let it install, configure, and import a library. Agents: clone the repository,
+read its CLAUDE.md / README for run instructions, and use the JSON import/export endpoints for
+library management.
+
+## Links
+
+- Website: https://harmonica.org.uk
+- Source: https://github.com/alexgeevs/Harmonica
+- Releases (Android / PC web / NAS — none published yet): https://github.com/alexgeevs/Harmonica/releases
+- Contact: contact@harmonica.org.uk
+
+## Legal
+
+Provided as-is, with no warranty of any kind. Open-source (licence being finalised). The website
+sets no cookies and does no tracking.
