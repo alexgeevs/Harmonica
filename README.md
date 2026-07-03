@@ -73,3 +73,10 @@ cd web && npm run build
 ## Planning Notes
 
 Direction-setting user input is preserved in `docs/planning/user-input-log.md`, and the distilled current product direction is in `docs/planning/product-direction.md`.
+
+## Licence
+
+Copyright © 2026 harmonica.org.uk.
+
+Harmonica is free software, released under the GNU Affero General Public License v3.0 or later
+(see `LICENSE`). It is provided as-is, with no warranty of any kind.

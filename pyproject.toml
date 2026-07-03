@@ -7,6 +7,7 @@ name = "harmonica"
 version = "0.1.0"
 description = "Local-first music library, playback, and utility-maximizing playlist generation."
 readme = "README.md"
+authors = [{ name = "harmonica.org.uk", email = "contact@harmonica.org.uk" }]
 license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.12"
 dependencies = [
