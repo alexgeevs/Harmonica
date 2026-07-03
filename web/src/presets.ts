@@ -30,7 +30,7 @@ export const PRESETS: Preset[] = [
     name: "Familiar",
     tagline: "Comfort & favourites",
     description:
-      "Leans into what you already love — replays favourites sooner, keeps similar songs together, and skips the friction. The streaming-style 'keep me in my lane' feel.",
+      "Leans towards what you already love: favourites replay sooner and similar songs stay together, in the manner of a streaming service.",
     values: {
       beta: 1.5,
       group_cooldown_floor: 0.3,
@@ -74,7 +74,7 @@ export const PRESETS: Preset[] = [
     name: "Discovery",
     tagline: "Give everything a chance",
     description:
-      "Pushes unheard and unrated tracks to the front and stops big groups from dominating, so the whole library gets fair coverage. Best while you're still rating things.",
+      "Brings unheard and unrated tracks forward and stops large groups dominating, so the whole library gets fair coverage. Useful while you are still rating things.",
     values: {
       beta: 0.9,
       group_cooldown_floor: 0.05,
@@ -96,7 +96,7 @@ export const PRESETS: Preset[] = [
     name: "Long game",
     tagline: "Never wear a song out",
     description:
-      "Maximises long-term enjoyment by punishing repetition hard — a song you just heard is strongly held back, and variety across artists and sources is enforced.",
+      "Maximises long-term utility by penalising repetition heavily: a song you have just heard is strongly held back, and variety across artists and sources is enforced.",
     values: {
       beta: 1.1,
       group_cooldown_floor: 0.02,

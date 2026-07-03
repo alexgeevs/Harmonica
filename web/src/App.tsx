@@ -198,7 +198,7 @@ export default function App() {
       void refreshSavedRuns();
       void configsSupported().then(setConfigsOk).catch(() => setConfigsOk(false));
     } catch (err) {
-      setError(message(err, "Could not reach the Harmonica backend. Is it running?"));
+      setError(message(err, "Could not reach the Harmonica backend. It may not be running."));
     }
   }
 
@@ -358,7 +358,7 @@ export default function App() {
                 Profile <strong>{activeConfig.name}</strong> is active · {tracks.length}{" "}
                 {tracks.length === 1 ? "song" : "songs"} in your library.
                 {tracks.length === 0
-                  ? " It's empty — import or scan songs to fill it (duplicates reuse the shared file)."
+                  ? " It's empty; import or scan songs to fill it (duplicates reuse the shared file)."
                   : ""}
               </span>
               <button className="link-button" onClick={switchToLocal}>
@@ -460,15 +460,15 @@ function BreakModal(props: { onClose: () => void }) {
         </div>
         <h3>Time for a short break</h3>
         <p>
-          You've listened to two compressed (lossy) tracks in a row, and playback is paused. Heavily
-          compressed music can be more fatiguing — in a lab study, over-compressed music caused lasting
-          ear damage in guinea pigs that the same energy of normal music did not.
+          Playback is paused: that was two heavily compressed (lossy) tracks in a row. Over-compressed
+          music appears to be genuinely more fatiguing; in one lab study it caused lasting ear damage
+          in guinea pigs that the same energy of ordinary music did not.
         </p>
         <a className="break-link" href="https://econ.st/4dtOesh" target="_blank" rel="noreferrer">
           Read The Economist on this →
         </a>
         <button className="primary" onClick={props.onClose}>
-          I've taken a break — resume
+          Resume playback
         </button>
         <small>You can soften or turn this off in Settings → Hearing health.</small>
       </div>
@@ -511,7 +511,7 @@ function Sidebar(props: { view: View; onView: (view: View) => void; trackCount: 
       </nav>
       <div className="sidebar-foot">
         <Sparkles size={14} />
-        <span>Your library, sequenced by what you'll love hearing next — not random shuffle.</span>
+        <span>Your library, sequenced by expected utility rather than at random.</span>
       </div>
     </aside>
   );
@@ -687,7 +687,7 @@ function QueueView(props: {
               {item ? `Now playing · ${player.index + 1} of ${player.queue.length}` : "Nothing queued"}
             </p>
             <h3>{item?.track.title ?? "Generate a queue"}</h3>
-            <span>{item ? displayArtist(item.track) : "Harmonica builds a fresh listening session for you."}</span>
+            <span>{item ? displayArtist(item.track) : "Harmonica will put together your next listening session."}</span>
             {item ? <ChipRow groups={item.track.groups} subGroup={item.track.sub_group} /> : null}
           </div>
         </div>
@@ -807,7 +807,7 @@ function QueueRow(props: {
       </button>
       <div className="queue-tags">
         {!item.media_url ? (
-          <span className="tag soon" title="Media still downloading">
+          <span className="tag soon" title="Media not available yet">
             soon
           </span>
         ) : null}
@@ -942,7 +942,7 @@ function ComparisonCard(props: { player: PlayerApi }) {
   if (alreadyDone) {
     return (
       <div className="compare-card done">
-        <Sparkles size={15} /> Thanks — noted which version you prefer.
+        <Sparkles size={15} /> Your preference has been recorded.
       </div>
     );
   }
@@ -969,7 +969,7 @@ function ComparisonCard(props: { player: PlayerApi }) {
         </button>
       </div>
       <button className="compare-replay" onClick={previewing ? stopPreview : replayFirst}>
-        {previewing ? "Stop — back to this version" : `▸ Replay ${firstTitle} to compare`}
+        {previewing ? "Stop and return to this version" : `▸ Replay ${firstTitle} to compare`}
       </button>
     </div>
   );
@@ -1065,7 +1065,7 @@ function SavedRuns(props: {
     return null;
   }
   if (props.runs.length === 0) {
-    return <p className="saved-empty">Saved sessions will show up here once you generate a few.</p>;
+    return <p className="saved-empty">Saved sessions will appear here.</p>;
   }
   function rename(run: RunSummary) {
     const name = window.prompt("Rename session", run.name ?? "")?.trim();
@@ -1758,7 +1758,7 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
         <div className="stat-panel">
           <h4>Most played</h4>
           {mostPlayed.length === 0 ? (
-            <p className="stat-note">Nothing played yet — generate a queue and press play.</p>
+            <p className="stat-note">Nothing played yet. Generate a queue and press play.</p>
           ) : (
             <BarList rows={mostPlayed} />
           )}
@@ -1866,12 +1866,12 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
   },
   {
     title: "Visuals",
-    note: "Prioritising tracks with video while you're here to watch.",
+    note: "Giving priority to tracks with video when you are watching rather than merely listening.",
     keys: ["visual_priority_enabled", "visual_priority_multiplier"]
   },
   {
     title: "Hearing health",
-    note: "Looking after your ears and easing listening fatigue.",
+    note: "Moderating loudness and listening fatigue, in line with the WHO's safe-listening guidance.",
     keys: [
       "loudness_warning_enabled",
       "loudness_warning_level",
@@ -1881,7 +1881,7 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
   },
   {
     title: "Rating normalisation",
-    note: "How repeat ratings are averaged and mood-corrected before they steer the queue.",
+    note: "How repeat ratings are averaged and normalised before they steer the queue.",
     keys: [
       "rating_normalization_enabled",
       "rating_calibration_enabled",
@@ -1968,7 +1968,7 @@ function SettingsView(props: {
         <div className="preset-card">
           <div className="preset-head">
             <h4>Listening presets</h4>
-            <p>One tap tunes every control below. You can still fine-tune afterwards.</p>
+            <p>A preset sets every control below; you can still fine-tune afterwards.</p>
           </div>
           <div className="preset-grid">
             {PRESETS.map((preset) => (
@@ -1988,7 +1988,7 @@ function SettingsView(props: {
               {PRESETS.find((preset) => preset.key === activePreset)?.description}
             </p>
           ) : (
-            <p className="preset-active custom">Custom mix — tweak any control, or pick a preset to reset.</p>
+            <p className="preset-active custom">Custom mix: adjust any control, or pick a preset to start afresh.</p>
           )}
         </div>
 
@@ -2153,7 +2153,7 @@ function DeviceProfilePanel(props: {
           </button>
         </div>
       ) : (
-        <p className="profile-mode-note">Currently local — using the full library and global settings.</p>
+        <p className="profile-mode-note">Currently local: the full library, with global settings.</p>
       )}
 
       <div className="profile-tabs">
