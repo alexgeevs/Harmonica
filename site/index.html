@@ -28,7 +28,7 @@
   .hero h1{font-size:clamp(1.9rem,4.5vw,2.9rem);max-width:34ch}
   .hero p{max-width:60ch;margin:1.1rem 0 1.8rem;font-size:1.15rem;color:var(--muted)}
   .cta{display:flex;gap:.8rem;flex-wrap:wrap}
-  .btn{display:inline-block;padding:.65rem 1.3rem;border-radius:.55rem;text-decoration:none;
+  .btn{display:inline-block;padding:.65rem 1.3rem;border-radius:.25rem;text-decoration:none;
     font-weight:600;border:2px solid var(--teal)}
   .btn.primary{background:var(--teal);color:#fff}
   .btn.primary:hover{background:#1a574c}
@@ -40,27 +40,22 @@
   .prose p{max-width:65ch;margin-bottom:1rem}
   .prose strong{color:var(--dark)}
 
-  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(15.5rem,1fr));gap:1rem;
-    list-style:none}
-  .features li{background:var(--card);border:1px solid var(--line);border-radius:.7rem;
-    padding:1.1rem 1.2rem}
-  .features h3{font-size:1.02rem;margin-bottom:.35rem}
+  .features{list-style:none;max-width:44rem;border-top:1px solid var(--line)}
+  .features li{padding:1rem 0;border-bottom:1px solid var(--line)}
+  .features h3{font-size:1.02rem;margin-bottom:.25rem}
   .features h3::before{content:"♪ ";color:var(--gold)}
   .features p{font-size:.95rem;color:var(--muted)}
 
-  .platforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:1rem;
-    list-style:none;margin:1.2rem 0}
-  .platforms li{background:var(--card);border:1px solid var(--line);border-radius:.7rem;
-    padding:1.1rem 1.2rem}
-  .platforms h3{font-size:1.05rem}
-  .platforms p{font-size:.92rem;color:var(--muted);margin:.3rem 0 .6rem}
-  .soon{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.04em;
-    color:var(--dark);background:var(--gold);border-radius:99px;padding:.15rem .7rem;
-    text-transform:uppercase}
+  .platforms{list-style:none;max-width:44rem;margin:1.2rem 0;border-top:1px solid var(--line)}
+  .platforms li{display:flex;align-items:baseline;gap:.9rem;flex-wrap:wrap;
+    padding:.85rem 0;border-bottom:1px solid var(--line)}
+  .platforms h3{font-size:1.02rem;flex:none;min-width:10.5rem}
+  .platforms p{font-size:.92rem;color:var(--muted);margin:0;flex:1;min-width:14rem}
+  .soon{flex:none;margin-left:auto;font-size:.78rem;font-weight:700;letter-spacing:.08em;
+    color:var(--teal);text-transform:uppercase}
 
-  .note,.legal{background:var(--card);border:1px solid var(--line);border-radius:.7rem;
-    padding:1.2rem 1.4rem;max-width:44rem}
-  .note{border-left:4px solid var(--teal)}
+  .note,.legal{max-width:44rem}
+  .note{border-left:3px solid var(--teal);padding-left:1.1rem}
   .legal{font-size:.92rem;color:var(--muted)}
   .legal ul{margin:.5rem 0 0 1.2rem}
   .legal li{margin-bottom:.35rem}
