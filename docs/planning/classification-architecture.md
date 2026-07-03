@@ -46,11 +46,16 @@ song can't buy airtime by accumulating labels.
 | Axis | What it is | Becomes a weight group? | Budget |
 |---|---|---|---|
 | **Artist** | the genuine performing artist(s) | Always | 1+ artists, **shared slice** (§4) — separate from the aboutness budget |
-| **Aboutness** | `topic` (source/franchise or literal subject: Minecraft, space, war) and `theme` (cross-work motif: villain songs, finales) | Up to **2** total | the "artist + up to 2" budget |
+| **Aboutness** | `topic` (source/franchise or literal subject: Minecraft, space, war) and `theme` (cross-work motif: villain songs, finales) | **~2 (soft guideline, not a hard cap)** | the "artist + ~2" budget |
 | **Mood** | upbeat, melancholic, hype… | **No, by default** — rides the cooldown-tag axis | promoted to a weight group only if the owner curates it |
 
-Everything true beyond the promoted set (a 3rd theme, moods, descriptive traits) is recorded as a
-**cooldown tag** (§5), which drives short-run variety but not long-run frequency.
+**The ~2 aboutness limit is a general guideline, not a strict ceiling.** Its purpose is to stop
+over-tagging with junk — *not* to discard a truthful tag. When a **big topic and a small/niche topic
+both genuinely fit**, keep **both**, even if that means 3 aboutness groups: the small one adds novelty
+(and utility), and the truth test already guards against noise. Demote to cooldown tags only the tags
+that are *generic or weak*, never a distinctive truthful one. Everything true beyond the promoted set
+(extra broad themes, moods, descriptive traits) becomes a **cooldown tag** (§5) — short-run variety,
+not long-run frequency.
 
 ---
 
