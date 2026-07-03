@@ -17,7 +17,7 @@ whole-library, byte-identical to single-user behaviour (guarded by the existing 
 
 A **new profile starts empty** and imports its own library. On import we **dedupe-and-redirect**:
 identity is resolved `song_id` → media `checksum` → `file_path`; an existing song is **linked**
-(`device_config_tracks`) to the profile, never re-created or re-downloaded, and a second importer
+(`device_config_tracks`) to the profile, never re-created or re-copied, and a second importer
 **never mutates** the first's shared metadata/groups/assets. A profile only ever sees its own
 membership, so users can't discover each other's songs or listening.
 

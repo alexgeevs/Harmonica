@@ -480,7 +480,7 @@ left for ~1 hour and said to implement all four of: curation review UI, real-dat
 curation, and algorithm refinement — "do what you can/want", noting the full 250 songs should be
 present.
 
-A separate Storage agent downloaded the real ~250-song batch into `Storage/` (gitignored): one
+A separate Storage agent placed the real ~250-song batch into `Storage/` (gitignored): one
 folder per song with `song_config.json` + media (`.mp4` video and/or `.m4a` audio).
 
 ### What was delivered (all on `main`)

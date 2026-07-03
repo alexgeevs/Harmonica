@@ -1,8 +1,8 @@
-"""Import the real downloaded library from Storage/ into Harmonica.
+"""Import the real library from Storage/ into Harmonica.
 
 The Storage agent lays out one folder per song under Storage/songs/<id>_<title>/,
 each with a song_config.json (title, artists, weight groups, version/variant family)
-plus the downloaded media (.mp4 video and/or .m4a/.opus audio).
+plus the media files (.mp4 video and/or .m4a/.opus audio).
 
 This maps that structure onto Harmonica:
     song_title_guess     -> Track.title
