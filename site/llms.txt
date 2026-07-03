@@ -48,5 +48,6 @@ library management.
 
 ## Legal
 
-Provided as-is, with no warranty of any kind. Open-source (licence being finalised). The website
-sets no cookies and does no tracking.
+Provided as-is, with no warranty of any kind. Open-source under the GNU AGPL-3.0 licence (forks
+and hosted derivatives must remain open-source; self-hosting for yourself carries no obligations).
+The website sets no cookies and does no tracking.
