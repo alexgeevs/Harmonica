@@ -136,7 +136,7 @@ def reconcile_assets(session, track: Track, song_dir: Path, config: dict) -> tup
                 asset_type=kind,
                 codec=None,
                 container=ext.lstrip("."),
-                source=config.get("url"),
+                source="storage-import",
                 source_quality=config.get("version_type"),
                 is_lossless=ext in LOSSLESS,
                 browser_supported=ext in BROWSER_OK,

@@ -410,7 +410,10 @@ def track_to_payload(track: Track) -> dict[str, Any]:
                 "asset_type": asset.asset_type,
                 "codec": asset.codec,
                 "container": asset.container,
-                "source": asset.source,
+                # URL-shaped sources are private provenance; never let them leave the local DB.
+                "source": None
+                if (asset.source or "").lower().startswith(("http://", "https://", "www."))
+                else asset.source,
                 "source_quality": asset.source_quality,
                 "is_lossless": asset.is_lossless,
                 "checksum": asset.checksum,
