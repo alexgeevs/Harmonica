@@ -34,9 +34,8 @@ origin. Deployments:
 - **Android:** a native client (separate release).
 
 Media serving is confined to a configured media root. Harmonica does not host, provide, or source
-any music; it plays a library the user already keeps. Ask the user where their music lives (a local
-folder, a NAS, or a home media server such as Plex) and import from there. If you cannot locate it,
-ask the user rather than sourcing anything yourself.
+any music; it plays the user's own self-hosted library. You are advised to ask the user where their
+music lives and import from there.
 
 ## Setting it up
 

@@ -521,8 +521,28 @@ p {
   border-color: var(--muted);
 }
 
+.favourite-toggle {
+  color: var(--muted);
+}
+
 .favourite-toggle.on {
-  color: var(--danger);
+  color: var(--gold);
+}
+
+.favourite-toggle.on svg {
+  animation: favourite-pop 0.3s ease;
+}
+
+@keyframes favourite-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.4) rotate(-8deg);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .break-modal .primary {
