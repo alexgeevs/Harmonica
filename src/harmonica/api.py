@@ -74,6 +74,10 @@ from harmonica.schemas import (
     TrackGroupWrite,
     TrackRead,
     TrackUpdate,
+    YouTubeClusterRead,
+    YouTubeImportPreview,
+    YouTubeImportRequest,
+    YouTubeVideoRead,
 )
 from harmonica.security import (
     hash_passphrase,
@@ -84,6 +88,17 @@ from harmonica.security import (
 from harmonica.serialization import export_library_payload, import_library_payload
 from harmonica.settings_store import get_effective_settings, settings_payload, update_setting_values
 from harmonica.spotify import SpotifyError, fetch_playlist
+from harmonica.youtube_import import (
+    MAX_VIDEOS,
+    MAX_VIDEOS_KEYLESS,
+    YouTubeImportError,
+    extract_video_ids,
+    fetch_via_data_api,
+    fetch_via_oembed,
+    normalise_factors,
+    requires_api_key,
+)
+from harmonica.youtube_organize import organize
 
 SessionDep = Annotated[Session, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -269,6 +284,76 @@ def create_app() -> FastAPI:
                 )
                 for track in playlist.tracks
             ],
+        )
+
+    @app.post("/youtube/import-preview")
+    def youtube_import_preview(
+        payload: YouTubeImportRequest,
+        session: SessionDep,
+        settings: SettingsDep,
+    ) -> YouTubeImportPreview:
+        # Reads the metadata of a pasted list of YouTube videos server-side and organises them into
+        # proposed tracks, WITHOUT writing anything: the result flows into the review screen. Gated
+        # on YouTube playback being enabled, so no request reaches YouTube otherwise. Factors that
+        # need the Data API are refused (with guidance) unless the user's key is present.
+        effective = get_effective_settings(session, settings)
+        if not effective.youtube_embed_enabled:
+            raise HTTPException(status_code=403, detail="YouTube playback is turned off")
+        factors = normalise_factors(payload.factors)
+        api_key = settings.effective_youtube_data_api_key()
+        if requires_api_key(factors) and not api_key:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Some chosen factors (like duration or description) need a YouTube Data API "
+                    "key, which is not set. Add one on the server, or unpick those factors."
+                ),
+            )
+        video_ids = extract_video_ids(payload.links)
+        if not video_ids:
+            raise HTTPException(
+                status_code=400, detail="No YouTube video links were found in that text."
+            )
+        requested = len(video_ids)
+        cap = MAX_VIDEOS if (requires_api_key(factors) and api_key) else MAX_VIDEOS_KEYLESS
+        truncated = requested > cap
+        video_ids = video_ids[:cap]
+        try:
+            if requires_api_key(factors) and api_key:
+                metas = fetch_via_data_api(video_ids, api_key)
+                used_api = True
+            else:
+                metas = fetch_via_oembed(video_ids)
+                used_api = False
+        except YouTubeImportError as exc:
+            # The message is safe (it never contains the key); surface it to the user.
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        result = organize(metas, factors)
+        return YouTubeImportPreview(
+            videos=[
+                YouTubeVideoRead(
+                    video_id=summary.video_id,
+                    title=summary.title,
+                    channel=summary.channel,
+                    duration_seconds=summary.duration_seconds,
+                    available=summary.available,
+                    likely_song=summary.likely_song,
+                )
+                for summary in result.videos
+            ],
+            tracks=result.tracks,
+            clusters=[
+                YouTubeClusterRead(
+                    key=cluster.key,
+                    suggested_sub_group=cluster.suggested_sub_group,
+                    song_ids=cluster.song_ids,
+                    reason=cluster.reason,
+                )
+                for cluster in result.clusters
+            ],
+            used_api=used_api,
+            truncated=truncated,
+            requested=requested,
         )
 
     def cover_set_read(

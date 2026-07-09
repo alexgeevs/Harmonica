@@ -237,6 +237,42 @@ class SpotifyPlaylistRead(BaseModel):
     truncated: bool = False
 
 
+class YouTubeImportRequest(BaseModel):
+    """A pasted blob of YouTube links plus the organising factors the user ticked. The daemon reads
+    metadata server-side; the browser never contacts YouTube for this."""
+
+    links: str = Field(max_length=200_000)
+    factors: list[str] = Field(default_factory=list, max_length=20)
+
+
+class YouTubeVideoRead(BaseModel):
+    video_id: str
+    title: str | None = None
+    channel: str | None = None
+    duration_seconds: int | None = None
+    available: bool = True
+    likely_song: bool = True
+
+
+class YouTubeClusterRead(BaseModel):
+    """A suggested same-song grouping the user confirms before any sub-group is applied."""
+
+    key: str
+    suggested_sub_group: str
+    song_ids: list[str]
+    reason: str
+
+
+class YouTubeImportPreview(BaseModel):
+    videos: list[YouTubeVideoRead]
+    # Proposed tracks in the library-import shape, so they flow through the existing review screen.
+    tracks: list[dict]
+    clusters: list[YouTubeClusterRead]
+    used_api: bool = False
+    truncated: bool = False
+    requested: int = 0
+
+
 class CoverVerdictCreate(BaseModel):
     """A user's A/B verdict on which rendition of a song is better."""
 

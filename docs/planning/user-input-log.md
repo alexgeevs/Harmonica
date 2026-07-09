@@ -1067,3 +1067,42 @@ knobs had drifted into the most-conservative preset's territory (separated them)
 Balanced audit found the shipped defaults were not maximally neutral (the cooldown floors cloned
 Discovery's aggressive values and visual-priority baked in a non-taste video lean), so Balanced was
 re-centred (higher cooldown floors, visual multiplier neutralised to 1.0).
+
+## 2026-07-09 (evening 7): in-app YouTube setup notes, then a video-list importer
+
+### User Input
+
+Two threads. First, the owner asked that the YouTube *setup* stage carry the practical notes a user
+needs before enabling playback: how YouTube's cookies and consent work, an honest note that a
+content blocker (uBlock Origin) is the user's own browser choice since Harmonica uses YouTube's own
+player and removes nothing, and that YouTube's loudness levelling ("Stable Volume") is YouTube's to
+control, not ours. Also a factual question: the Data API key is server-side, so how does the user
+first give it to the server? (Answer: only an env var or a private file today, which is friction.)
+
+Second, and larger: build a **YouTube video-list importer**, where the user pastes a big list of
+video links and the app organises them into tracks by metadata and properties. Agreed shape:
+
+- **Factor picker.** The user ticks which factors to organise by. Keyless factors (uploader, title)
+  use YouTube's official oEmbed endpoint and need no key. Key factors (duration, description,
+  category, tags, publish date) use the Data API. The moment a key factor is ticked with no key set,
+  the app explains, *then and only then*, how to get a key and where to place it. No key field in the
+  browser: the secret still arrives only by env var or private file (the owner's choice).
+- **Two-stage organising.** Stage one is always safe: one proposed track per readable video, with
+  the uploader as a group (the reliable signal), the title parsed into artist/title, and the link
+  attached. Stage two suggests same-song clusters from order-insensitive title overlap and, when the
+  description factor is on, a song title appearing in another video's description. Every cluster is
+  shown for the user to confirm and is never applied on its own.
+- **Honest limit.** Lyric/subtitle overlap was requested as a clustering signal but dropped: caption
+  text is not retrievable for third-party videos, so faking it would mislead. Title and description
+  overlap are the workable signals.
+
+### Outcome
+
+Delivered. The YouTube playback settings section now carries the cookies / tracking-is-yours /
+loudness notes. The importer is server-side (`youtube_import.py` fetch with the same fixed-host,
+no-redirect, size/time-capped guards as the Spotify client; the Data API key travels in an
+`X-goog-api-key` header so it never lands in a URL or a log), `youtube_organize.py` does the pure
+organising, and `POST /youtube/import-preview` returns proposed tracks that flow into the existing
+review-before-import screen. The importer UI shows no video thumbnails, so the browser makes no
+request to Google during import, consistent with "nothing reaches YouTube until the user opts in".
+The endpoint inherits the CSRF and exposed-mode token guards (tested), so it stays safe on a NAS.

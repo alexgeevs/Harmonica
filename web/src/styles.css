@@ -826,6 +826,271 @@ p {
   font-weight: 700;
 }
 
+/* YouTube video-list importer (Curate tab). */
+.yti-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.yti-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--accent);
+}
+
+.yti-head h4 {
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.yti-head p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.yti-factors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 6px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.yti-factors legend {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.yti-factors label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.yti-factors label input {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.yti-factor-label {
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yti-factors label small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.yti-key-tag {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 0 4px;
+}
+
+.yti-key-note.ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.yti-key-help {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--panel-soft);
+  display: grid;
+  gap: 8px;
+}
+
+.yti-key-help-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.yti-key-help p,
+.yti-key-help li {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.yti-key-help ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.yti-key-help code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.yti-links {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.yti-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.yti-result {
+  display: grid;
+  gap: 10px;
+}
+
+.yti-result-head {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.yti-result-head strong {
+  color: var(--ink);
+}
+
+.yti-note {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.yti-clusters {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.yti-clusters-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.yti-cluster {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.yti-cluster:hover {
+  background: var(--panel-soft);
+}
+
+.yti-cluster-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yti-cluster small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.yti-videos {
+  display: grid;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.yti-videos li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.yti-videos li.unavailable {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.yti-video-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yti-video-channel {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yti-video-dur {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.yti-flag {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 5px;
+  padding: 0 4px;
+}
+
 .video-park {
   position: absolute;
   left: -9999px;

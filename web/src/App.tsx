@@ -462,6 +462,7 @@ export default function App() {
             <CurateView
               tracks={tracks}
               spotifyEnabled={Boolean(settings?.spotify_enabled)}
+              youtubeEnabled={embedsEnabled}
               onApplied={refreshAll}
             />
           ) : null}

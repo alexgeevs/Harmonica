@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { diffLibrary, parseProposedLibrary, type LibraryDiff, type TrackDiff } from "./curation";
 import { SpotifyPanel } from "./SpotifyPanel";
+import { YouTubeImportPanel } from "./YouTubeImportPanel";
 import type { LibraryExport, Track } from "./types";
 
 /**
@@ -13,6 +14,7 @@ import type { LibraryExport, Track } from "./types";
 export default function CurateView(props: {
   tracks: Track[];
   spotifyEnabled: boolean;
+  youtubeEnabled: boolean;
   onApplied: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -25,24 +27,36 @@ export default function CurateView(props: {
 
   const idBySong = useMemo(() => new Map(props.tracks.map((track) => [track.song_id, track.id])), [props.tracks]);
 
-  async function loadProposed(text: string) {
+  async function loadProposedLibrary(next: LibraryExport) {
     setError(null);
     setNote(null);
     try {
-      const next = parseProposedLibrary(text);
       const current = await api.exportLibrary();
       const computed = diffLibrary(current, next);
       setProposed(next);
       setDiff(computed);
       setAccepted(new Set(computed.tracks.map((entry) => entry.song_id)));
       if (computed.tracks.length === 0) {
-        setNote("No differences found. Your library already matches this file.");
+        setNote("Nothing new to import. Your library already matches this.");
       }
     } catch (err) {
       setProposed(null);
       setDiff(null);
-      setError(err instanceof Error ? err.message : "Could not read that file");
+      setError(err instanceof Error ? err.message : "Could not read that proposal");
     }
+  }
+
+  async function loadProposed(text: string) {
+    let next: LibraryExport;
+    try {
+      next = parseProposedLibrary(text);
+    } catch (err) {
+      setProposed(null);
+      setDiff(null);
+      setError(err instanceof Error ? err.message : "Could not read that file");
+      return;
+    }
+    await loadProposedLibrary(next);
   }
 
   function onFile(file: File | undefined) {
@@ -158,6 +172,10 @@ export default function CurateView(props: {
           />
         </div>
       </div>
+
+      {props.youtubeEnabled ? (
+        <YouTubeImportPanel onProposal={(library) => void loadProposedLibrary(library)} />
+      ) : null}
 
       {props.spotifyEnabled ? <SpotifyPanel libraryTracks={props.tracks} /> : null}
 

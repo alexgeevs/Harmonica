@@ -280,6 +280,13 @@ export type WhyReason = {
 // curation review workflow.
 export type LibraryGroupRef = { name: string; group_type: string; share?: number | null };
 
+export type LibraryEmbedRef = {
+  provider: string;
+  external_id?: string | null;
+  url?: string | null;
+  start_seconds?: number | null;
+};
+
 export type LibraryTrackPayload = {
   song_id: string;
   title: string;
@@ -292,6 +299,7 @@ export type LibraryTrackPayload = {
   cooldown_tags: string[];
   ratings: Record<string, number | null>;
   assets?: unknown[];
+  embeds?: LibraryEmbedRef[];
 };
 
 export type LibraryExport = {

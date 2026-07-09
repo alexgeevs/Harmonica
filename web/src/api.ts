@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import type { YouTubeConfig } from "./youtube";
 import type { SpotifyConfig, SpotifyPlaylist } from "./spotify";
+import type { YouTubeImportPreview } from "./youtube-import";
 
 // A "sitting" id for this app session, attached to ratings so the backend can detect and
 // correct a uniformly generous/grumpy mood across one continuous burst of rating.
@@ -76,6 +77,14 @@ export const api = {
   spotifyConfig: () => request<SpotifyConfig>("/spotify/config"),
   spotifyPlaylist: (url: string) =>
     request<SpotifyPlaylist>(`/spotify/playlist?url=${encodeURIComponent(url)}`),
+  // Reads a pasted list of YouTube links server-side and organises them into proposed tracks
+  // WITHOUT writing anything. Gated on YouTube playback being enabled. The browser never contacts
+  // YouTube; only the daemon does, and only for the ids in the paste.
+  youtubeImportPreview: (links: string, factors: string[]) =>
+    request<YouTubeImportPreview>("/youtube/import-preview", {
+      method: "POST",
+      body: JSON.stringify({ links, factors })
+    }),
   tracks: () => request<Track[]>("/tracks"),
   updateTrack: (track: Track) =>
     request<Track>(`/tracks/${track.id}`, {
