@@ -497,6 +497,18 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         control="switch",
         default=False,
     ),
+    SettingDefinition(
+        key="spotify_enabled",
+        label="Read Spotify playlists",
+        description=(
+            "Read the track list of a public Spotify playlist to compare it against your library. "
+            "Off by default. Needs Spotify app credentials set on the server. This reads song "
+            "names only through Spotify's Web API. It never downloads audio."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=False,
+    ),
 )
 
 SETTING_MAP = {definition.key: definition for definition in SETTING_DEFINITIONS}

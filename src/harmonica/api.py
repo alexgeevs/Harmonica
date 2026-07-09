@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, timedelta
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -67,6 +67,8 @@ from harmonica.schemas import (
     ScanResponse,
     SettingsRead,
     SettingsUpdate,
+    SpotifyPlaylistRead,
+    SpotifyTrackRead,
     StatsSummaryRead,
     TrackGroupWrite,
     TrackRead,
@@ -80,6 +82,7 @@ from harmonica.security import (
 )
 from harmonica.serialization import export_library_payload, import_library_payload
 from harmonica.settings_store import get_effective_settings, settings_payload, update_setting_values
+from harmonica.spotify import SpotifyError, fetch_playlist
 
 SessionDep = Annotated[Session, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -202,6 +205,55 @@ def create_app() -> FastAPI:
             "has_api_key": settings.effective_youtube_data_api_key() is not None,
             "providers": list(known_providers()),
         }
+
+    @app.get("/spotify/config")
+    def spotify_config(session: SessionDep, settings: SettingsDep) -> dict[str, Any]:
+        # Reports only whether the feature is on and whether app credentials are present (a
+        # boolean). It never exposes the client id or secret. The browser never talks to Spotify;
+        # only this daemon does, so the credentials stay server-side.
+        effective = get_effective_settings(session, settings)
+        return {
+            "enabled": effective.spotify_enabled,
+            "has_credentials": settings.spotify_credentials() is not None,
+        }
+
+    @app.get("/spotify/playlist")
+    def spotify_playlist(
+        session: SessionDep,
+        settings: SettingsDep,
+        url: Annotated[str, Query(max_length=400)],
+    ) -> SpotifyPlaylistRead:
+        # Reads a public playlist's track metadata server-side. Gated on the feature being enabled
+        # AND credentials being present, so a request never reaches Spotify otherwise. The only
+        # user input is the playlist reference, which spotify.py validates to a strict id.
+        effective = get_effective_settings(session, settings)
+        if not effective.spotify_enabled:
+            raise HTTPException(status_code=403, detail="Spotify reading is turned off")
+        credentials = settings.spotify_credentials()
+        if credentials is None:
+            raise HTTPException(status_code=400, detail="Spotify app credentials are not set")
+        client_id, client_secret = credentials
+        try:
+            playlist = fetch_playlist(client_id, client_secret, url)
+        except SpotifyError as exc:
+            # The message is safe (never contains the secret or token); surface it to the user.
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return SpotifyPlaylistRead(
+            id=playlist.id,
+            name=playlist.name,
+            truncated=playlist.truncated,
+            tracks=[
+                SpotifyTrackRead(
+                    name=track.name,
+                    artists=track.artists,
+                    album=track.album,
+                    duration_ms=track.duration_ms,
+                    spotify_id=track.spotify_id,
+                    url=track.url,
+                )
+                for track in playlist.tracks
+            ],
+        )
 
     def cover_set_read(
         session: Session,

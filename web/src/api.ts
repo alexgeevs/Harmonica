@@ -15,6 +15,7 @@ import type {
   Track
 } from "./types";
 import type { YouTubeConfig } from "./youtube";
+import type { SpotifyConfig, SpotifyPlaylist } from "./spotify";
 
 // A "sitting" id for this app session, attached to ratings so the backend can detect and
 // correct a uniformly generous/grumpy mood across one continuous burst of rating.
@@ -70,6 +71,11 @@ export const api = {
   // present. This hits the Harmonica backend, never YouTube. No request goes to YouTube until
   // the user turns the feature on and accepts the consent gate.
   youtubeConfig: () => request<YouTubeConfig>("/youtube/config"),
+  // Both talk only to the Harmonica backend. The daemon reads Spotify server-side, so the browser
+  // never contacts Spotify and the app credentials never leave the server.
+  spotifyConfig: () => request<SpotifyConfig>("/spotify/config"),
+  spotifyPlaylist: (url: string) =>
+    request<SpotifyPlaylist>(`/spotify/playlist?url=${encodeURIComponent(url)}`),
   tracks: () => request<Track[]>("/tracks"),
   updateTrack: (track: Track) =>
     request<Track>(`/tracks/${track.id}`, {

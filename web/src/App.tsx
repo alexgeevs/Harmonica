@@ -458,7 +458,13 @@ export default function App() {
             />
           ) : null}
 
-          {view === "curate" ? <CurateView tracks={tracks} onApplied={refreshAll} /> : null}
+          {view === "curate" ? (
+            <CurateView
+              tracks={tracks}
+              spotifyEnabled={Boolean(settings?.spotify_enabled)}
+              onApplied={refreshAll}
+            />
+          ) : null}
 
           {view === "stats" && stats ? <StatsView stats={stats} tracks={tracks} events={events} /> : null}
 
@@ -2065,6 +2071,18 @@ const SETTING_SECTIONS: {
       </>
     ),
     keys: ["youtube_embed_enabled"]
+  },
+  {
+    title: "Spotify",
+    note: (
+      <>
+        Off by default. When on with app credentials set on the server, the Curate tab can read a
+        public Spotify playlist and show which of its songs you already have. The daemon reads
+        Spotify, so your browser never contacts it. Track names only, through Spotify's Web API. No
+        audio is downloaded.
+      </>
+    ),
+    keys: ["spotify_enabled"]
   }
 ];
 

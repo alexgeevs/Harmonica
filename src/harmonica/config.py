@@ -94,6 +94,15 @@ class Settings(BaseSettings):
     # stored in the DB, never included in an export, never sent to the browser. See
     # effective_youtube_data_api_key(). Agents are instructed not to read it (AGENTS.md).
     youtube_data_api_key: str | None = None
+    # Optional read-only Spotify playlist import. Off by default and opt-in. When on with app
+    # credentials, the daemon reads a public playlist's track metadata via Spotify's Web API. No
+    # audio, no scraping, no playback. See src/harmonica/spotify.py.
+    spotify_enabled: bool = False
+    # Spotify app credentials (client id + secret). Both are user secrets handled exactly like the
+    # YouTube key: read from an env var or a private file under the Harmonica home, never stored in
+    # the DB, exported, logged, or sent to the browser. Every Spotify call is server-side.
+    spotify_client_id: str | None = None
+    spotify_client_secret: str | None = None
     # Hearing health & compression awareness.
     avoid_consecutive_compressed: bool = True
     compressed_break_reminder: bool = True
@@ -193,6 +202,33 @@ class Settings(BaseSettings):
         if key_path.exists():
             value = key_path.read_text(encoding="utf-8").strip()
             return value or None
+        return None
+
+    def _secret_from_env_or_file(self, value: str | None, filename: str) -> str | None:
+        """A user secret: the configured value if set, else a private file under the home. Shared
+        handling for the Spotify credentials, mirroring effective_youtube_data_api_key()."""
+        if value:
+            return value
+        key_path = self.home / filename
+        if key_path.exists():
+            text = key_path.read_text(encoding="utf-8").strip()
+            return text or None
+        return None
+
+    def effective_spotify_client_id(self) -> str | None:
+        return self._secret_from_env_or_file(self.spotify_client_id, "spotify_client_id.key")
+
+    def effective_spotify_client_secret(self) -> str | None:
+        return self._secret_from_env_or_file(
+            self.spotify_client_secret, "spotify_client_secret.key"
+        )
+
+    def spotify_credentials(self) -> tuple[str, str] | None:
+        """Both credentials, or None if either is missing. Never logged or sent to the client."""
+        client_id = self.effective_spotify_client_id()
+        client_secret = self.effective_spotify_client_secret()
+        if client_id and client_secret:
+            return client_id, client_secret
         return None
 
     def ensure_dirs(self) -> None:

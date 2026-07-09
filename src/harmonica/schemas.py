@@ -208,6 +208,7 @@ class SettingsRead(BaseModel):
     favourite_pacing_enabled: bool
     favourite_pacing_strength: float
     youtube_embed_enabled: bool
+    spotify_enabled: bool
     why_show_math: bool
     cover_two_level_enabled: bool
     cover_count_log_base: float
@@ -217,6 +218,22 @@ class SettingsRead(BaseModel):
 
 class SettingsUpdate(BaseModel):
     values: dict[str, int | float | bool]
+
+
+class SpotifyTrackRead(BaseModel):
+    name: str
+    artists: list[str]
+    album: str | None = None
+    duration_ms: int | None = None
+    spotify_id: str | None = None
+    url: str | None = None
+
+
+class SpotifyPlaylistRead(BaseModel):
+    id: str
+    name: str | None = None
+    tracks: list[SpotifyTrackRead]
+    truncated: bool = False
 
 
 class CoverVerdictCreate(BaseModel):

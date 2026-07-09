@@ -1002,3 +1002,27 @@ Google or YouTube from the app unless the user explicitly enables the YouTube pl
   user attach a link, parsed server-side. Without it the feature would be unreachable from the UI.
 - Honest limitations recorded: the app's own seek bar and loudness meter do not apply to a YouTube
   video (its audio can't be tapped cross-origin), so YouTube's own controls handle scrubbing.
+
+## 2026-07-09 (evening 5): read-only Spotify playlist import (opt-in, server-side)
+
+### User Input
+
+Asked to build the Spotify connector next, and — because these connectors add attack surface on a
+NAS where open ports matter — to run a red-team pass afterwards (2 Sonnet 5 and 2 Opus 4.8 agents:
+one of each solo, plus a Sonnet and an Opus collaborating) before the final message.
+
+### What was built
+
+- `spotify.py`: a read-only client over the standard library (no new HTTP dependency). Given a
+  public playlist link it reads track names, artists, album, and duration through Spotify's Web
+  API. Metadata only. No audio, no scraping, no playback. Off by default.
+- Credentials (client id + secret) are handled exactly like the YouTube key: env var or a private
+  file under the Harmonica home, never in the DB, exports, logs, or the browser. Every Spotify call
+  is server-side, so the browser never contacts Spotify and no cookies are involved.
+- Security by construction: the only user input is a playlist reference, validated to a strict
+  base62 id before it is placed into a request to a fixed Spotify host. Redirects are refused and
+  non-Spotify hosts are rejected, so it cannot be turned into an SSRF against a NAS's internal
+  services. Responses are size-capped and time-limited, and the track count is capped at 500.
+- Endpoints: `GET /spotify/config` (presence booleans only) and `GET /spotify/playlist?url=` (gated
+  on the feature being on AND credentials present). Frontend: a small panel in the Curate tab that
+  reads a playlist and flags which songs are likely already in the library. Settings switch added.

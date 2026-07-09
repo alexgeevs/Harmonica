@@ -731,6 +731,101 @@ p {
   font-size: 11px;
 }
 
+.spotify-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.spotify-head h4 {
+  font-size: 16px;
+}
+
+.spotify-head p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.spotify-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.spotify-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.spotify-result {
+  display: grid;
+  gap: 8px;
+}
+
+.spotify-result-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.spotify-result-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.spotify-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.spotify-list {
+  display: grid;
+  gap: 2px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.spotify-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.spotify-list li.owned {
+  background: var(--panel-soft);
+}
+
+.spotify-track-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotify-track-artist {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotify-owned {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .video-park {
   position: absolute;
   left: -9999px;

@@ -2,6 +2,7 @@ import { Check, Download, FileUp, Sparkles, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { diffLibrary, parseProposedLibrary, type LibraryDiff, type TrackDiff } from "./curation";
+import { SpotifyPanel } from "./SpotifyPanel";
 import type { LibraryExport, Track } from "./types";
 
 /**
@@ -9,7 +10,11 @@ import type { LibraryExport, Track } from "./types";
  * then load its proposed JSON back, see exactly what would change, and accept or
  * reject per track before anything is written.
  */
-export default function CurateView(props: { tracks: Track[]; onApplied: () => void }) {
+export default function CurateView(props: {
+  tracks: Track[];
+  spotifyEnabled: boolean;
+  onApplied: () => void;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [proposed, setProposed] = useState<LibraryExport | null>(null);
   const [diff, setDiff] = useState<LibraryDiff | null>(null);
@@ -153,6 +158,8 @@ export default function CurateView(props: { tracks: Track[]; onApplied: () => vo
           />
         </div>
       </div>
+
+      {props.spotifyEnabled ? <SpotifyPanel libraryTracks={props.tracks} /> : null}
 
       {error ? <div className="curate-banner error">{error}</div> : null}
       {note ? <div className="curate-banner ok">{note}</div> : null}

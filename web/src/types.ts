@@ -117,6 +117,7 @@ export type SettingControl = {
     | "cover_count_log_base"
     | "cover_original_bonus"
     | "youtube_embed_enabled"
+    | "spotify_enabled"
   >;
   label: string;
   description: string;
@@ -173,6 +174,7 @@ export type AppSettings = {
   cover_count_log_base: number;
   cover_original_bonus: number;
   youtube_embed_enabled: boolean;
+  spotify_enabled: boolean;
   controls: SettingControl[];
 };
 
