@@ -372,9 +372,9 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="rediscovery_enabled",
         label="Resurface dormant favourites",
         description=(
-            "Once a song you rated highly has gone unheard for a long while, give it a gentle "
-            "nudge back up the queue so it comes round again while it still feels fresh. "
-            "Only applies to your above-average songs that you have heard before."
+            "For a song you rated highly, increase its weight marginally as it goes unheard, so it "
+            "plays on a cycle that slows the loss of novelty over time. Only applies to your "
+            "above-average songs that you have heard before."
         ),
         value_type="boolean",
         control="switch",
@@ -484,6 +484,18 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         minimum=0.0,
         maximum=0.5,
         step=0.05,
+    ),
+    SettingDefinition(
+        key="youtube_embed_enabled",
+        label="Play YouTube embeds",
+        description=(
+            "For songs that have a YouTube link, play them through YouTube's own embedded player "
+            "rather than a local file. Off by default. Turning it on loads YouTube's player, which "
+            "sets its own cookies, so you are asked to accept that first."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=False,
     ),
 )
 

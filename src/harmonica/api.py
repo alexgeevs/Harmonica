@@ -17,12 +17,14 @@ from harmonica.bootstrap import ensure_default_rating_factors
 from harmonica.config import Settings, get_settings, path_within_root
 from harmonica.cover_ranking import next_pair, owner_set_state, record_verdict, set_summary
 from harmonica.db import SessionLocal, get_session, init_db
+from harmonica.embeds import known_providers, parse_embed_url
 from harmonica.history import playback_event_signal
 from harmonica.models import (
     CooldownTag,
     CoverSetState,
     DeviceConfig,
     DeviceConfigTrack,
+    Embed,
     GroupMembership,
     MediaAsset,
     PlaybackEvent,
@@ -50,6 +52,7 @@ from harmonica.schemas import (
     DeviceConfigDetail,
     DeviceConfigSummary,
     DeviceConfigUpdate,
+    EmbedWrite,
     GroupRead,
     LibraryImportRequest,
     PlaybackEventCreate,
@@ -187,6 +190,18 @@ def create_app() -> FastAPI:
     ) -> SettingsRead:
         update_setting_values(session, payload.values, settings)
         return SettingsRead(**settings_payload(session, settings))
+
+    @app.get("/youtube/config")
+    def youtube_config(session: SessionDep, settings: SettingsDep) -> dict[str, Any]:
+        # Tells the frontend whether to load YouTube's official player, and whether Data API
+        # metadata lookups are available. It exposes only the PRESENCE of the key (a boolean),
+        # never the key itself — the key stays server-side.
+        effective = get_effective_settings(session, settings)
+        return {
+            "enabled": effective.youtube_embed_enabled,
+            "has_api_key": settings.effective_youtube_data_api_key() is not None,
+            "providers": list(known_providers()),
+        }
 
     def cover_set_read(
         session: Session,
@@ -738,6 +753,7 @@ def apply_config_settings(settings: Settings, config: DeviceConfig) -> Settings:
 def track_query():
     return select(Track).options(
         selectinload(Track.assets),
+        selectinload(Track.embeds),
         selectinload(Track.memberships).selectinload(GroupMembership.group),
         selectinload(Track.cooldown_tags).selectinload(TrackCooldownTag.tag),
         selectinload(Track.ratings).selectinload(TrackRating.factor),
@@ -855,6 +871,16 @@ def track_to_schema(
             }
             for asset in track.assets
         ],
+        embeds=[
+            {
+                "id": embed.id,
+                "provider": embed.provider,
+                "external_id": embed.external_id,
+                "url": embed.url,
+                "start_seconds": embed.start_seconds,
+            }
+            for embed in track.embeds
+        ],
         groups=[
             {
                 "id": membership.group.id,
@@ -949,6 +975,8 @@ def apply_track_update(
             replace_groups(session, track, payload.groups)
         if payload.cooldown_tags is not None:
             replace_tags(session, track, payload.cooldown_tags)
+        if payload.embeds is not None:
+            replace_embeds(session, track, payload.embeds)
     elif "favourite" in fields:
         # Favourite is a per-user opinion: an owned profile writes it to its own link, never onto
         # the shared Track (which would leak its taste to everyone sharing the song).
@@ -960,6 +988,40 @@ def apply_track_update(
             payload.ratings,
             session_id=payload.rating_session_id,
             owner_config_id=owner_config_id,
+        )
+
+
+def _resolve_embed(payload: EmbedWrite) -> tuple[str, str, float | None] | None:
+    """Turn an embed write into (provider, external_id, start_seconds), parsing a bare URL when the
+    provider/id aren't given directly. None if it isn't a URL we recognise."""
+    if payload.provider and payload.external_id:
+        return payload.provider, payload.external_id, payload.start_seconds
+    if payload.url:
+        parsed = parse_embed_url(payload.url)
+        if parsed is not None:
+            start = payload.start_seconds
+            if start is None:
+                start = parsed.start_seconds
+            return parsed.provider, parsed.external_id, start
+    return None
+
+
+def replace_embeds(session: Session, track: Track, embeds: list[EmbedWrite]) -> None:
+    session.execute(delete(Embed).where(Embed.track_id == track.id))
+    session.flush()
+    for embed_payload in embeds:
+        resolved = _resolve_embed(embed_payload)
+        if resolved is None:
+            continue
+        provider, external_id, start_seconds = resolved
+        session.add(
+            Embed(
+                track=track,
+                provider=provider,
+                external_id=external_id,
+                url=embed_payload.url,
+                start_seconds=start_seconds,
+            )
         )
 
 

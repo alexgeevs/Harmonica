@@ -11,10 +11,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from harmonica.config import Settings, get_settings
 from harmonica.cover_ranking import recompute_set
+from harmonica.embeds import parse_embed_url
 from harmonica.models import (
     CooldownTag,
     CoverComparison,
     DeviceConfigTrack,
+    Embed,
     GroupMembership,
     MediaAsset,
     RatingFactor,
@@ -71,6 +73,7 @@ def export_library_payload(
 ) -> dict[str, Any]:
     track_select = select(Track).options(
         selectinload(Track.assets),
+        selectinload(Track.embeds),
         selectinload(Track.memberships).selectinload(GroupMembership.group),
         selectinload(Track.ratings).selectinload(TrackRating.factor),
         selectinload(Track.cooldown_tags).selectinload(TrackCooldownTag.tag),
@@ -277,6 +280,8 @@ def import_library_payload(
 
             for asset_payload in track_payload.get("assets", []):
                 upsert_asset(session, track, asset_payload)
+            for embed_payload in track_payload.get("embeds", []):
+                _upsert_embed(session, track, embed_payload)
             for membership_payload in track_payload.get("groups", []):
                 group_name = membership_payload["name"]
                 group = group_map.get(group_name)
@@ -453,6 +458,15 @@ def track_to_payload(track: Track, favourite: bool | None = None) -> dict[str, A
             }
             for asset in track.assets
         ],
+        "embeds": [
+            {
+                "provider": embed.provider,
+                "external_id": embed.external_id,
+                "url": embed.url,
+                "start_seconds": embed.start_seconds,
+            }
+            for embed in track.embeds
+        ],
         "groups": [
             {
                 "name": membership.group.name,
@@ -524,6 +538,42 @@ def upsert_asset(session: Session, track: Track, payload: dict[str, Any]) -> Med
     asset.checksum = payload.get("checksum")
     asset.browser_supported = bool(payload.get("browser_supported", asset.browser_supported))
     return asset
+
+
+def _upsert_embed(session: Session, track: Track, payload: dict[str, Any]) -> None:
+    """Add an embed for a song from its payload (provider+id, or a bare url we parse). Idempotent on
+    (track, provider, external_id). Skips anything we don't recognise as a known provider."""
+    provider = payload.get("provider")
+    external_id = payload.get("external_id")
+    url = payload.get("url")
+    start_seconds = payload.get("start_seconds")
+    if not (provider and external_id):
+        parsed = parse_embed_url(url) if url else None
+        if parsed is None:
+            return
+        provider, external_id = parsed.provider, parsed.external_id
+        if start_seconds is None:
+            start_seconds = parsed.start_seconds
+    existing = session.scalar(
+        select(Embed).where(
+            Embed.track_id == track.id,
+            Embed.provider == provider,
+            Embed.external_id == external_id,
+        )
+    )
+    if existing is None:
+        session.add(
+            Embed(
+                track=track,
+                provider=provider,
+                external_id=external_id,
+                url=url,
+                start_seconds=start_seconds,
+            )
+        )
+    else:
+        existing.url = url
+        existing.start_seconds = start_seconds
 
 
 def upsert_track_tag(session: Session, track: Track, tag_name: str) -> None:

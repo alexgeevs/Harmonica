@@ -16,6 +16,22 @@ class MediaAssetRead(BaseModel):
     browser_supported: bool
 
 
+class EmbedRead(BaseModel):
+    id: int
+    provider: str
+    external_id: str
+    url: str | None = None
+    start_seconds: float | None = None
+
+
+class EmbedWrite(BaseModel):
+    # Either a full provider+id, or just a url that the server parses into one.
+    provider: str | None = None
+    external_id: str | None = None
+    url: str | None = None
+    start_seconds: float | None = None
+
+
 class GroupRead(BaseModel):
     id: int
     name: str
@@ -57,6 +73,7 @@ class TrackRead(BaseModel):
     is_original_rendition: bool = False
     favourite: bool = False
     assets: list[MediaAssetRead] = Field(default_factory=list)
+    embeds: list[EmbedRead] = Field(default_factory=list)
     groups: list[TrackGroupRead] = Field(default_factory=list)
     cooldown_tags: list[str] = Field(default_factory=list)
     ratings: dict[str, float | None] = Field(default_factory=dict)
@@ -80,6 +97,7 @@ class TrackUpdate(BaseModel):
     audio_only: bool | None = None
     is_original_rendition: bool | None = None
     favourite: bool | None = None
+    embeds: list[EmbedWrite] | None = None
     groups: list[TrackGroupWrite] | None = None
     cooldown_tags: list[str] | None = None
     ratings: dict[str, float | None] | None = None
@@ -189,6 +207,7 @@ class SettingsRead(BaseModel):
     rediscovery_halflife_days: float
     favourite_pacing_enabled: bool
     favourite_pacing_strength: float
+    youtube_embed_enabled: bool
     why_show_math: bool
     cover_two_level_enabled: bool
     cover_count_log_base: float

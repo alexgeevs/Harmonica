@@ -62,6 +62,9 @@ class Track(Base):
     cooldown_tags: Mapped[list[TrackCooldownTag]] = relationship(
         back_populates="track", cascade="all, delete-orphan"
     )
+    embeds: Mapped[list[Embed]] = relationship(
+        back_populates="track", cascade="all, delete-orphan"
+    )
 
 
 class MediaAsset(Base):
@@ -81,6 +84,28 @@ class MediaAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     track: Mapped[Track] = relationship(back_populates="assets")
+
+
+class Embed(Base):
+    """An optional third-party player source for a song (e.g. a YouTube video id). Playback uses the
+    provider's OFFICIAL embedded player; Harmonica never downloads, scrapes, strips ads from, or
+    extracts audio from embedded content. Inert unless the user opts into embeds."""
+
+    __tablename__ = "embeds"
+    __table_args__ = (
+        UniqueConstraint("track_id", "provider", "external_id", name="uq_embed"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    external_id: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Official start offset (the provider's supported start=/t= parameter) for trimming an intro.
+    start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+    track: Mapped[Track] = relationship(back_populates="embeds")
 
 
 class WeightGroup(Base):

@@ -84,6 +84,16 @@ class Settings(BaseSettings):
     # effect); when on, favourites get their satiation/rediscovery pacing amplified by the strength.
     favourite_pacing_enabled: bool = False
     favourite_pacing_strength: float = 1.5
+    # Optional YouTube embed playback. Off by default and opt-in. When on, the frontend plays a song
+    # that has a YouTube embed through YouTube's OFFICIAL IFrame player (which sets its own cookies,
+    # hence the consent gate). Compliant use only: no audio-only extraction, ad-stripping, or
+    # scraping. See src/harmonica/embeds.py.
+    youtube_embed_enabled: bool = False
+    # YouTube Data API key for OPTIONAL metadata lookups only (embedding itself needs no key). This
+    # is a user secret: read from the env var or a private file under the Harmonica home, never
+    # stored in the DB, never included in an export, never sent to the browser. See
+    # effective_youtube_data_api_key(). Agents are instructed not to read it (AGENTS.md).
+    youtube_data_api_key: str | None = None
     # Hearing health & compression awareness.
     avoid_consecutive_compressed: bool = True
     compressed_break_reminder: bool = True
@@ -171,6 +181,19 @@ class Settings(BaseSettings):
         self.home.mkdir(parents=True, exist_ok=True)
         key_path.write_text(value, encoding="utf-8")
         return value
+
+    def effective_youtube_data_api_key(self) -> str | None:
+        """The user's YouTube Data API key, if configured: from the env var or a private key file
+        under the Harmonica home. Returns None when absent. This value is never logged, exported, or
+        sent to the browser, and agents are told not to read it — only its presence is ever exposed.
+        """
+        if self.youtube_data_api_key:
+            return self.youtube_data_api_key
+        key_path = self.home / "youtube_data_api.key"
+        if key_path.exists():
+            value = key_path.read_text(encoding="utf-8").strip()
+            return value or None
+        return None
 
     def ensure_dirs(self) -> None:
         self.home.mkdir(parents=True, exist_ok=True)
