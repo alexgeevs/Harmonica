@@ -8,7 +8,7 @@ string lives so the edits can be applied back to `web/src/App.tsx`, `web/src/pre
 
 ## App.tsx — sidebar strapline
 
-Your library, sequenced by expected utility rather than at random.
+Your library, sequenced by expected utility maximisation as opposed to at random.
 
 ## App.tsx — backend unreachable error
 
@@ -20,7 +20,7 @@ Generate a queue to start listening
 
 ## App.tsx — now-playing placeholder (main player subtitle)
 
-Harmonica will put together your next listening session.
+Harmonica will compile your next listening session.
 
 ## App.tsx — empty queue, line 1
 
@@ -28,11 +28,11 @@ Your queue is empty
 
 ## App.tsx — empty queue, line 2
 
-Generate a session and it will appear here, ready to reorder, trim, and play.
+Generate a session and it will appear here.
 
 ## App.tsx — tag tooltip for tracks without media
 
-Media not available yet
+Media not available
 
 ## App.tsx — cover comparison, stop-preview button
 
@@ -52,15 +52,17 @@ Nothing played yet. Generate a queue and press play.
 
 ## App.tsx — break modal, heading
 
-Time for a short break
+It is advised that you take a short break
 
 ## App.tsx — break modal, body
 
-Playback is paused: that was two heavily compressed (lossy) tracks in a row. Over-compressed music appears to be genuinely more fatiguing; in one lab study it caused lasting ear damage in guinea pigs that the same energy of ordinary music did not.
+Playback is paused: that was two heavily compressed and lossy tracks in a row. Over-compressed music appears to be genuinely more fatiguing. In one lab study it caused lasting ear damage in guinea pigs that the same energy of ordinary music did not.
+
+A break is good in combination with looking at a distant object for at least 20 seconds.
 
 ## App.tsx — break modal, Economist link text
 
-Read The Economist on this →
+See: The Economist (only "The Economist" is the link, styled blue)
 
 ## App.tsx — break modal, button
 
@@ -84,7 +86,7 @@ How your plays and skips steer the next session.
 
 ## App.tsx — settings section note: Coverage (cold start)
 
-Making sure every song gets a fair first hearing.
+Making sure every song gets a fair first hearing. (This is advised if you have just imported a library without additional personalised rating information.)
 
 ## App.tsx — settings section note: visual priority
 
@@ -92,7 +94,7 @@ Giving priority to tracks with video when you are watching rather than merely li
 
 ## App.tsx — settings section note: hearing health
 
-Moderating loudness and listening fatigue, in line with the WHO's safe-listening guidance.
+Moderating loudness and listening fatigue, in line with the WHO's safe-listening guidance. ("WHO's safe-listening guidance" is a blue link)
 
 ## App.tsx — settings section note: Rating normalisation
 
@@ -104,19 +106,19 @@ Avoid wearing a song out by over-playing it, and bring back dormant favourites.
 
 ## App.tsx — settings section note: "why this song" panel
 
-How much detail the “why this song” panel shows while you listen.
+How much detail the “why this song” panel shows while you listen. (followed by a faint italic "cosmetic" tag)
 
 ## App.tsx — settings section note: cover selection
 
-When a song has several renditions, let the queue pick which one to play. Off by default — turn it on if your library has covers.
+When a song has several renditions, let the queue pick which one to play. (Off by default, turn it on if your library has covers.)
 
 ## App.tsx — presets intro
 
-A preset sets every control below; you can still fine-tune afterwards.
+A preset sets every control below. You can still fine-tune afterwards.
 
 ## App.tsx — presets, custom-mix line
 
-Custom mix: adjust any control, or pick a preset to start afresh.
+Custom: adjust any control, or pick a preset to start afresh.
 
 ## App.tsx — "How settings apply" note
 
@@ -124,23 +126,23 @@ Changes affect the next queue you generate. Existing sessions keep the snapshot 
 
 ## App.tsx — profile panel, local-mode note
 
-Currently local: the full library, with global settings.
+No profile active: using the full library with universal settings.
 
 ## App.tsx — profile banner, empty-library suffix
 
-It's empty; import or scan songs to fill it (duplicates reuse the shared file).
+Library empty. Import or scan songs to fill it. Anything the household already has is linked rather than copied.
 
 ## App.tsx — new-profile hint
 
-New profiles capture your current settings as their snapshot.
+A new profile starts from a copy of the current settings, or from the defaults if you tick the box.
 
 ## App.tsx — track editor, rating hint
 
-Each tap adds a rating; the shown value is your running average.
+The stars show your running average. Rating again straight away corrects your last mark. Rating on a later listen adds a new mark to the average.
 
 ## App.tsx — library, no matching tracks
 
-No tracks match this view.
+No tracks match the current filter or search.
 
 ## App.tsx — library, no track selected
 
@@ -150,15 +152,15 @@ Select a track to edit details and ratings.
 
 ## presets.ts — Familiar, tagline
 
-Comfort & favourites
+Comfort and favourites
 
 ## presets.ts — Familiar, description
 
-Leans towards what you already love: favourites replay sooner and similar songs stay together, in the manner of a streaming service.
+Leans towards what you already love: favourites replay sooner and similar songs stay together.
 
 ## presets.ts — Balanced, tagline
 
-The default blend
+The default configuration
 
 ## presets.ts — Balanced, description
 
@@ -170,7 +172,7 @@ Give everything a chance
 
 ## presets.ts — Discovery, description
 
-Brings unheard and unrated tracks forward and stops large groups dominating, so the whole library gets fair coverage. Useful while you are still rating things.
+Brings unheard and unrated tracks forward and stops large groups dominating, so the whole library gets fair coverage. Useful while you are still rating things. Also worth re-enabling every few months, when your taste has moved on and the ratings deserve a refresh.
 
 ## presets.ts — Long game, tagline
 
@@ -184,16 +186,16 @@ Maximises long-term utility by penalising repetition heavily: a song you have ju
 
 ## CurateView.tsx — intro paragraph
 
-Hand your library to a curation agent, then bring its proposal back here. You'll see every change and approve them one by one; nothing is written until you apply.
+Hand your library to a curation agent, then bring its proposal back here. You'll see every change and approve them one by one. Nothing in your library changes until you apply.
 
 ## CurateView.tsx — no differences found
 
-No differences found; your library already matches this file.
+No differences found. Your library already matches this file.
 
 ## CurateView.tsx — nothing to review
 
-Nothing to review; the proposal matches your library.
+Nothing to review. The proposal matches your library.
 
 ## CurateView.tsx — paste placeholder
 
-…or paste the proposed library JSON
+Or paste the proposed library JSON

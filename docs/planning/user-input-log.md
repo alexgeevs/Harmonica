@@ -867,3 +867,33 @@ notes. Beyond wording, the notes carry product direction:
 
 
 
+
+## 2026-07-09 (later): Decisions from the copy review, applied
+
+- **Punctuation register (binding):** full stops instead of semicolons everywhere in user-facing
+  copy ("I just don't like semi-colons. I also despise em-dashes."). No exclamation marks. The
+  owner capitalises words more than usual; keep their capitalisation (e.g. "Open-Source").
+- **Rating semantics changed in code, not in copy:** a re-rate within 15 minutes now revises the
+  last sample in place (`RATING_CORRECTION_WINDOW`); only a later rating appends to the running
+  average. One listen can never count twice.
+- **New profiles from scratch:** the create-profile form gained a "Start from default settings"
+  checkbox; otherwise the profile still snapshots the current settings.
+- Profile wording: "universal settings" rather than "shared settings"; empty-library banner
+  explains household de-duplication in plain words.
+- **Embedded official players (YouTube/Spotify):** approved as an optional feature, never the
+  default.
+
+- **Shared ratings on a NAS** for overlapping songs: approved as a future feature; not advertised
+  until built.
+- **Config file consideration:** settings currently live in the SQLite DB under `.harmonica/`
+  (now stated in llms.txt); a deployment-level config file remains a consideration.
+- **New docs:** `AGENTS.md` (provider-neutral agent entry point), `CONTRIBUTING.md` (bugs via
+  issues, fixes via PR), `docs/agents/api-and-custom-ui.md` (endpoint map + plugging in a custom
+  UI via `HARMONICA_WEB_DIST`), `docs/agents/algorithm-and-song-fields.md` (algorithm summary →
+  what each song_config.json field should be based on). README points at the first two.
+
+
+- **llms.txt restructured:** source + run instructions, the real five-step agent flow, settings
+  API + SQLite location, Discovery advice.
+
+
