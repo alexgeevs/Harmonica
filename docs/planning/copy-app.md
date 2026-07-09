@@ -134,11 +134,11 @@ Library empty. Import or scan songs to fill it. Anything the household already h
 
 ## App.tsx — new-profile hint
 
-A new profile starts from a copy of the current settings, or from the defaults if you tick the box.
+A new profile starts from a copy of the current settings.
 
 ## App.tsx — track editor, rating hint
 
-The stars show your running average. Rating again straight away corrects your last mark. Rating on a later listen adds a new mark to the average.
+The stars show your running average. Rating on a later listen adds a new mark to the average.
 
 ## App.tsx — library, no matching tracks
 

@@ -501,6 +501,26 @@ p {
   margin-left: 0.45em;
 }
 
+.reset-defaults {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reset-defaults:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
 .break-modal .primary {
   justify-self: center;
   margin-top: 4px;

@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   Settings as SettingsIcon,
@@ -240,15 +241,9 @@ export default function App() {
     return detail;
   }
 
-  async function createConfig(
-    name: string,
-    passphrase: string,
-    trackIds: number[],
-    fromScratch: boolean
-  ) {
-    // New profiles copy the current global settings as their snapshot, unless the
-    // user asked to start from the defaults instead.
-    const snapshot = fromScratch || !settings ? {} : settingsToDraft(settings);
+  async function createConfig(name: string, passphrase: string, trackIds: number[]) {
+    // New profiles copy the current global settings as their snapshot.
+    const snapshot = settings ? settingsToDraft(settings) : {};
     const detail = await api.createConfig({
       name,
       passphrase,
@@ -1505,7 +1500,7 @@ function TrackEditor(props: {
 
       <div className="editor-section">
         <h5>Ratings</h5>
-        <p className="editor-hint">The stars show your running average. Rating again straight away corrects your last mark. Rating on a later listen adds a new mark to the average.</p>
+        <p className="editor-hint">The stars show your running average. Rating on a later listen adds a new mark to the average.</p>
         <div className="rating-grid">
           {applicable.map((factor) => (
             <StarRating
@@ -1955,12 +1950,7 @@ function SettingsView(props: {
   activeConfig: DeviceConfigDetail | null;
   allTracks: Track[];
   onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
-  onCreate: (
-    name: string,
-    passphrase: string,
-    trackIds: number[],
-    fromScratch: boolean
-  ) => Promise<DeviceConfigDetail>;
+  onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
   onSwitchLocal: () => void;
 }) {
   const [draft, setDraft] = useState<Record<string, number | boolean>>(() => settingsToDraft(props.settings));
@@ -2061,6 +2051,20 @@ function SettingsView(props: {
             <Check size={16} /> Saved
           </div>
         )}
+        <button
+          className="reset-defaults"
+          onClick={() =>
+            setDraft((current) => {
+              const next = { ...current };
+              for (const control of props.settings.controls) {
+                next[control.key] = control.default;
+              }
+              return next;
+            })
+          }
+        >
+          <RotateCcw size={14} /> Reset all settings to defaults
+        </button>
         {props.configsEnabled ? (
           <DeviceProfilePanel
             activeConfig={props.activeConfig}
@@ -2095,19 +2099,13 @@ function DeviceProfilePanel(props: {
   activeConfig: DeviceConfigDetail | null;
   allTracks: Track[];
   onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
-  onCreate: (
-    name: string,
-    passphrase: string,
-    trackIds: number[],
-    fromScratch: boolean
-  ) => Promise<DeviceConfigDetail>;
+  onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
   onSwitchLocal: () => void;
 }) {
   const [mode, setMode] = useState<"claim" | "create">("claim");
   const [name, setName] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [scopeAll, setScopeAll] = useState(true);
-  const [fromScratch, setFromScratch] = useState(false);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2126,7 +2124,6 @@ function DeviceProfilePanel(props: {
     setPassphrase("");
     setError(null);
     setScopeAll(true);
-    setFromScratch(false);
     setChosen(new Set());
     setSearch("");
   }
@@ -2160,7 +2157,7 @@ function DeviceProfilePanel(props: {
           setBusy(false);
           return;
         }
-        await props.onCreate(name.trim(), passphrase, ids, fromScratch);
+        await props.onCreate(name.trim(), passphrase, ids);
       }
       reset();
     } catch (err) {
@@ -2230,14 +2227,6 @@ function DeviceProfilePanel(props: {
               <input type="checkbox" checked={scopeAll} onChange={(event) => setScopeAll(event.target.checked)} />
               Include all songs
             </label>
-            <label className="scope-toggle">
-              <input
-                type="checkbox"
-                checked={fromScratch}
-                onChange={(event) => setFromScratch(event.target.checked)}
-              />
-              Start from default settings
-            </label>
             {!scopeAll ? (
               <div className="scope-picker">
                 <div className="scope-picker-head">
@@ -2271,7 +2260,7 @@ function DeviceProfilePanel(props: {
           {busy ? "Working…" : mode === "claim" ? "Claim profile" : "Create profile"}
         </button>
         {mode === "create" ? (
-          <small className="profile-hint">A new profile starts from a copy of the current settings, or from the defaults if you tick the box.</small>
+          <small className="profile-hint">A new profile starts from a copy of the current settings.</small>
         ) : null}
       </div>
     </div>
