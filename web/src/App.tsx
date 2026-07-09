@@ -1968,6 +1968,9 @@ const SETTING_SECTIONS: {
   note: string | JSX.Element;
   cosmetic?: boolean;
   keys: string[];
+  // Optional richer guidance rendered as a block below the controls (for setup steps that need
+  // more than a one-line note, e.g. enabling YouTube playback).
+  extra?: JSX.Element;
 }[] = [
   {
     title: "Recommendation core",
@@ -2064,13 +2067,44 @@ const SETTING_SECTIONS: {
     note: (
       <>
         Off by default. When on, a song that has a YouTube link plays through YouTube's official
-        player. That player loads YouTube and sets its own cookies, so you are asked to accept it
-        once before it appears. Nothing is requested from YouTube until then. Harmonica does not
-        download, strip ads from, or take the audio out of YouTube videos, and the video stays
-        visible, as YouTube's terms require.
+        player. Read the setup notes below before you enable it.
       </>
     ),
-    keys: ["youtube_embed_enabled"]
+    keys: ["youtube_embed_enabled"],
+    extra: (
+      <div className="setup-guidance">
+        <h5>Before you turn this on</h5>
+        <ul>
+          <li>
+            <b>Cookies and consent.</b> A song with a YouTube link plays in YouTube's official
+            embedded player. Loading that player contacts YouTube and lets it set its own cookies,
+            so Harmonica asks you to accept once before the first video appears. Nothing is
+            requested from YouTube until then, and Harmonica itself stays cookie-light.
+          </li>
+          <li>
+            <b>Ads and tracking are YouTube's, not ours.</b> The embedded player may show ads and
+            will track you as YouTube normally does. Harmonica uses YouTube's own player and does
+            not remove either, take the audio out, hide the video, or strip anything, as YouTube's
+            terms require. Whether you block that tracking is your own choice in your own browser,
+            for example with a content blocker such as uBlock Origin. Harmonica does not do it for
+            you and takes no position on it.
+          </li>
+          <li>
+            <b>Loudness is levelled by YouTube.</b> YouTube evens out loudness across videos, a
+            feature it calls "Stable Volume", and some clients add a voice boost. That is applied by
+            YouTube, so Harmonica cannot switch it off for you. If the player's settings gear offers
+            "Stable Volume" you can turn it off there. Otherwise it is controlled in your YouTube
+            account. Worth knowing if you would rather hear a track's original dynamics than a
+            levelled loudness.
+          </li>
+        </ul>
+        <p className="setup-how">
+          To use it, open a song in the library editor and paste its YouTube link. The optional Data
+          API key, for metadata lookups only, is set on the server and never in the browser, and is
+          not needed just to play a linked video.
+        </p>
+      </div>
+    )
   },
   {
     title: "Spotify",
@@ -2173,6 +2207,7 @@ function SettingsView(props: {
               </p>
             </div>
             <div className="settings-controls">{renderControls(section.keys)}</div>
+            {section.extra}
           </div>
         ))}
 
