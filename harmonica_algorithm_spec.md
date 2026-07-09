@@ -691,7 +691,7 @@ This pseudocode is not final production code. It is meant to fix the algorithmic
 ```csv
 song_id,file_path,title,artist,album,weight_groups,sub_group,cooldown_tags,group_notes,song_multiplier
 meridian_my_mark_001,/Music/Meridian/My Mark.flac,My Mark,Meridian Original Cast,Meridian,"Meridian;Marlowe Vance",My Mark variants,"rap;musical;ensemble;upbeat",,1.0
-ashen_city_one_more_dawn_001,/Music/The Ashen City/One More Dawn.flac,One More Dawn,Original Cast,The Ashen City,"The Ashen City;dramatic finale",One More Dawn variants,"ensemble;finale;musical",,1.0
+ashen_city_one_more_dawn_001,/Music/The Ashen City/One More Dawn.flac,One More Dawn,Ashen City Original Cast,The Ashen City,"The Ashen City;dramatic finale",One More Dawn variants,"ensemble;finale;musical",,1.0
 standalone_001,/Music/Other/Song.flac,Song,Artist,Album,"Standalone",,"pop;slow",,1.0
 ```
 
