@@ -942,3 +942,38 @@ notes. Beyond wording, the notes carry product direction:
   decision. Spotify note: reading a
   user's own playlist metadata uses Spotify's FREE Web API (only *playback* needs Premium), which
   is why the lawful route is matching to YouTube and embedding, not integrating Spotify playback.
+
+## 2026-07-09 (evening 3): per-profile favourites, YouTube embed backend, sharing decisions
+
+- **Multi-tenancy base was already complete.** Private per-profile libraries, listening history,
+  ratings, saved queues and cover verdicts, import dedupe/redirect onto a shared media pool, and a
+  tamper-proof bearer token (Phases 1 to 4 of the multi-user plan) are all built and green.
+- **Favourites are now per-profile.** A favourite is one listener's private opinion of a shared
+  song, so it moved off the shared `Track` onto the per-profile link (`DeviceConfigTrack.favourite`,
+  additive). It flows through the library view, the track editor, the algorithm's favourite pacing,
+  and export/import, and a test proves one user's star never leaks onto the shared row or to anyone
+  else. Legacy/local (no-profile) mode still uses `Track.favourite` unchanged.
+- **Rediscovery copy** reworded twice at the owner's direction, landing on an economics register:
+  "increase its weight marginally as it goes unheard, so it plays on a cycle that slows the loss of
+  novelty over time." Dropped the earlier "lost for good" implication.
+- **Sharing model decided (owner).** The remaining per-profile features, in the agreed build order:
+  YouTube embed first (largest), then optionally-shared settings (only surfaced once sharing is
+  enabled on the NAS, never otherwise), then cross-user rating influence (the "primary" listener is
+  whoever is currently playing the song, other listeners' plays count at a reduced weight that is a
+  setting exposed only when the feature is on), then the sharing configuration itself living in a
+  server-side config file editable over SSH inside the NAS container, and finally a per-profile
+  ignore/hide list (smallest). All sharing controls stay hidden unless enabled on the NAS.
+- **YouTube embed backend built (opt-in, compliant, off by default).** New `embeds` table and a
+  pluggable `embeds.py` parser that recognises a YouTube link and records the video id plus the
+  official `start=`/`t=` offset (a supported player feature, not a modification). A
+  `youtube_embed_enabled` setting (default off), a `/youtube/config` endpoint that reports only
+  whether embeds are on and whether a key is present, and embeds carried through import/export.
+  Playback will use YouTube's official IFrame player on the frontend. Honest code comments state
+  the compliance boundary plainly: no audio-only extraction, no ad-stripping, no scraping.
+- **Integration keys are protected.** The YouTube Data API key (and, when built, the Spotify keys)
+  are read from an env var or a private file under the Harmonica home, never stored in the DB, never
+  exported, and never sent to the browser (only a presence boolean is). `AGENTS.md` instructs agents
+  not to seek out or read the user's credentials, and deliberately does not say where they live.
+- **NAS dedupe note for agents** added to `AGENTS.md`: when setting up a new profile on a NAS that
+  already holds other people's songs, rely on the dedupe-on-import so the same file is never stored
+  twice.
