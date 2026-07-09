@@ -897,3 +897,23 @@ notes. Beyond wording, the notes carry product direction:
   API + SQLite location, Discovery advice.
 
 
+
+## 2026-07-09 (evening): Docs and copy refinements
+
+- **Rating hint** reduced to "Stars show your running average." — the correction behaviour needs
+  no narration. Reset-to-defaults button design confirmed.
+
+
+
+
+- **AGENTS.md retained** as the tracked agent guide: it is the cross-vendor open standard for
+  agent instructions (adopted well beyond any one provider), so it is the impartial choice and is
+  auto-discovered by most coding agents.
+- **README** now links the website up top and states the licence at the bottom. The runner-up
+  site candidate was deleted. llms.txt gained a NAS-transfer line (mount the share or copy with
+  SMB/rsync/Syncthing before importing).
+- **Planning docs as a showcase:** the owner wants the strategy and back-and-forth
+  visible as a demonstration of directing AI-assisted development end to end.
+
+
+
