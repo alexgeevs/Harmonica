@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 from contextlib import asynccontextmanager
+from datetime import UTC, timedelta
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -33,6 +34,7 @@ from harmonica.models import (
     TrackCooldownTag,
     TrackRating,
     WeightGroup,
+    now_utc,
 )
 from harmonica.normalization import plain_rating_averages
 from harmonica.playlist import generate_and_persist_playlist, preferred_asset
@@ -941,6 +943,12 @@ def replace_tags(session: Session, track: Track, tag_names: list[str]) -> None:
         session.add(TrackCooldownTag(track=track, tag=tag))
 
 
+# One listen must never be double-counted: a re-rate within this window is treated as a
+# correction of the previous mark and revises that sample in place. Only a later rating
+# (a new listen / a changed mind) appends a fresh sample to the running history.
+RATING_CORRECTION_WINDOW = timedelta(minutes=15)
+
+
 def upsert_ratings(
     session: Session,
     track: Track,
@@ -954,6 +962,18 @@ def upsert_ratings(
         if factor is None:
             continue
         clamped = None if value is None else min(max(float(value), 0.0), 5.0)
+        latest = session.scalar(
+            select(RatingSample)
+            .where(
+                RatingSample.track_id == track.id,
+                RatingSample.factor_id == factor.id,
+                RatingSample.owner_config_id.is_(None)
+                if owner_config_id is None
+                else RatingSample.owner_config_id == owner_config_id,
+            )
+            .order_by(RatingSample.created_at.desc(), RatingSample.id.desc())
+            .limit(1)
+        )
         if owner_config_id is None:
             # Legacy/local: update the shared latest-star cache and compare against it.
             rating = session.scalar(
@@ -970,19 +990,22 @@ def upsert_ratings(
         else:
             # Owned: ratings are private history only — never touch the shared TrackRating cache.
             # Change-detection compares against this profile's own most recent sample.
-            previous = session.scalar(
-                select(RatingSample.value)
-                .where(
-                    RatingSample.track_id == track.id,
-                    RatingSample.factor_id == factor.id,
-                    RatingSample.owner_config_id == owner_config_id,
-                )
-                .order_by(RatingSample.created_at.desc(), RatingSample.id.desc())
-                .limit(1)
-            )
-        # Append to the append-only history ONLY on a genuine change, so the track
+            previous = latest.value if latest is not None else None
+        # Touch the append-only history ONLY on a genuine change, so the track
         # editor's "save all fields" can't spam duplicate samples for unchanged factors.
-        if clamped != previous:
+        if clamped == previous:
+            continue
+        latest_at = latest.created_at if latest is not None else None
+        if latest_at is not None and latest_at.tzinfo is None:
+            latest_at = latest_at.replace(tzinfo=UTC)
+        if (
+            latest is not None
+            and latest.source == "user"
+            and latest_at is not None
+            and now_utc() - latest_at <= RATING_CORRECTION_WINDOW
+        ):
+            latest.value = clamped
+        else:
             session.add(
                 RatingSample(
                     track_id=track.id,

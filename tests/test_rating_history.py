@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session as OrmSession
@@ -32,7 +34,19 @@ def _samples(track_id: int, factor_key: str = "overall") -> list[RatingSample]:
         )
 
 
-def test_rating_change_appends_one_history_sample() -> None:
+def _backdate_latest_sample(track_id: int, minutes: int) -> None:
+    """Age the newest sample past the correction window, simulating a later listen."""
+    with SessionLocal() as session:
+        sample = session.scalars(
+            select(RatingSample)
+            .where(RatingSample.track_id == track_id)
+            .order_by(RatingSample.id.desc())
+        ).first()
+        sample.created_at = sample.created_at - timedelta(minutes=minutes)
+        session.commit()
+
+
+def test_quick_rerate_revises_instead_of_appending() -> None:
     with TestClient(create_app()) as client:
         track_id = _make_track(client, "hist_change")
 
@@ -43,13 +57,19 @@ def test_rating_change_appends_one_history_sample() -> None:
         client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": 4}})
         assert [s.value for s in _samples(track_id)] == [4.0]
 
-        # A genuine change appends a new sample.
+        # A different value straight away is a correction of the same listen: the last
+        # mark is revised in place, so one listen never counts twice.
         client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": 2}})
-        assert [s.value for s in _samples(track_id)] == [4.0, 2.0]
+        assert [s.value for s in _samples(track_id)] == [2.0]
 
-        # Clearing the rating records a NULL retract marker.
+        # A rating well after the last one is a new data point and appends.
+        _backdate_latest_sample(track_id, minutes=30)
+        client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": 5}})
+        assert [s.value for s in _samples(track_id)] == [2.0, 5.0]
+
+        # Clearing shortly after retracts the fresh mark in place.
         client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": None}})
-        assert [s.value for s in _samples(track_id)] == [4.0, 2.0, None]
+        assert [s.value for s in _samples(track_id)] == [2.0, None]
 
 
 def test_displayed_rating_is_running_average() -> None:
@@ -57,10 +77,12 @@ def test_displayed_rating_is_running_average() -> None:
         track_id = _make_track(client, "avg_display")
         client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": 4}})
         assert client.get(f"/tracks/{track_id}").json()["ratings"]["overall"] == 4.0
-        # The shown value is the AVERAGE of past ratings, not the latest tap.
+        # The shown value is the AVERAGE of past listens' ratings, not the latest mark.
+        _backdate_latest_sample(track_id, minutes=30)
         client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": 2}})
         assert client.get(f"/tracks/{track_id}").json()["ratings"]["overall"] == 3.0
         # Clearing resets the series (unrated).
+        _backdate_latest_sample(track_id, minutes=30)
         client.patch(f"/tracks/{track_id}", json={"ratings": {"overall": None}})
         assert "overall" not in client.get(f"/tracks/{track_id}").json()["ratings"]
 
