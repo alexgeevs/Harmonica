@@ -334,8 +334,9 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="satiation_enabled",
         label="Ease off recent favourites",
         description=(
-            "Pace a song you've been playing a lot lately so it doesn't wear out, then let it "
-            "recover over the following weeks. Protects against burning out on a song you love."
+            "If a song has had a lot of play recently, space it out gently so it doesn't wear "
+            "thin, then let it ease back to normal. Guards a song you love from being over-played "
+            "until it starts to irritate."
         ),
         value_type="boolean",
         control="switch",
@@ -356,8 +357,8 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="satiation_window_days",
         label="Recent-play window",
         description=(
-            "Over how many days recent plays count toward easing a song off (a play this long ago "
-            "counts half). Roughly your binge length."
+            "Over how many days recent plays keep counting toward easing a song off (a play this "
+            "long ago counts half). Longer remembers heavier recent stretches for longer."
         ),
         value_type="number",
         control="stepper",
@@ -371,8 +372,9 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="rediscovery_enabled",
         label="Resurface dormant favourites",
         description=(
-            "Gradually bring back a song you loved but haven't heard in a long time, so it returns "
-            "fresh. Only applies to your above-average songs that have been played before."
+            "Once a song you rated highly has gone unheard for a long while, give it a single "
+            "gentle nudge back into the queue so you meet it fresh instead of losing it for good. "
+            "Only applies to your above-average songs that you have heard before."
         ),
         value_type="boolean",
         control="switch",
@@ -395,8 +397,8 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="rediscovery_halflife_days",
         label="Rediscovery patience",
         description=(
-            "How long a favourite must rest for half of its rediscovery boost. Larger = waits "
-            "longer before bringing a song back."
+            "How long a dormant favourite rests before half of its nudge has built up. Larger "
+            "means a forgotten song drifts back more slowly."
         ),
         value_type="number",
         control="stepper",
