@@ -1,6 +1,7 @@
 # Harmonica
 
 Harmonica is a music app exploring utility-maximizing recommendations while avoiding repetition.
+The public website is at https://harmonica.org.uk.
 
 Agents setting Harmonica up for a user: start with `AGENTS.md`. Bugs and patches: `CONTRIBUTING.md`.
 
@@ -81,4 +82,4 @@ Direction-setting user input is preserved in `docs/planning/user-input-log.md`, 
 Copyright © 2026 harmonica.org.uk.
 
 Harmonica is free software, released under the GNU Affero General Public License v3.0 or later
-(see `LICENSE`). It is provided as-is, with no warranty of any kind.
+(see `LICENSE`). It is provided as is, with no warranty of any kind.

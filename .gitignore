@@ -37,3 +37,6 @@ venv/
 .mcp.json
 .idea/
 .vscode/
+
+# Local agent working guide (not published)
+/CLAUDE.md

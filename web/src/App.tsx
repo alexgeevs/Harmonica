@@ -1500,7 +1500,7 @@ function TrackEditor(props: {
 
       <div className="editor-section">
         <h5>Ratings</h5>
-        <p className="editor-hint">The stars show your running average. Rating on a later listen adds a new mark to the average.</p>
+        <p className="editor-hint">Stars show your running average.</p>
         <div className="rating-grid">
           {applicable.map((factor) => (
             <StarRating

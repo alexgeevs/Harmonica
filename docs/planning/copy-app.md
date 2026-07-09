@@ -138,7 +138,7 @@ A new profile starts from a copy of the current settings.
 
 ## App.tsx — track editor, rating hint
 
-The stars show your running average. Rating on a later listen adds a new mark to the average.
+Stars show your running average.
 
 ## App.tsx — library, no matching tracks
 
