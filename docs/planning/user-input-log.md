@@ -917,3 +917,28 @@ notes. Beyond wording, the notes carry product direction:
 
 
 
+
+## 2026-07-09 (evening 2): Favourite tag, copy reframe, YouTube ToS findings
+
+- **Favourite tag shipped.** New `Track.favourite` (additive column), a heart toggle in the track
+  editor, and two settings under Repetition & rediscovery: `favourite_pacing_enabled` (off by
+  default, so favourites behave normally) and `favourite_pacing_strength` (1.0–3.0). When enabled,
+  a favourite's satiation and rediscovery multipliers are amplified away from neutral, so a
+  favourite is rested harder after heavy play and resurfaces more strongly once dormant. Exported
+  and imported; unit-tested (`test_favourite_pacing.py`). Currently shared metadata (like
+  audio_only), not per-profile — per-user favourites can come later if wanted.
+- **Copy reframed** (site bullet, llms.txt, AGENTS.md): dropped "your files, your server, your
+  responsibility"; now "a library you already keep, wherever you keep it: local files, a NAS, or a
+  home media server such as Plex." Agent docs tell agents to ASK the user where the library lives
+  and, if they cannot find it, to ask the user rather than guess.
+
+- **YouTube read first-hand (owner asked).** Findings: embedding via the official IFrame Player API
+  IS permitted, but YouTube's ToS forbid the things that make Harmonica Harmonica-like for that
+  content — audio-only/hidden video, background play, trimming, ad-stripping, and using YT as a
+  standalone music service; and metadata must come from the official Data API, NOT scraping
+  ("public properties"). So a compliant YouTube mode = a visible, un-trimmed, ad-inclusive embedded
+  player, metadata via the Data API, user supplies their own links/playlists. That is a real but
+  much narrower feature than "treat YouTube as your ad-free paced library." HELD for an owner
+  decision. Spotify note: reading a
+  user's own playlist metadata uses Spotify's FREE Web API (only *playback* needs Premium), which
+  is why the lawful route is matching to YouTube and embedding, not integrating Spotify playback.
