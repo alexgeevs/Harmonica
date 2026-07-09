@@ -553,7 +553,7 @@ def settings_payload(session: Session, base_settings: Settings) -> dict[str, Any
     values = get_setting_values(session, base_settings)
     return {
         **values,
-        "home": str(base_settings.home),
+        # The absolute home path is deliberately NOT exposed (it leaks the OS username / layout).
         "host": base_settings.host,
         "port": base_settings.port,
         "group_rating_min_multiplier": base_settings.group_rating_min_multiplier,

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from harmonica.config import Settings, get_settings
 from harmonica.cover_ranking import recompute_set
-from harmonica.embeds import parse_embed_url
+from harmonica.embeds import is_valid_external_id, parse_embed_url
 from harmonica.models import (
     CooldownTag,
     CoverComparison,
@@ -547,7 +547,9 @@ def _upsert_embed(session: Session, track: Track, payload: dict[str, Any]) -> No
     external_id = payload.get("external_id")
     url = payload.get("url")
     start_seconds = payload.get("start_seconds")
-    if not (provider and external_id):
+    # A directly-supplied provider+id must be well-formed for that provider; otherwise fall back to
+    # parsing the URL, so an import can't store an arbitrary id that later reaches a player.
+    if not (provider and external_id and is_valid_external_id(provider, external_id)):
         parsed = parse_embed_url(url) if url else None
         if parsed is None:
             return

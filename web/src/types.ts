@@ -138,7 +138,6 @@ export type AppSettings = {
   song_rating_min_multiplier: number;
   song_rating_max_multiplier: number;
   enable_group_rating_multiplier: boolean;
-  home: string;
   host: string;
   port: number;
   default_playlist_length: number;

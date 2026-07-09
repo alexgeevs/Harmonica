@@ -17,8 +17,9 @@ from harmonica.bootstrap import ensure_default_rating_factors
 from harmonica.config import Settings, get_settings, path_within_root
 from harmonica.cover_ranking import next_pair, owner_set_state, record_verdict, set_summary
 from harmonica.db import SessionLocal, get_session, init_db
-from harmonica.embeds import known_providers, parse_embed_url
+from harmonica.embeds import is_valid_external_id, known_providers, parse_embed_url
 from harmonica.history import playback_event_signal
+from harmonica.http_security import install_security
 from harmonica.models import (
     CooldownTag,
     CoverSetState,
@@ -94,14 +95,19 @@ def get_owner(
     """Resolve the requesting user profile, or None for legacy/local (whole-library) mode.
 
     Identity comes from a signed ``Authorization: Bearer <token>`` (tamper-proof — issued only after
-    a verified passphrase). The raw ``X-Harmonica-Config-Id`` header is a transitional fallback that
-    gives structural separation but NOT access control (a client could name any profile id); it is
-    accepted only when no bearer token is present."""
+    a verified passphrase). The raw ``X-Harmonica-Config-Id`` header is a spoofable convenience that
+    gives structural separation but NOT access control, so it is honoured ONLY in local (loopback)
+    mode. In exposed mode it is ignored: identity must come from a signed token, or the request is
+    treated as unauthenticated (and the security middleware will already have refused any private
+    or state-changing route)."""
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         config_id = verify_config_token(auth[7:].strip(), settings.effective_secret_key())
         if config_id is None:
             raise HTTPException(status_code=401, detail="Invalid profile token")
+    elif getattr(request.app.state, "auth_required", False):
+        # No token in exposed mode: never resolve a profile from a client-supplied id.
+        return None
     else:
         raw = request.headers.get("x-harmonica-config-id")
         if not raw:
@@ -169,6 +175,16 @@ def create_app() -> FastAPI:
         yield
 
     app = FastAPI(title="Harmonica", version="0.1.0", lifespan=lifespan)
+
+    # Security policy read by the middleware (see http_security.py). In exposed mode (bound off
+    # loopback, or require_auth forced on) every non-public endpoint needs a valid profile token;
+    # in local mode this is a no-op. CSRF and security headers apply in both modes.
+    settings = get_settings()
+    app.state.auth_required = settings.auth_required()
+    app.state.secret = settings.effective_secret_key()
+    app.state.allowed_origins = {"http://localhost:5173", "http://127.0.0.1:5173"}
+    install_security(app)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -1047,7 +1063,10 @@ def _resolve_embed(payload: EmbedWrite) -> tuple[str, str, float | None] | None:
     """Turn an embed write into (provider, external_id, start_seconds), parsing a bare URL when the
     provider/id aren't given directly. None if it isn't a URL we recognise."""
     if payload.provider and payload.external_id:
-        return payload.provider, payload.external_id, payload.start_seconds
+        # A directly-supplied id must be a well-formed id for its provider — never trust an
+        # arbitrary string that would later reach a player. Fall back to URL parsing if not.
+        if is_valid_external_id(payload.provider, payload.external_id):
+            return payload.provider, payload.external_id, payload.start_seconds
     if payload.url:
         parsed = parse_embed_url(payload.url)
         if parsed is not None:

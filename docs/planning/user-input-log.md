@@ -1026,3 +1026,44 @@ one of each solo, plus a Sonnet and an Opus collaborating) before the final mess
 - Endpoints: `GET /spotify/config` (presence booleans only) and `GET /spotify/playlist?url=` (gated
   on the feature being on AND credentials present). Frontend: a small panel in the Curate tab that
   reads a playlist and flags which songs are likely already in the library. Settings switch added.
+
+## 2026-07-09 (evening 6): red-team of the connectors, then a full security fix + preset redesign
+
+### User Input
+
+After the connectors landed, the owner asked for a red-team pass (the new connectors add attack
+surface on a NAS, where open ports matter), then to fix everything it found ("imperative"), and in
+parallel to update the listening presets via specialised sub-agents: Codex (via `codex exec`) to
+design the most conservative long-run-utility preset with a Sonnet 5 review, Opus 4.8 to update the
+other recent presets grounded in behavioural economics with a Sonnet 5 review each, all built
+independently, plus a dedicated agent to confirm the Balanced preset is as balanced as it can be.
+
+### Red-team outcome (4 agents: solo Sonnet, solo Opus, and a talking Opus+Sonnet pair)
+
+All four agreed the Spotify SSRF surface is genuinely well-built (no bypass found). The real issues
+were access control, now fixed:
+- The spoofable `X-Harmonica-Config-Id` header is no longer honoured in exposed mode (identity must
+  be a signed token), closing the cross-profile IDOR.
+- An authenticated access model: bound off loopback (a NAS on 0.0.0.0) or with `require_auth` forced
+  on, every non-public endpoint needs a valid profile token. Local (loopback) use is unchanged.
+- A CSRF guard (Sec-Fetch-Site / Origin) that refuses cross-site browser requests to state-changing
+  endpoints and to `/spotify/playlist` — this protects even the default local install, and does not
+  affect non-browser clients. Implemented as pure-ASGI middleware so media range requests (audio and
+  video seeking) still work.
+- Embed ids supplied as provider+id are now format-validated (not only when parsed from a URL); the
+  embed fields and list are length-bounded.
+- `secret.key` is written 0600 (rotating it revokes all tokens); the absolute home path is no longer
+  returned by `/settings`; a strict Content-Security-Policy and related headers are sent on every
+  response. Remaining follow-up: exposed-mode front-end UX (prompt to claim on a 401) and optional
+  per-token expiry/revocation, both noted as non-blocking.
+
+### Preset redesign (designed independently, each reviewed by Sonnet 5)
+
+The four presets now each set the full knob set (including the newer satiation / rediscovery /
+favourite-pacing controls), so switching presets fully overrides the previous one. Highlights the
+reviews caught: the Familiar design had favourite-pacing amplifying an already-floored satiation
+term, which would have rested favourites *harder* than neutral (disabled it); Discovery's anti-repeat
+knobs had drifted into the most-conservative preset's territory (separated them); the dedicated
+Balanced audit found the shipped defaults were not maximally neutral (the cooldown floors cloned
+Discovery's aggressive values and visual-priority baked in a non-taste video lean), so Balanced was
+re-centred (higher cooldown floors, visual multiplier neutralised to 1.0).

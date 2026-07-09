@@ -13,6 +13,15 @@ def default_harmonica_home() -> Path:
     return Path(os.environ.get("HARMONICA_HOME", ".harmonica")).expanduser().resolve()
 
 
+def _restrict_permissions(path: Path) -> None:
+    """Best-effort chmod 0600 on a secret file we create, so it isn't world/group readable. A
+    no-op on platforms without POSIX permissions."""
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
 def path_within_root(candidate: str | Path, root: Path) -> Path | None:
     """Resolve ``candidate`` (following symlinks, normalising ``..``) and return it
     only if it stays inside ``root``; otherwise ``None``.
@@ -38,6 +47,11 @@ class Settings(BaseSettings):
     # HMAC secret for signing per-profile auth tokens. If unset, a random key is generated once
     # and persisted under the Harmonica home so tokens survive restarts.
     secret_key: str | None = None
+    # Force the authenticated access model on (True) or off (False). Unset (None) derives it from
+    # the bind host: loopback = trusting local mode (no auth), anything else (0.0.0.0 / a LAN IP) =
+    # exposed mode, where every non-public endpoint needs a valid profile token. Env
+    # HARMONICA_REQUIRE_AUTH.
+    require_auth: bool | None = None
     # Built web UI to serve from the daemon itself (so "run the daemon, open the bound URL" is the
     # whole app — identical locally on 127.0.0.1 and on a NAS over the LAN). Defaults to the repo's
     # web/dist when present; override for a packaged/Docker layout. Absent → daemon is API-only.
@@ -178,9 +192,24 @@ class Settings(BaseSettings):
     def logs_path(self) -> Path:
         return self.log_dir or self.home / "logs"
 
+    def is_loopback_host(self) -> bool:
+        """True when the daemon is bound only to the local machine (no other device reaches it)."""
+        return self.host in {"127.0.0.1", "localhost", "::1", ""}
+
+    def auth_required(self) -> bool:
+        """Whether the authenticated access model is enforced. Explicit ``require_auth`` wins;
+        otherwise it turns on automatically whenever the daemon is bound off loopback (e.g. a NAS
+        on 0.0.0.0), because that is when other devices can reach it and profile privacy matters."""
+        if self.require_auth is not None:
+            return self.require_auth
+        return not self.is_loopback_host()
+
     def effective_secret_key(self) -> str:
         """The HMAC secret for signing profile tokens. Uses ``secret_key`` if set, else a random
-        key generated once and persisted to ``home/secret.key`` (so tokens survive restarts)."""
+        key generated once and persisted to ``home/secret.key`` (so tokens survive restarts).
+
+        Rotating this file (deleting it, or changing ``secret_key``) invalidates every issued token
+        at once — the intended way to revoke access to all profiles."""
         if self.secret_key:
             return self.secret_key
         key_path = self.home / "secret.key"
@@ -189,6 +218,7 @@ class Settings(BaseSettings):
         value = secrets.token_hex(32)
         self.home.mkdir(parents=True, exist_ok=True)
         key_path.write_text(value, encoding="utf-8")
+        _restrict_permissions(key_path)
         return value
 
     def effective_youtube_data_api_key(self) -> str | None:

@@ -103,3 +103,12 @@ def parse_embed_url(url: str) -> ParsedEmbed | None:
 
 def known_providers() -> tuple[str, ...]:
     return tuple(_PARSERS)
+
+
+def is_valid_external_id(provider: str, external_id: str) -> bool:
+    """Whether ``external_id`` is a well-formed id for ``provider``. Used to validate an embed
+    supplied as provider+id directly (not parsed from a URL), so a caller cannot store an arbitrary
+    string that later reaches a player. Unknown providers are rejected."""
+    if provider == YOUTUBE:
+        return bool(external_id and _VIDEO_ID_RE.match(external_id))
+    return False

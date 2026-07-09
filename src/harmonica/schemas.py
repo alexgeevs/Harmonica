@@ -25,10 +25,12 @@ class EmbedRead(BaseModel):
 
 
 class EmbedWrite(BaseModel):
-    # Either a full provider+id, or just a url that the server parses into one.
-    provider: str | None = None
-    external_id: str | None = None
-    url: str | None = None
+    # Either a full provider+id, or just a url that the server parses into one. Lengths are bounded
+    # so an unauthenticated writer can't store oversized strings; the id is also format-validated
+    # server-side (see is_valid_external_id) before it is ever persisted.
+    provider: str | None = Field(default=None, max_length=40)
+    external_id: str | None = Field(default=None, max_length=64)
+    url: str | None = Field(default=None, max_length=2048)
     start_seconds: float | None = None
 
 
@@ -97,7 +99,7 @@ class TrackUpdate(BaseModel):
     audio_only: bool | None = None
     is_original_rendition: bool | None = None
     favourite: bool | None = None
-    embeds: list[EmbedWrite] | None = None
+    embeds: list[EmbedWrite] | None = Field(default=None, max_length=20)
     groups: list[TrackGroupWrite] | None = None
     cooldown_tags: list[str] | None = None
     ratings: dict[str, float | None] | None = None
@@ -176,7 +178,6 @@ class SettingsRead(BaseModel):
     song_rating_min_multiplier: float
     song_rating_max_multiplier: float
     enable_group_rating_multiplier: bool
-    home: str
     host: str
     port: int
     default_playlist_length: int
