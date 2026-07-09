@@ -31,7 +31,7 @@ export default function CurateView(props: { tracks: Track[]; onApplied: () => vo
       setDiff(computed);
       setAccepted(new Set(computed.tracks.map((entry) => entry.song_id)));
       if (computed.tracks.length === 0) {
-        setNote("No differences found; your library already matches this file.");
+        setNote("No differences found. Your library already matches this file.");
       }
     } catch (err) {
       setProposed(null);
@@ -134,7 +134,7 @@ export default function CurateView(props: { tracks: Track[]; onApplied: () => vo
           <h3>Curation review</h3>
           <p>
             Hand your library to a curation agent, then bring its proposal back here. You'll see every
-            change and approve them one by one; nothing is written until you apply.
+            change and approve them one by one. Nothing in your library changes until you apply.
           </p>
         </div>
         <div className="curate-actions">
@@ -184,7 +184,7 @@ function PasteArea(props: { onSubmit: (text: string) => void; busy: boolean }) {
   return (
     <div className="paste-area">
       <label>
-        …or paste the proposed library JSON
+        Or paste the proposed library JSON
         <textarea
           value={text}
           placeholder='{ "tracks": [ … ] }'
@@ -238,7 +238,7 @@ function DiffReview(props: {
       {diff.tracks.length === 0 ? (
         <div className="diff-empty">
           <Sparkles size={26} />
-          <p>Nothing to review; the proposal matches your library.</p>
+          <p>Nothing to review. The proposal matches your library.</p>
         </div>
       ) : (
         <ul className="diff-list">

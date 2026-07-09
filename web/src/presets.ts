@@ -28,9 +28,9 @@ export const PRESETS: Preset[] = [
   {
     key: "familiar",
     name: "Familiar",
-    tagline: "Comfort & favourites",
+    tagline: "Comfort and favourites",
     description:
-      "Leans towards what you already love: favourites replay sooner and similar songs stay together, in the manner of a streaming service.",
+      "Leans towards what you already love: favourites replay sooner and similar songs stay together.",
     values: {
       beta: 1.5,
       group_cooldown_floor: 0.3,
@@ -50,7 +50,7 @@ export const PRESETS: Preset[] = [
   {
     key: "balanced",
     name: "Balanced",
-    tagline: "The default blend",
+    tagline: "The default configuration",
     description:
       "Harmonica's sensible default: rewards what you rate highly while steadily cooling down anything you've heard recently.",
     values: {
@@ -74,7 +74,7 @@ export const PRESETS: Preset[] = [
     name: "Discovery",
     tagline: "Give everything a chance",
     description:
-      "Brings unheard and unrated tracks forward and stops large groups dominating, so the whole library gets fair coverage. Useful while you are still rating things.",
+      "Brings unheard and unrated tracks forward and stops large groups dominating, so the whole library gets fair coverage. Useful while you are still rating things. Also worth re-enabling every few months, when your taste has moved on and the ratings deserve a refresh.",
     values: {
       beta: 0.9,
       group_cooldown_floor: 0.05,

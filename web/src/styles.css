@@ -479,14 +479,26 @@ p {
 }
 
 .break-link {
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 14px;
-  text-decoration: none;
+  color: #1b5fd9;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
-.break-link:hover {
+.break-source {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.section-head a {
+  color: #1b5fd9;
   text-decoration: underline;
+}
+
+.cosmetic-tag {
+  font-style: italic;
+  opacity: 0.55;
+  font-size: 0.85em;
+  margin-left: 0.45em;
 }
 
 .break-modal .primary {

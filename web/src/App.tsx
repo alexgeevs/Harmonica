@@ -240,9 +240,15 @@ export default function App() {
     return detail;
   }
 
-  async function createConfig(name: string, passphrase: string, trackIds: number[]) {
-    // New profiles capture the current global settings as their snapshot.
-    const snapshot = settings ? settingsToDraft(settings) : {};
+  async function createConfig(
+    name: string,
+    passphrase: string,
+    trackIds: number[],
+    fromScratch: boolean
+  ) {
+    // New profiles copy the current global settings as their snapshot, unless the
+    // user asked to start from the defaults instead.
+    const snapshot = fromScratch || !settings ? {} : settingsToDraft(settings);
     const detail = await api.createConfig({
       name,
       passphrase,
@@ -290,9 +296,10 @@ export default function App() {
 
   async function rateTrack(track: Track, factorKey: string, value: number | null) {
     const current = tracks.find((item) => item.id === track.id) ?? track;
-    // Send ONLY the tapped factor — each tap is one new data point. The displayed rating is
-    // the average of all past taps (recomputed server-side), so we must NOT resend the other
-    // factors' averages as if they were fresh ratings.
+    // Send ONLY the tapped factor — each rating action is one data point (the server treats a
+    // quick re-tap as a correction of the last mark). The displayed rating is the average of all
+    // past marks (recomputed server-side), so we must NOT resend the other factors' averages as
+    // if they were fresh ratings.
     const optimistic = { ...current.ratings, [factorKey]: value };
     setTracks((cur) =>
       cur.map((item) => (item.id === track.id ? { ...item, ratings: optimistic } : item))
@@ -358,7 +365,7 @@ export default function App() {
                 Profile <strong>{activeConfig.name}</strong> is active · {tracks.length}{" "}
                 {tracks.length === 1 ? "song" : "songs"} in your library.
                 {tracks.length === 0
-                  ? " It's empty; import or scan songs to fill it (duplicates reuse the shared file)."
+                  ? " Library empty. Import or scan songs to fill it. Anything the household already has is linked rather than copied."
                   : ""}
               </span>
               <button className="link-button" onClick={switchToLocal}>
@@ -458,15 +465,21 @@ function BreakModal(props: { onClose: () => void }) {
         <div className="break-icon">
           <Clock size={26} />
         </div>
-        <h3>Time for a short break</h3>
+        <h3>It is advised that you take a short break</h3>
         <p>
-          Playback is paused: that was two heavily compressed (lossy) tracks in a row. Over-compressed
-          music appears to be genuinely more fatiguing; in one lab study it caused lasting ear damage
-          in guinea pigs that the same energy of ordinary music did not.
+          Playback is paused: that was two heavily compressed and lossy tracks in a row.
+          Over-compressed music appears to be genuinely more fatiguing. In one lab study it caused
+          lasting ear damage in guinea pigs that the same energy of ordinary music did not.
         </p>
-        <a className="break-link" href="https://econ.st/4dtOesh" target="_blank" rel="noreferrer">
-          Read The Economist on this →
-        </a>
+        <p>
+          A break is good in combination with looking at a distant object for at least 20 seconds.
+        </p>
+        <p className="break-source">
+          See:{" "}
+          <a className="break-link" href="https://econ.st/4dtOesh" target="_blank" rel="noreferrer">
+            The Economist
+          </a>
+        </p>
         <button className="primary" onClick={props.onClose}>
           Resume playback
         </button>
@@ -511,7 +524,7 @@ function Sidebar(props: { view: View; onView: (view: View) => void; trackCount: 
       </nav>
       <div className="sidebar-foot">
         <Sparkles size={14} />
-        <span>Your library, sequenced by expected utility rather than at random.</span>
+        <span>Your library, sequenced by expected utility maximisation as opposed to at random.</span>
       </div>
     </aside>
   );
@@ -687,7 +700,7 @@ function QueueView(props: {
               {item ? `Now playing · ${player.index + 1} of ${player.queue.length}` : "Nothing queued"}
             </p>
             <h3>{item?.track.title ?? "Generate a queue"}</h3>
-            <span>{item ? displayArtist(item.track) : "Harmonica will put together your next listening session."}</span>
+            <span>{item ? displayArtist(item.track) : "Harmonica will compile your next listening session."}</span>
             {item ? <ChipRow groups={item.track.groups} subGroup={item.track.sub_group} /> : null}
           </div>
         </div>
@@ -754,7 +767,7 @@ function QueuePanel(props: { player: PlayerApi }) {
       <div className="queue-panel empty-queue">
         <ListMusic size={34} />
         <p>Your queue is empty</p>
-        <small>Generate a session and it will appear here, ready to reorder, trim, and play.</small>
+        <small>Generate a session and it will appear here.</small>
       </div>
     );
   }
@@ -807,7 +820,7 @@ function QueueRow(props: {
       </button>
       <div className="queue-tags">
         {!item.media_url ? (
-          <span className="tag soon" title="Media not available yet">
+          <span className="tag soon" title="Media not available">
             soon
           </span>
         ) : null}
@@ -1265,7 +1278,7 @@ function LibraryView(props: {
 
         <div className="track-list">
           {filtered.length === 0 ? (
-            <div className="track-empty">No tracks match this view.</div>
+            <div className="track-empty">No tracks match the current filter or search.</div>
           ) : (
             filtered.map((track) => (
               <button
@@ -1492,7 +1505,7 @@ function TrackEditor(props: {
 
       <div className="editor-section">
         <h5>Ratings</h5>
-        <p className="editor-hint">Each tap adds a rating; the shown value is your running average.</p>
+        <p className="editor-hint">The stars show your running average. Rating again straight away corrects your last mark. Rating on a later listen adds a new mark to the average.</p>
         <div className="rating-grid">
           {applicable.map((factor) => (
             <StarRating
@@ -1837,7 +1850,12 @@ function BarList(props: { rows: { label: string; value: number }[] }) {
 // Settings view
 // ---------------------------------------------------------------------------
 
-const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
+const SETTING_SECTIONS: {
+  title: string;
+  note: string | JSX.Element;
+  cosmetic?: boolean;
+  keys: string[];
+}[] = [
   {
     title: "Recommendation core",
     note: "How strongly groups and your ratings shape the queue.",
@@ -1861,7 +1879,7 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
   },
   {
     title: "Coverage (cold start)",
-    note: "Making sure every song gets a fair first hearing.",
+    note: "Making sure every song gets a fair first hearing. (This is advised if you have just imported a library without additional personalised rating information.)",
     keys: ["cold_start_enabled", "cold_start_unrated_boost"]
   },
   {
@@ -1871,7 +1889,19 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
   },
   {
     title: "Hearing health",
-    note: "Moderating loudness and listening fatigue, in line with the WHO's safe-listening guidance.",
+    note: (
+      <>
+        Moderating loudness and listening fatigue, in line with the{" "}
+        <a
+          href="https://www.who.int/activities/making-listening-safe"
+          target="_blank"
+          rel="noreferrer"
+        >
+          WHO's safe-listening guidance
+        </a>
+        .
+      </>
+    ),
     keys: [
       "loudness_warning_enabled",
       "loudness_warning_level",
@@ -1906,11 +1936,12 @@ const SETTING_SECTIONS: { title: string; note: string; keys: string[] }[] = [
   {
     title: "Explanations",
     note: "How much detail the “why this song” panel shows while you listen.",
+    cosmetic: true,
     keys: ["why_show_math"]
   },
   {
     title: "Covers",
-    note: "When a song has several renditions, let the queue pick which one to play. Off by default — turn it on if your library has covers.",
+    note: "When a song has several renditions, let the queue pick which one to play. (Off by default, turn it on if your library has covers.)",
     keys: ["cover_two_level_enabled", "cover_count_log_base", "cover_original_bonus"]
   }
 ];
@@ -1924,7 +1955,12 @@ function SettingsView(props: {
   activeConfig: DeviceConfigDetail | null;
   allTracks: Track[];
   onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
-  onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
+  onCreate: (
+    name: string,
+    passphrase: string,
+    trackIds: number[],
+    fromScratch: boolean
+  ) => Promise<DeviceConfigDetail>;
   onSwitchLocal: () => void;
 }) {
   const [draft, setDraft] = useState<Record<string, number | boolean>>(() => settingsToDraft(props.settings));
@@ -1968,7 +2004,7 @@ function SettingsView(props: {
         <div className="preset-card">
           <div className="preset-head">
             <h4>Listening presets</h4>
-            <p>A preset sets every control below; you can still fine-tune afterwards.</p>
+            <p>A preset sets every control below. You can still fine-tune afterwards.</p>
           </div>
           <div className="preset-grid">
             {PRESETS.map((preset) => (
@@ -1988,7 +2024,7 @@ function SettingsView(props: {
               {PRESETS.find((preset) => preset.key === activePreset)?.description}
             </p>
           ) : (
-            <p className="preset-active custom">Custom mix: adjust any control, or pick a preset to start afresh.</p>
+            <p className="preset-active custom">Custom: adjust any control, or pick a preset to start afresh.</p>
           )}
         </div>
 
@@ -1996,7 +2032,10 @@ function SettingsView(props: {
           <div key={section.title} className="settings-section">
             <div className="section-head">
               <h4>{section.title}</h4>
-              <p>{section.note}</p>
+              <p>
+                {section.note}
+                {section.cosmetic ? <em className="cosmetic-tag">cosmetic</em> : null}
+              </p>
             </div>
             <div className="settings-controls">{renderControls(section.keys)}</div>
           </div>
@@ -2056,13 +2095,19 @@ function DeviceProfilePanel(props: {
   activeConfig: DeviceConfigDetail | null;
   allTracks: Track[];
   onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
-  onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
+  onCreate: (
+    name: string,
+    passphrase: string,
+    trackIds: number[],
+    fromScratch: boolean
+  ) => Promise<DeviceConfigDetail>;
   onSwitchLocal: () => void;
 }) {
   const [mode, setMode] = useState<"claim" | "create">("claim");
   const [name, setName] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [scopeAll, setScopeAll] = useState(true);
+  const [fromScratch, setFromScratch] = useState(false);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2081,6 +2126,7 @@ function DeviceProfilePanel(props: {
     setPassphrase("");
     setError(null);
     setScopeAll(true);
+    setFromScratch(false);
     setChosen(new Set());
     setSearch("");
   }
@@ -2114,7 +2160,7 @@ function DeviceProfilePanel(props: {
           setBusy(false);
           return;
         }
-        await props.onCreate(name.trim(), passphrase, ids);
+        await props.onCreate(name.trim(), passphrase, ids, fromScratch);
       }
       reset();
     } catch (err) {
@@ -2153,7 +2199,7 @@ function DeviceProfilePanel(props: {
           </button>
         </div>
       ) : (
-        <p className="profile-mode-note">Currently local: the full library, with global settings.</p>
+        <p className="profile-mode-note">No profile active: using the full library with universal settings.</p>
       )}
 
       <div className="profile-tabs">
@@ -2183,6 +2229,14 @@ function DeviceProfilePanel(props: {
             <label className="scope-toggle">
               <input type="checkbox" checked={scopeAll} onChange={(event) => setScopeAll(event.target.checked)} />
               Include all songs
+            </label>
+            <label className="scope-toggle">
+              <input
+                type="checkbox"
+                checked={fromScratch}
+                onChange={(event) => setFromScratch(event.target.checked)}
+              />
+              Start from default settings
             </label>
             {!scopeAll ? (
               <div className="scope-picker">
@@ -2217,7 +2271,7 @@ function DeviceProfilePanel(props: {
           {busy ? "Working…" : mode === "claim" ? "Claim profile" : "Create profile"}
         </button>
         {mode === "create" ? (
-          <small className="profile-hint">New profiles capture your current settings as their snapshot.</small>
+          <small className="profile-hint">A new profile starts from a copy of the current settings, or from the defaults if you tick the box.</small>
         ) : null}
       </div>
     </div>
