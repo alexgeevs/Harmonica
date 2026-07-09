@@ -31,3 +31,9 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+
+# Agent/editor tool state (never publish)
+.claude/
+.mcp.json
+.idea/
+.vscode/
