@@ -54,8 +54,7 @@ The flow that works today:
 2. Ask the user for basic information first (e.g. whether video matters to them).
 3. Import the user's existing files: point the scanner at a folder of media (`POST /scan`), or use
    the structured format of one folder per song holding the media plus a `song_config.json`
-   (field guide in `docs/agents/`). If the user's files live on their NAS, mount the share or copy
-   them over with the usual tools (SMB, rsync, Syncthing) before importing.
+   (field guide in `docs/agents/`).
 4. Curate: `GET /library/export-json`, edit the proposal, and return it through the app's Curate
    view, where the user reviews and applies each change. Import is idempotent and de-duplicates.
 5. You can also curate a preset for the user via `PATCH /settings`, based on what you know about
