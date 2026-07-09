@@ -1,10 +1,11 @@
 <!DOCTYPE html>
+<!-- Agents: a machine-readable summary of this site lives at /llms.txt. Read that instead of this HTML. -->
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Harmonica: a music player built around diminishing returns</title>
-<meta name="description" content="Harmonica is a local-first, self-hosted music player. Its algorithm paces songs, artists and topics so nothing is over-played and nothing is forgotten.">
+<title>Harmonica: a Music Player and Algorithm to diminish diminishing returns</title>
+<meta name="description" content="Harmonica is a self-hosted music player. Its algorithm selects songs, artists and topics so nothing is over-played and nothing is forgotten. Customise the algorithm yourself, or use presets built by LLMs from behavioural-economics and music-recommendation research.">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary">
 <style>
   :root{
@@ -80,7 +81,7 @@
 
 <main>
   <div class="wrap hero">
-    <h1>A music player built around diminishing returns.</h1>
+    <h1>A music player built around diminishing <em>diminishing returns</em>.</h1>
     <p>Harmonica is a self-hosted player for your own library. Rather than shuffling, it keeps
        track of what you have played lately, by features such as song, artist and topic, and
        queues what is worth hearing next.</p>
@@ -94,8 +95,9 @@
     <section>
       <h2>Why not just shuffle?</h2>
       <p>The failure mode is familiar: you find songs you love and play them constantly, and within
-         a few weeks the marginal utility of another play has depreciated to nothing, while the rest
-         of your library sits untouched. Harmonica treats this as the central problem.
+         a few weeks the marginal utility of listening again has depreciated to nothing (this is why
+         the demand curve slopes downwards), while the rest of your library sits untouched.
+         Harmonica treats this as the central problem.
          <strong>Recently played material is rested, neglected favourites recover their value, and
          unheard songs get a first hearing.</strong></p>
     </section>
@@ -106,11 +108,11 @@
       <h2>What it does</h2>
       <ul class="features">
         <li><h3>Cooldowns, not shuffle</h3><p>Weighted queues with cooldowns per song, artist and topic, so no corner of the library is over-played.</p></li>
-        <li><h3>Satiation guard</h3><p>If a song has seen heavy recent play, it is rested before you tire of it.</p></li>
+        <li><h3>Satiation guard</h3><p>If a song has seen heavy recent listening, it is rested before your brain learns to predict what comes next. Once the novelty is gone, the utility follows.</p></li>
         <li><h3>Rediscovery</h3><p>Well-rated songs that have gone unheard for months regain weight and return to the queue.</p></li>
         <li><h3>Fair cold start</h3><p>New and unrated songs are prioritised until everything has been heard at least once.</p></li>
-        <li><h3>Rating normalisation</h3><p>Ratings from an unusually harsh or generous session are reverted towards the mean, so one off day does not distort a song's standing.</p></li>
-        <li><h3>Per-user profiles</h3><p>One shared media pool on a NAS; private libraries, ratings and listening history for each person.</p></li>
+        <li><h3>Rating normalisation</h3><p>Ratings from an unusually harsh or generous session are reverted towards the mean, so a song's standing does not hinge on the day it happened to be rated.</p></li>
+        <li><h3>Per-user profiles</h3><p>One shared media pool on a NAS. Private libraries, ratings and listening history for each person.</p></li>
       </ul>
     </section>
   </div>
@@ -123,16 +125,18 @@
          as each platform is ready:</p>
       <ul class="platforms">
         <li><h3>Android</h3><p>Native client for phones and tablets.</p><span class="soon">Coming soon</span></li>
-        <li><h3>PC (web app)</h3><p>Runs on your machine, opens in your browser at localhost.</p><span class="soon">Coming soon</span></li>
-        <li><h3>NAS / home server</h3><p>The same build on a NAS or Pi, shared with your household over the LAN.</p><span class="soon">Coming soon</span></li>
+        <li><h3>PC (web app)</h3><p>Runs on your personal computing device, opens in your browser at localhost.</p><span class="soon">Coming soon</span></li>
+        <li><h3>NAS / home server</h3><p>The same build on a NAS or Pi, or just an old Linux computer on your network, shared with your household over the Local Area Network.</p><span class="soon">Coming soon</span></li>
       </ul>
 
       <div class="note">
         <p><strong>Setting it up:</strong> Harmonica is self-hosted, and doing the setup by hand is
-           tedious. The intended path is to hand the
+           tedious (very much so if your library is large enough to require this in the first
+           place). The intended path is to hand the
            <a href="https://github.com/alexgeevs/Harmonica">repository</a> to an AI coding agent and
-           let it install, configure, and import your library. Agents: a machine-readable summary of
-           this site lives at <a href="/llms.txt"><code>/llms.txt</code></a>.</p>
+           let it install, configure, and import your library. On that note, agents: a
+           machine-readable summary of this site lives at
+           <a href="/llms.txt"><code>/llms.txt</code></a>.</p>
       </div>
     </section>
   </div>
@@ -142,9 +146,9 @@
       <h2>The small print</h2>
       <div class="legal">
         <ul>
-          <li>Harmonica is provided <strong>as-is</strong>, with no warranty of any kind, to the fullest extent permitted by law.</li>
-          <li>It is <strong>open-source</strong> under the <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a> licence: free to use, study, modify, and share; forks and hosted derivatives must remain open-source.</li>
-          <li>Harmonica does not host, provide, or source any music. It plays your own self-hosted library — your files, your server, your responsibility.</li>
+          <li>Harmonica is provided <strong>as is</strong>, with no warranty of any kind, to the fullest extent permitted by law.</li>
+          <li>It is <strong>Open-Source</strong> under the <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a> licence: free to use, study, modify, and share. Forks and hosted derivatives must remain open-source.</li>
+          <li>Harmonica does not host, provide, or source any music. It plays your own self-hosted library: your files, your server, your responsibility.</li>
         </ul>
       </div>
     </section>
@@ -153,9 +157,9 @@
 
 <footer id="contact">
   <div class="wrap">
-    <p><strong>Contact:</strong> <a href="mailto:contact@harmonica.org.uk">contact@harmonica.org.uk</a></p>
+    <p><strong>Contact:</strong> <a href="mailto:contact@harmonica.org.uk">contact@harmonica.org.uk</a> for any questions, concerns, or opinions.</p>
     <p><a href="https://github.com/alexgeevs/Harmonica">Source code on GitHub</a> · <a href="/llms.txt">llms.txt</a></p>
-    <p class="fine">© 2026 harmonica.org.uk. This site does no tracking, shows no adverts, and sets no cookies of its own.</p>
+    <p class="fine">© 2026 harmonica.org.uk. This site does not track, shows no adverts, and sets no cookies of its own.</p>
   </div>
 </footer>
 
