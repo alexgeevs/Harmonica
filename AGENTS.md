@@ -46,6 +46,14 @@ The whole player is a JSON API. An agent can build a custom UI for the user and 
 backend. See `docs/agents/api-and-custom-ui.md` for the endpoint map and how to serve a
 replacement front end.
 
+## Private credentials
+
+Harmonica may hold secrets that belong to the user: API keys for optional integrations, the
+token-signing key, profile passphrases. These are deliberately kept outside the source tree. Do
+not go looking for them, do not read or open them, and never copy their values into logs, exports,
+code, or commits. If a feature needs a key, have the user enter it through the app and refer to it
+by name only. You do not need its value, and you do not need to know where it lives, to do your work.
+
 ## Bugs and feedback
 
 Report problems upstream so they can be fixed for everyone: see `CONTRIBUTING.md`. In short, open
