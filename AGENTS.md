@@ -32,6 +32,12 @@ Two routes, both idempotent:
 Harmonica does not host, provide, or source any music. You are advised to ask the user where their
 library lives and import from there.
 
+On a shared NAS, media files are one deduplicated pool while each profile's library is private.
+Import is dedupe-aware: it matches on `song_id`, then media checksum, then file path, and links a
+new profile to the existing shared copy instead of importing the media again. When you set up a new
+profile on a NAS that already holds other people's songs, expect this and rely on it, so the same
+file is never stored twice.
+
 ## Curate and configure
 
 - Library round-trip: `GET /library/export-json` → edit → the user reviews the proposal in the
