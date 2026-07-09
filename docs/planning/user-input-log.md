@@ -837,3 +837,33 @@ results to be reviewed with the user next.
 - **Git identity:** commits are authored as `alexgeevs <contact@harmonica.org.uk>`.
 
 
+
+## 2026-07-09: Copy-review feedback + feature requests from the edit pass
+
+The user edited `docs/planning/copy-website.md` / `copy-app.md` and returned them with inline
+notes. Beyond wording, the notes carry product direction:
+
+- **Settings explainability:** anti-repetition/variety controls should each explain which algorithm
+  variable they change, offer a view of the modified full algorithm, and show worked examples
+  (a 10-song vs a 100-song library, ceteris paribus).
+- **Preset persistence semantics:** editing Custom then switching presets must keep the custom mix
+  saved (per user); editing a named preset saves the change *to that preset* rather than flipping to
+  Custom; reset-to-default available per preset and for all settings.
+- **Scale-free parameters:** algorithm settings should operate on a % of the library, not absolute
+  song counts, so behaviour generalises beyond the ~250-song default tuning.
+- **Rating semantics:** a single listen must never be double-counted by repeat taps. (Code already
+  ignores same-value re-taps; an immediate correction, e.g. 4→5, currently appends both samples to
+  the running average — candidate refinement: same-session correction replaces the last sample.)
+- **Public ratings option:** per-user profiles should later offer making one's ratings visible to
+  the household. Not implemented; must not be advertised on the site until it exists.
+- **Official embedded players (idea):** optionally embed the YouTube/Spotify official players in the
+  app where their terms allow, as an alternative to local files.
+- **llms.txt:** should describe the agent-facing settings interface (`GET`/`PATCH /settings` JSON
+  API) — there is no config file; agent setup-flow wording must describe importing the user's
+  existing files only.
+- **CurateView honesty:** "nothing is written until you apply" is imprecise (the proposal JSON does
+  exist on disk); the user flagged such inconsistencies as a reputational risk given prompt-injection
+  concerns. Wording must say nothing *in the library* changes until apply.
+
+
+
