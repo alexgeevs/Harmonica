@@ -5,6 +5,7 @@ import {
   Clock,
   Download,
   GitMerge,
+  Heart,
   Library as LibraryIcon,
   ListMusic,
   LogOut,
@@ -1493,6 +1494,14 @@ function TrackEditor(props: {
           <h3>{draft.title}</h3>
           <small>{displayArtist(draft) || "Unknown artist"}</small>
         </div>
+        <button
+          className={`icon-button ghost favourite-toggle ${draft.favourite ? "on" : ""}`}
+          title={draft.favourite ? "Favourite" : "Mark as favourite"}
+          aria-pressed={draft.favourite ?? false}
+          onClick={() => update("favourite", !draft.favourite)}
+        >
+          <Heart size={18} fill={draft.favourite ? "currentColor" : "none"} />
+        </button>
         <button className="icon-button ghost" title="Close" onClick={props.onClose}>
           <X size={18} />
         </button>
@@ -1925,7 +1934,9 @@ const SETTING_SECTIONS: {
       "satiation_window_days",
       "rediscovery_enabled",
       "rediscovery_strength",
-      "rediscovery_halflife_days"
+      "rediscovery_halflife_days",
+      "favourite_pacing_enabled",
+      "favourite_pacing_strength"
     ]
   },
   {

@@ -80,6 +80,7 @@ export const api = {
         clip_end_seconds: track.clip_end_seconds ?? null,
         audio_only: track.audio_only ?? false,
         is_original_rendition: track.is_original_rendition ?? false,
+        favourite: track.favourite ?? false,
         groups: track.groups.map((group) => ({
           name: group.name,
           group_type: group.group_type,

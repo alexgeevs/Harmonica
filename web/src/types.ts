@@ -31,6 +31,7 @@ export type Track = {
   clip_end_seconds?: number | null;
   audio_only?: boolean;
   is_original_rendition?: boolean;
+  favourite?: boolean;
   assets: MediaAsset[];
   groups: TrackGroup[];
   cooldown_tags: string[];
@@ -99,6 +100,8 @@ export type SettingControl = {
     | "rediscovery_enabled"
     | "rediscovery_strength"
     | "rediscovery_halflife_days"
+    | "favourite_pacing_enabled"
+    | "favourite_pacing_strength"
     | "why_show_math"
     | "cover_two_level_enabled"
     | "cover_count_log_base"
@@ -152,6 +155,8 @@ export type AppSettings = {
   rediscovery_enabled: boolean;
   rediscovery_strength: number;
   rediscovery_halflife_days: number;
+  favourite_pacing_enabled: boolean;
+  favourite_pacing_strength: number;
   why_show_math: boolean;
   cover_two_level_enabled: boolean;
   cover_count_log_base: number;

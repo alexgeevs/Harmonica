@@ -252,6 +252,8 @@ def import_library_payload(
                 track.clip_end_seconds = track_payload.get("clip_end_seconds")
             if "audio_only" in track_payload:
                 track.audio_only = bool(track_payload.get("audio_only"))
+            if "favourite" in track_payload:
+                track.favourite = bool(track_payload.get("favourite"))
 
             for asset_payload in track_payload.get("assets", []):
                 upsert_asset(session, track, asset_payload)
@@ -400,6 +402,7 @@ def track_to_payload(track: Track) -> dict[str, Any]:
         "has_lyrics": track.has_lyrics,
         "sub_group": track.sub_group,
         "is_original_rendition": track.is_original_rendition,
+        "favourite": track.favourite,
         "manual_multiplier": track.manual_multiplier,
         "clip_start_seconds": track.clip_start_seconds,
         "clip_end_seconds": track.clip_end_seconds,

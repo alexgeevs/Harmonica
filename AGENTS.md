@@ -29,7 +29,9 @@ Two routes, both idempotent:
    families). See `docs/agents/algorithm-and-song-fields.md` for what each field should be based
    on, and `docs/agents/classification-import-and-verify.md` for the import/verify pipeline.
 
-Harmonica does not host, provide, or source any music. Import only files the user already has.
+Harmonica does not host, provide, or source any music. Ask the user where their library lives (a
+local folder, a NAS, or a home media server such as Plex) and import from there; if you cannot
+locate it, ask them rather than sourcing anything yourself.
 
 ## Curate and configure
 

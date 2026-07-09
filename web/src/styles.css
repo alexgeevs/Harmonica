@@ -521,6 +521,10 @@ p {
   border-color: var(--muted);
 }
 
+.favourite-toggle.on {
+  color: var(--danger);
+}
+
 .break-modal .primary {
   justify-self: center;
   margin-top: 4px;

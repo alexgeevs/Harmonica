@@ -43,6 +43,8 @@ class Track(Base):
     audio_only: Mapped[bool] = mapped_column(Boolean, default=False)
     # Marks the original rendition within a sub_group (cover set) for the cover prior.
     is_original_rendition: Mapped[bool] = mapped_column(Boolean, default=False)
+    # User-tagged favourite. Inert by default; only matters when favourite_pacing_enabled.
+    favourite: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
@@ -430,6 +432,7 @@ def ensure_additive_track_columns(engine: Engine) -> None:
         "is_original_rendition": (
             "ALTER TABLE tracks ADD COLUMN is_original_rendition BOOLEAN DEFAULT 0"
         ),
+        "favourite": "ALTER TABLE tracks ADD COLUMN favourite BOOLEAN DEFAULT 0",
     }
     with engine.begin() as connection:
         columns = {

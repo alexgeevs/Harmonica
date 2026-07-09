@@ -49,6 +49,7 @@ class AlgorithmTrack:
     perf_mult: float = 1.0
     is_original_rendition: bool = False
     original_prior_mult: float = 1.0
+    favourite: bool = False
 
 
 @dataclass
@@ -274,14 +275,24 @@ def score_track(
         else 1.0
     )
 
+    # Favourite pacing: amplify how far a favourite's satiation/rediscovery multipliers sit from
+    # neutral, so a tagged favourite is rested harder after heavy play and resurfaces more strongly
+    # once dormant. Inert unless enabled and the song is a favourite.
+    satiation_multiplier = track.satiation_multiplier
+    rediscovery_multiplier = track.rediscovery_multiplier
+    if settings.favourite_pacing_enabled and track.favourite:
+        strength = settings.favourite_pacing_strength
+        satiation_multiplier = 1.0 + (satiation_multiplier - 1.0) * strength
+        rediscovery_multiplier = 1.0 + (rediscovery_multiplier - 1.0) * strength
+
     final_score = (
         base_score
         * track.manual_multiplier
         * track.rating_multiplier
         * track.history_multiplier
         * track.cold_start_multiplier
-        * track.satiation_multiplier
-        * track.rediscovery_multiplier
+        * satiation_multiplier
+        * rediscovery_multiplier
         * visual_multiplier
         * song_cooldown
         * sub_cooldown
@@ -295,8 +306,9 @@ def score_track(
         "rating_multiplier": track.rating_multiplier,
         "history_multiplier": track.history_multiplier,
         "cold_start_multiplier": track.cold_start_multiplier,
-        "satiation_multiplier": track.satiation_multiplier,
-        "rediscovery_multiplier": track.rediscovery_multiplier,
+        "satiation_multiplier": satiation_multiplier,
+        "rediscovery_multiplier": rediscovery_multiplier,
+        "favourite": track.favourite,
         "visual_multiplier": visual_multiplier,
         "song_cooldown": song_cooldown,
         "sub_group_cooldown": sub_cooldown,

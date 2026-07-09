@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     rediscovery_enabled: bool = True
     rediscovery_strength: float = 0.4
     rediscovery_halflife_days: float = 60.0
+    # Optional stronger pacing for songs the user has tagged as favourites. Off by default (no
+    # effect); when on, favourites get their satiation/rediscovery pacing amplified by the strength.
+    favourite_pacing_enabled: bool = False
+    favourite_pacing_strength: float = 1.5
     # Hearing health & compression awareness.
     avoid_consecutive_compressed: bool = True
     compressed_break_reminder: bool = True

@@ -55,6 +55,7 @@ class TrackRead(BaseModel):
     clip_end_seconds: float | None = None
     audio_only: bool = False
     is_original_rendition: bool = False
+    favourite: bool = False
     assets: list[MediaAssetRead] = Field(default_factory=list)
     groups: list[TrackGroupRead] = Field(default_factory=list)
     cooldown_tags: list[str] = Field(default_factory=list)
@@ -78,6 +79,7 @@ class TrackUpdate(BaseModel):
     clip_end_seconds: float | None = None
     audio_only: bool | None = None
     is_original_rendition: bool | None = None
+    favourite: bool | None = None
     groups: list[TrackGroupWrite] | None = None
     cooldown_tags: list[str] | None = None
     ratings: dict[str, float | None] | None = None
@@ -185,6 +187,8 @@ class SettingsRead(BaseModel):
     rediscovery_enabled: bool
     rediscovery_strength: float
     rediscovery_halflife_days: float
+    favourite_pacing_enabled: bool
+    favourite_pacing_strength: float
     why_show_math: bool
     cover_two_level_enabled: bool
     cover_count_log_base: float

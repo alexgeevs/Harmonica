@@ -897,6 +897,7 @@ def apply_track_update(
             "clip_end_seconds",
             "audio_only",
             "is_original_rendition",
+            "favourite",
         ]:
             if field in fields:
                 setattr(track, field, fields[field])

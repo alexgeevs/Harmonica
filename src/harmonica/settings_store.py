@@ -407,6 +407,32 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         unit="days",
     ),
     SettingDefinition(
+        key="favourite_pacing_enabled",
+        label="Give favourites special pacing",
+        description=(
+            "For songs you have tagged as favourites, apply the ease-off and rediscovery pacing "
+            "more firmly, so a favourite is rested harder after a spell of heavy play and returns "
+            "sooner once it has rested. Off by default. Tag favourites in the track editor."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=False,
+    ),
+    SettingDefinition(
+        key="favourite_pacing_strength",
+        label="Favourite pacing strength",
+        description=(
+            "How much more firmly favourites are paced. 1.0 treats them like any other song; "
+            "higher spaces them out and resurfaces them more strongly."
+        ),
+        value_type="number",
+        control="slider",
+        default=1.5,
+        minimum=1.0,
+        maximum=3.0,
+        step=0.1,
+    ),
+    SettingDefinition(
         key="why_show_math",
         label="Show the maths in “why this song”",
         description=(
