@@ -35,10 +35,19 @@ import CurateView from "./CurateView";
 import { matchPreset, PRESETS, type Preset } from "./presets";
 import { usePlayer, type PlayerApi } from "./usePlayer";
 import { comparisonMeta, useCoverComparison } from "./useCoverComparison";
+import { YouTubeConsentGate, YouTubePlayer } from "./YouTubePlayer";
+import {
+  hasYouTubeConsent,
+  setYouTubeConsent,
+  youtubeEmbedFor,
+  type TrackEmbed,
+  type YouTubeConfig
+} from "./youtube";
 import type {
   AppSettings,
   CoverSetRead,
   DeviceConfigDetail,
+  Embed,
   PlaybackEvent,
   QueueItem,
   RatingFactor,
@@ -72,7 +81,12 @@ const VIEW_TITLES: Record<View, string> = {
 };
 
 export default function App() {
-  const player = usePlayer();
+  // Whether YouTube playback is enabled, read by the player's external-item predicate. Kept in
+  // a ref so the predicate stays stable; an effect below mirrors the setting into it.
+  const embedStateRef = useRef({ enabled: false });
+  const player = usePlayer(
+    (item) => embedStateRef.current.enabled && Boolean(youtubeEmbedFor(item.track))
+  );
   const [view, setView] = useState<View>("queue");
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [ratingFactors, setRatingFactors] = useState<RatingFactor[]>([]);
@@ -82,6 +96,12 @@ export default function App() {
   const [savedRuns, setSavedRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Optional YouTube playback. `youtubeCfg` comes from the backend; `ytConsent` is the user's
+  // acceptance of loading YouTube's player. Both default off, and nothing contacts YouTube
+  // until the feature is enabled and consent is granted.
+  const [youtubeCfg, setYoutubeCfg] = useState<YouTubeConfig | null>(null);
+  const [ytConsent, setYtConsent] = useState<boolean>(hasYouTubeConsent());
 
   // Device profiles are entirely optional. null = local mode (full library,
   // global settings) — the default, identical to single-device use.
@@ -110,8 +130,18 @@ export default function App() {
 
   const videoStageRef = useRef<HTMLDivElement>(null);
   const videoParkRef = useRef<HTMLDivElement>(null);
+  const embedsEnabled = Boolean(settings?.youtube_embed_enabled);
+  // A YouTube embed on the current track takes over the now-stage (when the feature is on),
+  // in place of any local video asset.
+  const currentEmbed = embedsEnabled ? youtubeEmbedFor(player.currentItem?.track) : null;
   const currentIsVideo =
-    !player.currentItem?.track.audio_only && selectedAsset(player.currentItem)?.asset_type === "video";
+    !currentEmbed &&
+    !player.currentItem?.track.audio_only &&
+    selectedAsset(player.currentItem)?.asset_type === "video";
+
+  useEffect(() => {
+    embedStateRef.current.enabled = embedsEnabled;
+  }, [embedsEnabled]);
 
   // Hearing health: is the playing asset compressed (lossy)? Warnings are stricter for it.
   const currentCompressed = selectedAsset(player.currentItem)?.is_lossless === false;
@@ -198,6 +228,8 @@ export default function App() {
       void api.playbackEvents(300).then(setEvents).catch(() => undefined);
       void refreshSavedRuns();
       void configsSupported().then(setConfigsOk).catch(() => setConfigsOk(false));
+      // Best-effort: an older backend without the endpoint just leaves YouTube off.
+      void api.youtubeConfig().then(setYoutubeCfg).catch(() => setYoutubeCfg(null));
     } catch (err) {
       setError(message(err, "Could not reach the Harmonica backend. It may not be running."));
     }
@@ -256,6 +288,12 @@ export default function App() {
 
   function switchToLocal() {
     setActiveConfig(null);
+  }
+
+  function grantYouTubeConsent() {
+    // Only now may YouTube's player be loaded. Persisted so the gate isn't shown every time.
+    setYouTubeConsent(true);
+    setYtConsent(true);
   }
 
   async function loadSavedRun(id: number) {
@@ -391,6 +429,9 @@ export default function App() {
               savedRuns={savedRuns}
               currentIsVideo={currentIsVideo}
               videoStageRef={videoStageRef}
+              currentEmbed={currentEmbed}
+              ytConsent={ytConsent}
+              onGrantYouTubeConsent={grantYouTubeConsent}
               ratingFactors={ratingFactors}
               liveTracks={tracks}
               showMath={Boolean(settings?.why_show_math)}
@@ -410,6 +451,7 @@ export default function App() {
               busy={busy}
               currentTrackId={player.currentItem?.track.id ?? null}
               currentTime={player.currentTime}
+              youtubeEnabled={embedsEnabled}
               onSave={saveTrack}
               onRate={rateTrack}
               onRescan={refreshAll}
@@ -645,6 +687,9 @@ function QueueView(props: {
   savedRuns: RunSummary[] | null;
   currentIsVideo: boolean;
   videoStageRef: React.RefObject<HTMLDivElement>;
+  currentEmbed: TrackEmbed | null;
+  ytConsent: boolean;
+  onGrantYouTubeConsent: () => void;
   ratingFactors: RatingFactor[];
   liveTracks: Track[];
   showMath: boolean;
@@ -678,8 +723,20 @@ function QueueView(props: {
   return (
     <section className="queue-view">
       <div className="now-column">
-        <div className={`now-card ${props.currentIsVideo ? "has-video" : ""}`}>
-          {props.currentIsVideo ? (
+        <div className={`now-card ${props.currentIsVideo || props.currentEmbed ? "has-video" : ""}`}>
+          {props.currentEmbed ? (
+            <div className="now-stage">
+              {props.ytConsent ? (
+                <YouTubePlayer
+                  player={player}
+                  videoId={props.currentEmbed.external_id}
+                  startSeconds={props.currentEmbed.start_seconds ?? null}
+                />
+              ) : (
+                <YouTubeConsentGate onAccept={props.onGrantYouTubeConsent} />
+              )}
+            </div>
+          ) : props.currentIsVideo ? (
             <div className="now-stage" ref={props.videoStageRef} />
           ) : (
             <div className="now-art" style={artStyle(item?.track.id ?? 0)}>
@@ -1138,6 +1195,7 @@ function LibraryView(props: {
   busy: boolean;
   currentTrackId: number | null;
   currentTime: number;
+  youtubeEnabled: boolean;
   onSave: (track: Track) => Promise<Track>;
   onRate: (track: Track, factorKey: string, value: number | null) => void;
   onRescan: () => void;
@@ -1311,6 +1369,7 @@ function LibraryView(props: {
           busy={props.busy}
           isCurrent={props.currentTrackId === selected.id}
           currentTime={props.currentTime}
+          youtubeEnabled={props.youtubeEnabled}
           onSave={async (draft) => setSelected(await props.onSave(draft))}
           onRate={props.onRate}
           onClose={() => setSelected(null)}
@@ -1462,21 +1521,51 @@ function CoverSetPanel(props: { subGroup: string }) {
   );
 }
 
+// A watch URL for an existing embed, so the editor shows the actual link. Prefers the stored
+// URL; otherwise rebuilds one from the video id and start offset.
+function youtubeLinkFor(embed: TrackEmbed | null): string {
+  if (!embed) {
+    return "";
+  }
+  if (embed.url) {
+    return embed.url;
+  }
+  const base = `https://www.youtube.com/watch?v=${embed.external_id}`;
+  return embed.start_seconds ? `${base}&t=${Math.floor(embed.start_seconds)}s` : base;
+}
+
 function TrackEditor(props: {
   track: Track;
   factors: RatingFactor[];
   busy: boolean;
   isCurrent: boolean;
   currentTime: number;
+  youtubeEnabled: boolean;
   onSave: (track: Track) => void;
   onRate: (track: Track, factorKey: string, value: number | null) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<Track>(props.track);
-  useEffect(() => setDraft(props.track), [props.track]);
+  // The YouTube link is edited as raw text; the backend parses it into a structured embed on save.
+  const existingYouTube = youtubeEmbedFor(props.track);
+  const [youtubeLink, setYoutubeLink] = useState(youtubeLinkFor(existingYouTube));
+  useEffect(() => {
+    setDraft(props.track);
+    setYoutubeLink(youtubeLinkFor(youtubeEmbedFor(props.track)));
+  }, [props.track]);
 
   function update<K extends keyof Track>(key: K, value: Track[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function save() {
+    // Send the link as a bare URL so the backend re-parses it every time (which handles an
+    // edited link correctly, and reads any start time out of it). Blank clears the embed.
+    const link = youtubeLink.trim();
+    const embeds: Embed[] = link
+      ? [{ id: existingYouTube?.id ?? 0, provider: "youtube", external_id: "", url: link, start_seconds: null }]
+      : [];
+    props.onSave({ ...draft, embeds });
   }
 
   const hasVideoAsset = draft.assets.some((asset) => asset.asset_type === "video");
@@ -1618,6 +1707,20 @@ function TrackEditor(props: {
         <small className="trim-note">
           Non-destructive — playback just skips the intro/outro. The unused parts stay on disk for now.
         </small>
+        {props.youtubeEnabled ? (
+          <label className="wide youtube-link-field">
+            YouTube link <span className="hint">plays via YouTube's official player</span>
+            <input
+              value={youtubeLink}
+              placeholder="https://www.youtube.com/watch?v=…"
+              onChange={(e) => setYoutubeLink(e.target.value)}
+            />
+            <small>
+              A start time in the link (for example t=30s) is kept as the trim-in point. Leave blank
+              to remove.
+            </small>
+          </label>
+        ) : null}
       </div>
 
       <div className="editor-section">
@@ -1634,7 +1737,7 @@ function TrackEditor(props: {
         </div>
       </div>
 
-      <button className="primary save-button" disabled={props.busy} onClick={() => props.onSave(draft)}>
+      <button className="primary save-button" disabled={props.busy} onClick={save}>
         <Save size={16} /> Save changes
       </button>
     </aside>
@@ -1949,6 +2052,19 @@ const SETTING_SECTIONS: {
     title: "Covers",
     note: "When a song has several renditions, let the queue pick which one to play. (Off by default, turn it on if your library has covers.)",
     keys: ["cover_two_level_enabled", "cover_count_log_base", "cover_original_bonus"]
+  },
+  {
+    title: "YouTube playback",
+    note: (
+      <>
+        Off by default. When on, a song that has a YouTube link plays through YouTube's official
+        player. That player loads YouTube and sets its own cookies, so you are asked to accept it
+        once before it appears. Nothing is requested from YouTube until then. Harmonica does not
+        download, strip ads from, or take the audio out of YouTube videos, and the video stays
+        visible, as YouTube's terms require.
+      </>
+    ),
+    keys: ["youtube_embed_enabled"]
   }
 ];
 

@@ -673,6 +673,64 @@ p {
   background: #000;
 }
 
+.youtube-stage,
+.youtube-stage > iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.youtube-gate {
+  display: grid;
+  gap: 10px;
+  place-content: center;
+  justify-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 22px;
+  text-align: center;
+  background: var(--panel-soft);
+  color: var(--muted);
+}
+
+.youtube-gate-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--accent);
+}
+
+.youtube-gate h4 {
+  color: var(--ink, #21302e);
+  font-size: 17px;
+}
+
+.youtube-gate p {
+  max-width: 42ch;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.youtube-gate small {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.youtube-link-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.youtube-link-field > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .video-park {
   position: absolute;
   left: -9999px;

@@ -977,3 +977,28 @@ notes. Beyond wording, the notes carry product direction:
 - **NAS dedupe note for agents** added to `AGENTS.md`: when setting up a new profile on a NAS that
   already holds other people's songs, rely on the dedupe-on-import so the same file is never stored
   twice.
+
+## 2026-07-09 (evening 4): YouTube embed frontend, kept small and strictly opt-in
+
+### User Input
+
+Asked to build the YouTube frontend. Reviewed `embeds.py` and was content with its size. Direction:
+keep the front-end features small and not loaded by default, and **do not send any request to
+Google or YouTube from the app unless the user explicitly enables the YouTube player mode**.
+
+### What was built
+
+- A small, self-contained YouTube player path: `youtube.ts` (config type, consent storage, and a
+  lazy loader for the official IFrame Player API script), `YouTubePlayer.tsx` (the player plus a
+  consent gate), and minimal ambient typings. The shared player hook gained a narrow "external item"
+  bridge so a YouTube track parks the local `<video>` element, advances the queue when the video
+  ends, and reflects play/pause on the transport bar.
+- **Nothing contacts YouTube until two explicit steps happen:** the `youtube_embed_enabled` setting
+  is turned on (default off), and the user accepts a one-time consent gate that explains YouTube's
+  player loads YouTube, sets its own cookies, and may show ads. Only then is YouTube's script
+  requested. The gate and settings copy state plainly that Harmonica does not remove ads or cookies
+  and that the video stays visible, as YouTube's terms require.
+- A single "YouTube link" field in the track editor (shown only when the feature is on) lets the
+  user attach a link, parsed server-side. Without it the feature would be unreachable from the UI.
+- Honest limitations recorded: the app's own seek bar and loudness meter do not apply to a YouTube
+  video (its audio can't be tapped cross-origin), so YouTube's own controls handle scrubbing.

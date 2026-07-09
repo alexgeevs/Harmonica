@@ -14,6 +14,7 @@ import type {
   StatsSummary,
   Track
 } from "./types";
+import type { YouTubeConfig } from "./youtube";
 
 // A "sitting" id for this app session, attached to ratings so the backend can detect and
 // correct a uniformly generous/grumpy mood across one continuous burst of rating.
@@ -65,6 +66,10 @@ export const api = {
       body: JSON.stringify({ values })
     }),
   ratingFactors: () => request<RatingFactor[]>("/rating-factors"),
+  // Reports only whether YouTube playback is enabled and whether an optional Data API key is
+  // present. This hits the Harmonica backend, never YouTube. No request goes to YouTube until
+  // the user turns the feature on and accepts the consent gate.
+  youtubeConfig: () => request<YouTubeConfig>("/youtube/config"),
   tracks: () => request<Track[]>("/tracks"),
   updateTrack: (track: Track) =>
     request<Track>(`/tracks/${track.id}`, {
@@ -86,7 +91,19 @@ export const api = {
           group_type: group.group_type,
           share: group.share ?? null
         })),
-        cooldown_tags: track.cooldown_tags
+        cooldown_tags: track.cooldown_tags,
+        // A known video id round-trips as provider+id; a raw pasted URL is sent alone for the
+        // backend to parse. An empty list clears the embed.
+        embeds: (track.embeds ?? []).map((embed) =>
+          embed.external_id
+            ? {
+                provider: embed.provider,
+                external_id: embed.external_id,
+                url: embed.url ?? null,
+                start_seconds: embed.start_seconds ?? null
+              }
+            : { url: embed.url ?? null }
+        )
         // Ratings are NOT sent here: each is a discrete tap recorded via updateTrackFields,
         // so the bulk metadata save can't re-record the displayed average as a fake rating.
       })

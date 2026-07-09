@@ -18,6 +18,15 @@ export type TrackGroup = {
   share?: number | null;
 };
 
+// A third-party playback embed (currently only YouTube). Mirrors the backend EmbedRead schema.
+export type Embed = {
+  id: number;
+  provider: string;
+  external_id: string;
+  url?: string | null;
+  start_seconds?: number | null;
+};
+
 export type Track = {
   id: number;
   song_id: string;
@@ -32,6 +41,7 @@ export type Track = {
   audio_only?: boolean;
   is_original_rendition?: boolean;
   favourite?: boolean;
+  embeds?: Embed[];
   assets: MediaAsset[];
   groups: TrackGroup[];
   cooldown_tags: string[];
@@ -106,6 +116,7 @@ export type SettingControl = {
     | "cover_two_level_enabled"
     | "cover_count_log_base"
     | "cover_original_bonus"
+    | "youtube_embed_enabled"
   >;
   label: string;
   description: string;
@@ -161,6 +172,7 @@ export type AppSettings = {
   cover_two_level_enabled: boolean;
   cover_count_log_base: number;
   cover_original_bonus: number;
+  youtube_embed_enabled: boolean;
   controls: SettingControl[];
 };
 

@@ -35,12 +35,20 @@ function loadVolume(): number {
   return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 1;
 }
 
+// Imperative handles the YouTube (or other external) player registers so the transport
+// bar can drive it, since such content plays in its own iframe, not our <video> element.
+type ExternalControls = { play: () => void; pause: () => void };
+
 /**
  * App-wide audio engine. Owns a single HTMLAudioElement so playback continues
  * across view changes, autoplays through the queue, records history events with
  * Harmonica's skip semantics, and persists the listening session across refresh.
+ *
+ * `isExternalItem` marks a queue item that plays through a third-party official player
+ * (e.g. a YouTube embed) rather than this <video> element. For those items we park the
+ * element and let the embed component drive playback and queue advancement.
  */
-export function usePlayer() {
+export function usePlayer(isExternalItem?: (item: QueueItem) => boolean) {
   // A <video> element (not <audio>) so visual tracks can be watched; it plays
   // audio-only sources just as well. It is reparented across views by the app
   // shell so playback never stops when you switch screens.
@@ -60,6 +68,9 @@ export function usePlayer() {
   const [index, setIndex] = useState<number>(restored.current?.index ?? 0);
   const [runId, setRunId] = useState<number | null>(restored.current?.runId ?? null);
   const [isPlaying, setIsPlaying] = useState(false);
+  // True when the session intends to play (autoplay). Mirrors wantsPlayRef so an external
+  // player component can read it to decide whether to autoplay when it mounts.
+  const [wantsPlay, setWantsPlayState] = useState(false);
   const [currentTime, setCurrentTime] = useState(restored.current?.currentTime ?? 0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState<number>(loadVolume());
@@ -90,10 +101,28 @@ export function usePlayer() {
   const peakRef = useRef(0);
   const sustainedRef = useRef(0);
   const gainRef = useRef(1);
+  // Latest external-item predicate + imperative controls + play state, read from
+  // once-bound listeners without re-binding them.
+  const isExternalRef = useRef(isExternalItem);
+  const externalControlsRef = useRef<ExternalControls | null>(null);
+  const isPlayingRef = useRef(isPlaying);
   queueRef.current = queue;
   indexRef.current = index;
   runIdRef.current = runId;
+  isExternalRef.current = isExternalItem;
+  isPlayingRef.current = isPlaying;
   gainRef.current = muted ? 0 : volume;
+
+  // Keep the wantsPlay ref and its mirror-state in lockstep.
+  const setWants = useCallback((value: boolean) => {
+    wantsPlayRef.current = value;
+    setWantsPlayState(value);
+  }, []);
+
+  const isExternal = useCallback(
+    (item: QueueItem | null | undefined): boolean => Boolean(item && isExternalRef.current?.(item)),
+    []
+  );
 
   const currentItem = queue[index] ?? null;
   const currentUrl = currentItem?.media_url ?? null;
@@ -174,20 +203,26 @@ export function usePlayer() {
       const items = queueRef.current;
       if (target < 0 || target >= items.length) {
         if (target >= items.length) {
-          wantsPlayRef.current = false;
+          setWants(false);
           audio?.pause();
+          externalControlsRef.current?.pause();
         }
         return;
       }
-      if (opts.recordSkip && audio) {
+      if (opts.recordSkip) {
         const leaving = items[indexRef.current];
-        recordEvent("skipped", leaving, audio.currentTime, audio.duration);
+        if (isExternal(leaving)) {
+          // No accurate progress from the embed; omit it rather than log a false early-skip.
+          recordEvent("skipped", leaving);
+        } else if (audio) {
+          recordEvent("skipped", leaving, audio.currentTime, audio.duration);
+        }
       }
       pendingSeekRef.current = 0;
-      wantsPlayRef.current = opts.play ?? wantsPlayRef.current;
+      setWants(opts.play ?? wantsPlayRef.current);
       setIndex(target);
     },
-    [recordEvent]
+    [recordEvent, setWants, isExternal]
   );
 
   // Bind audio element listeners exactly once.
@@ -206,7 +241,7 @@ export function usePlayer() {
       const item = queueRef.current[indexRef.current] ?? null;
       recordEvent("completed", item, audio.currentTime, audio.duration);
       startedKeyRef.current = null;
-      wantsPlayRef.current = true;
+      setWants(true);
       goToIndex(indexRef.current + 1, { play: true });
     };
 
@@ -263,6 +298,18 @@ export function usePlayer() {
     if (!audio) {
       return;
     }
+    // External providers (e.g. a YouTube embed) play through their own official player, not
+    // this element. Park and silence it so a previous local track stops, and hand control to
+    // the embed component, which drives playback and calls externalEnded to advance.
+    if (isExternal(currentItem)) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      setCurrentTime(0);
+      setDuration(0);
+      finishingRef.current = false;
+      return;
+    }
     if (!currentUrl) {
       audio.removeAttribute("src");
       audio.load();
@@ -273,7 +320,8 @@ export function usePlayer() {
       if (wantsPlayRef.current) {
         const items = queueRef.current;
         let next = indexRef.current + 1;
-        while (next < items.length && !items[next]?.media_url) {
+        // An external (e.g. YouTube) item also has no media_url but IS playable, so stop on it.
+        while (next < items.length && !items[next]?.media_url && !isExternal(items[next])) {
           next += 1;
         }
         if (next < items.length) {
@@ -281,7 +329,7 @@ export function usePlayer() {
           setIndex(next);
           return;
         }
-        wantsPlayRef.current = false;
+        setWants(false);
       }
       setIsPlaying(false);
       return;
@@ -388,47 +436,106 @@ export function usePlayer() {
       startMeter();
       pendingSeekRef.current = 0;
       startedKeyRef.current = null;
-      wantsPlayRef.current = opts.autoplay ?? true;
+      setWants(opts.autoplay ?? true);
       setQueue(run.items);
       setRunId(run.id || null);
       setIndex(0);
     },
-    [startMeter]
+    [startMeter, setWants]
   );
 
   const playAt = useCallback(
     (target: number) => {
       startMeter();
       const sameTrack = target === indexRef.current;
-      wantsPlayRef.current = true;
+      setWants(true);
       if (sameTrack) {
-        void audioRef.current?.play().catch(() => setIsPlaying(false));
+        if (isExternal(queueRef.current[target])) {
+          externalControlsRef.current?.play();
+        } else {
+          void audioRef.current?.play().catch(() => setIsPlaying(false));
+        }
         return;
       }
       goToIndex(target, { recordSkip: true, play: true });
     },
-    [goToIndex, startMeter]
+    [goToIndex, startMeter, setWants, isExternal]
   );
 
   const togglePlay = useCallback(() => {
+    const current = queueRef.current[indexRef.current] ?? null;
+    // External (e.g. YouTube) tracks play in their own iframe; drive it through the controls
+    // it registered rather than our <video> element.
+    if (isExternal(current)) {
+      if (isPlayingRef.current) {
+        setWants(false);
+        externalControlsRef.current?.pause();
+      } else {
+        setWants(true);
+        externalControlsRef.current?.play();
+      }
+      return;
+    }
     const audio = audioRef.current;
     if (!audio || !currentUrl) {
       return;
     }
     if (audio.paused) {
       startMeter();
-      wantsPlayRef.current = true;
+      setWants(true);
       void audio.play().catch(() => setIsPlaying(false));
     } else {
-      wantsPlayRef.current = false;
+      setWants(false);
       audio.pause();
     }
-  }, [currentUrl, startMeter]);
+  }, [currentUrl, startMeter, setWants, isExternal]);
 
   const pause = useCallback(() => {
-    wantsPlayRef.current = false;
+    setWants(false);
+    if (isExternal(queueRef.current[indexRef.current])) {
+      externalControlsRef.current?.pause();
+      return;
+    }
     audioRef.current?.pause();
+  }, [setWants, isExternal]);
+
+  // --- External (YouTube) player bridge -------------------------------------
+  // The embed component registers imperative controls on ready, reports play/pause so the
+  // transport bar stays in sync, and calls externalEnded so the queue advances at end of video.
+  const registerExternalControls = useCallback((controls: ExternalControls | null) => {
+    externalControlsRef.current = controls;
   }, []);
+
+  const notifyExternalState = useCallback(
+    (playing: boolean, progress?: number, dur?: number) => {
+      setIsPlaying(playing);
+      const item = queueRef.current[indexRef.current] ?? null;
+      if (!item) {
+        return;
+      }
+      const key = itemKey(item);
+      if (playing && key !== startedKeyRef.current) {
+        startedKeyRef.current = key;
+        recordEvent("started", item, progress, dur);
+      }
+    },
+    [recordEvent]
+  );
+
+  const externalEnded = useCallback(
+    (progress?: number, dur?: number) => {
+      if (finishingRef.current) {
+        return;
+      }
+      finishingRef.current = true;
+      const item = queueRef.current[indexRef.current] ?? null;
+      recordEvent("completed", item, progress, dur);
+      startedKeyRef.current = null;
+      setWants(true);
+      goToIndex(indexRef.current + 1, { play: true });
+    },
+    [recordEvent, goToIndex, setWants]
+  );
 
   const next = useCallback(() => goToIndex(indexRef.current + 1, { recordSkip: true, play: true }), [
     goToIndex
@@ -538,9 +645,10 @@ export function usePlayer() {
   }, []);
 
   const clear = useCallback(() => {
-    wantsPlayRef.current = false;
+    setWants(false);
     startedKeyRef.current = null;
     audioRef.current?.pause();
+    externalControlsRef.current?.pause();
     setQueue([]);
     setIndex(0);
     setRunId(null);
@@ -549,7 +657,7 @@ export function usePlayer() {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [setWants]);
 
   return useMemo(
     () => ({
@@ -566,6 +674,7 @@ export function usePlayer() {
       muted,
       level,
       sustainedLevel,
+      wantsPlay,
       loadQueue,
       playAt,
       togglePlay,
@@ -578,7 +687,10 @@ export function usePlayer() {
       removeAt,
       moveItem,
       spliceNext,
-      clear
+      clear,
+      registerExternalControls,
+      notifyExternalState,
+      externalEnded
     }),
     [
       queue,
@@ -593,6 +705,7 @@ export function usePlayer() {
       muted,
       level,
       sustainedLevel,
+      wantsPlay,
       loadQueue,
       playAt,
       togglePlay,
@@ -605,7 +718,10 @@ export function usePlayer() {
       removeAt,
       moveItem,
       spliceNext,
-      clear
+      clear,
+      registerExternalControls,
+      notifyExternalState,
+      externalEnded
     ]
   );
 }
