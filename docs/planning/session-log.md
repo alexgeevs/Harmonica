@@ -67,8 +67,8 @@ phantom-average-player Gaussian prior for regularisation and half-credit tie han
 
 ### 2026-06-27 — Remote update
 - **User:** Update the git remote to `alexgeevs/Harmonica`.
-- **Claude (final):** Repointed `origin`, verified, fixed the one stale URL in docs. Left commit identity
-  as `alexgeevs` per CLAUDE.md.
+- **Claude (final):** Repointed `origin`, verified, fixed the one stale URL in docs. Commit identity
+  is `alexgeevs` per CLAUDE.md.
 
 ### 2026-06-27 — Codex retired; priorities
 - **User:** Codex subscription ran out — stop using it. Work on Phase 2 (web device profiles) **as long as

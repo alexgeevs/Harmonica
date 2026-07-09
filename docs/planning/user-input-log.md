@@ -16,7 +16,6 @@ The user asked to create a GitHub project named `Harmonica` before providing a p
 
 The GitHub repo was created at `https://github.com/alexgeevs/Harmonica`.
 
-
 ## 2026-06-24: Uploaded Algorithm Specification
 
 ### User Input
@@ -453,8 +452,6 @@ Clarifying answers from the user:
 - **Collaboration:** Claude should orchestrate Codex for backend work for now, then gradually
   transition to doing everything itself. Claude commits and pushes (Codex's sandbox cannot push).
 - **Commits:** Author as `alexgeevs` only, with **no `Co-Authored-By: Claude` trailer**.
-
-
 - **Test data:** The user is supplying a real ~250-song batch from their own playlist (not full
   quality yet). It is a deliberate stress test: musicals,
   artists, overlapping themes, and songs with up to ~5 dubs/covers of themselves across languages.
@@ -825,9 +822,8 @@ results to be reviewed with the user next.
   self-hosted, playing a library the user already keeps); the app's colour scheme; footer
   contact `contact@harmonica.org.uk`. Three authors (Fable, Sonnet 5, Opus 4.8) each produced a
   simple and an embedded-preview variant.
-- **Decisions:** site lives in `site/` in this repo (reversible);
-  licence decision **held** (MIT vs Apache-2.0, attribution matters to the
-  user); preview/mock variants rejected ("placeholder
+- **Decisions:** site lives in `site/` in this repo (reversible); licence decision **held**
+  (MIT vs Apache-2.0, attribution matters to the user); preview/mock variants rejected ("placeholder
   vocabulary abominable" — flagged a possible future *UI vocabulary audit*); **Fable simple** picked
   as `site/index.html`, Opus simple kept as runner-up; "bubbles" (rounded cards/pills) removed in
   favour of flat divider lists.
@@ -835,8 +831,6 @@ results to be reviewed with the user next.
   server-side stats (options discussed: self-host + GoAccess, Cloudflare in front, GoatCounter).
   Explicitly must not affect the site's design.
 - **Git identity:** commits are authored as `alexgeevs <contact@harmonica.org.uk>`.
-
-
 
 ## 2026-07-09: Copy-review feedback + feature requests from the edit pass
 
@@ -864,9 +858,8 @@ notes. Beyond wording, the notes carry product direction:
 - **CurateView honesty:** "nothing is written until you apply" is imprecise (the proposal JSON does
   exist on disk); the user flagged such inconsistencies as a reputational risk given prompt-injection
   concerns. Wording must say nothing *in the library* changes until apply.
-
-
-
+- **Agent setup docs:** provide agent-neutral setup docs (README/AGENTS.md) so the project does not
+  depend on a Claude-specific working guide.
 
 ## 2026-07-09 (later): Decisions from the copy review, applied
 
@@ -882,7 +875,6 @@ notes. Beyond wording, the notes carry product direction:
   explains household de-duplication in plain words.
 - **Embedded official players (YouTube/Spotify):** approved as an optional feature, never the
   default.
-
 - **Shared ratings on a NAS** for overlapping songs: approved as a future feature; not advertised
   until built.
 - **Config file consideration:** settings currently live in the SQLite DB under `.harmonica/`
@@ -891,32 +883,22 @@ notes. Beyond wording, the notes carry product direction:
   issues, fixes via PR), `docs/agents/api-and-custom-ui.md` (endpoint map + plugging in a custom
   UI via `HARMONICA_WEB_DIST`), `docs/agents/algorithm-and-song-fields.md` (algorithm summary →
   what each song_config.json field should be based on). README points at the first two.
-
-
 - **llms.txt restructured:** source + run instructions, the real five-step agent flow, settings
   API + SQLite location, Discovery advice.
-
-
+- **Contact mailbox:** the `contact@harmonica.org.uk` mailbox backs the footer contact line.
 
 ## 2026-07-09 (evening): Docs and copy refinements
 
 - **Rating hint** reduced to "Stars show your running average." — the correction behaviour needs
   no narration. Reset-to-defaults button design confirmed.
-
-
-
-
-- **AGENTS.md retained** as the tracked agent guide: it is the cross-vendor open standard for
+- **AGENTS.md** is the tracked agent guide: it is the cross-vendor open standard for
   agent instructions (adopted well beyond any one provider), so it is the impartial choice and is
   auto-discovered by most coding agents.
 - **README** now links the website up top and states the licence at the bottom. The runner-up
   site candidate was deleted. llms.txt gained a NAS-transfer line (mount the share or copy with
   SMB/rsync/Syncthing before importing).
-- **Planning docs as a showcase:** the owner wants the strategy and back-and-forth
-  visible as a demonstration of directing AI-assisted development end to end.
-
-
-
+- **Planning docs as a showcase:** the owner wants the strategy and back-and-forth visible as a
+  demonstration of directing AI-assisted development end to end.
 
 ## 2026-07-09 (evening 2): Favourite tag, copy reframe, YouTube ToS findings
 
@@ -931,7 +913,6 @@ notes. Beyond wording, the notes carry product direction:
   responsibility"; now "a library you already keep, wherever you keep it: local files, a NAS, or a
   home media server such as Plex." Agent docs tell agents to ASK the user where the library lives
   and, if they cannot find it, to ask the user rather than guess.
-
 - **YouTube read first-hand (owner asked).** Findings: embedding via the official IFrame Player API
   IS permitted, but YouTube's ToS forbid the things that make Harmonica Harmonica-like for that
   content — audio-only/hidden video, background play, trimming, ad-stripping, and using YT as a
