@@ -2,6 +2,8 @@
 
 Harmonica is a music app exploring utility-maximizing recommendations while avoiding repetition.
 
+Agents setting Harmonica up for a user: start with `AGENTS.md`. Bugs and patches: `CONTRIBUTING.md`.
+
 ## Current Thin Slice
 
 - Python CLI and FastAPI daemon.
