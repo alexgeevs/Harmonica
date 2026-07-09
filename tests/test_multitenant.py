@@ -148,6 +148,35 @@ def test_ratings_are_private_per_profile() -> None:
         assert b_view["ratings"].get("overall") == 1.0
 
 
+def test_favourites_are_private_per_profile() -> None:
+    songs = ["mt_fav_1"]
+    with TestClient(create_app()) as client:
+        _, token_a = _make_profile(client, "mt-fav-a")
+        _, token_b = _make_profile(client, "mt-fav-b")
+        payload = {"payload": _library_payload(songs)}
+        client.post("/library/import-json", json=payload, headers=_auth(token_a))
+        client.post("/library/import-json", json=payload, headers=_auth(token_b))
+        track_id = _track_id(songs[0])
+
+        # Alice favourites the shared song; Bob leaves it alone.
+        client.patch(f"/tracks/{track_id}", json={"favourite": True}, headers=_auth(token_a))
+
+        a_view = client.get(f"/tracks/{track_id}", headers=_auth(token_a)).json()
+        b_view = client.get(f"/tracks/{track_id}", headers=_auth(token_b)).json()
+        assert a_view["favourite"] is True
+        assert b_view["favourite"] is False
+
+        # Alice's private taste never leaks onto the shared Track row.
+        with SessionLocal() as session:
+            assert session.scalar(select(Track.favourite).where(Track.id == track_id)) is False
+
+        # Favourite rides the per-profile export, not the shared column.
+        a_export = client.get("/library/export-json", headers=_auth(token_a)).json()
+        b_export = client.get("/library/export-json", headers=_auth(token_b)).json()
+        assert a_export["tracks"][0]["favourite"] is True
+        assert b_export["tracks"][0]["favourite"] is False
+
+
 def test_idempotent_import_does_not_duplicate_history() -> None:
     songs = ["mt_idem_1"]
     with TestClient(create_app()) as client:

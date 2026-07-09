@@ -34,6 +34,7 @@ from harmonica.models import (
     TrackCooldownTag,
     TrackRating,
     WeightGroup,
+    favourite_track_ids,
     now_utc,
 )
 from harmonica.normalization import plain_rating_averages
@@ -118,6 +119,37 @@ def owner_library_ids(owner: DeviceConfig | None) -> set[int] | None:
     if owner is None:
         return None
     return {link.track_id for link in owner.tracks}
+
+
+def owner_favourite_lookup(session: Session, owner: DeviceConfig | None) -> set[int] | None:
+    """A profile's favourite track ids, or None in legacy/local mode (favourite reads off the
+    shared Track column). A favourite is one user's private opinion of a shared song."""
+    if owner is None:
+        return None
+    return favourite_track_ids(session, owner.id)
+
+
+def resolve_favourite(track: Track, favourites: set[int] | None) -> bool:
+    """Favourite for this request: the profile's own tag when owned, else the shared Track flag."""
+    if favourites is None:
+        return bool(track.favourite)
+    return track.id in favourites
+
+
+def set_owner_favourite(
+    session: Session, config_id: int, track_id: int, value: bool
+) -> None:
+    """Write a profile's private favourite tag onto its per-user link to a shared track."""
+    link = session.scalar(
+        select(DeviceConfigTrack).where(
+            DeviceConfigTrack.config_id == config_id,
+            DeviceConfigTrack.track_id == track_id,
+        )
+    )
+    if link is None:
+        link = DeviceConfigTrack(config_id=config_id, track_id=track_id)
+        session.add(link)
+    link.favourite = value
 
 
 def create_app() -> FastAPI:
@@ -300,7 +332,13 @@ def create_app() -> FastAPI:
             query = query.where(Track.id.in_(library_ids))
         tracks = session.scalars(query).all()
         averages = plain_rating_averages(session, owner_config_id=owner.id if owner else None)
-        return [track_to_schema(track, averages.get(track.id) or {}) for track in tracks]
+        favourites = owner_favourite_lookup(session, owner)
+        return [
+            track_to_schema(
+                track, averages.get(track.id) or {}, favourite=resolve_favourite(track, favourites)
+            )
+            for track in tracks
+        ]
 
     @app.get("/tracks/{track_id}", response_model=TrackRead)
     def read_track(track_id: int, session: SessionDep, owner: OwnerDep) -> TrackRead:
@@ -313,7 +351,8 @@ def create_app() -> FastAPI:
         averages = plain_rating_averages(
             session, [track_id], owner_config_id=owner.id if owner else None
         )
-        return track_to_schema(track, averages.get(track_id) or {})
+        favourite = resolve_favourite(track, owner_favourite_lookup(session, owner))
+        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite)
 
     @app.patch("/tracks/{track_id}", response_model=TrackRead)
     def update_track(
@@ -337,7 +376,8 @@ def create_app() -> FastAPI:
         averages = plain_rating_averages(
             session, [track_id], owner_config_id=owner.id if owner else None
         )
-        return track_to_schema(track, averages.get(track_id) or {})
+        favourite = resolve_favourite(track, owner_favourite_lookup(session, owner))
+        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite)
 
     @app.post("/scan", response_model=ScanResponse)
     def scan(
@@ -782,7 +822,9 @@ def clean_playlist_run_name(name: str | None) -> str | None:
 
 
 def track_to_schema(
-    track: Track, ratings_average: dict[str, float] | None = None
+    track: Track,
+    ratings_average: dict[str, float] | None = None,
+    favourite: bool = False,
 ) -> TrackRead:
     return TrackRead(
         id=track.id,
@@ -791,6 +833,7 @@ def track_to_schema(
         artist=track.artist,
         album=track.album,
         has_lyrics=track.has_lyrics,
+        favourite=favourite,
         sub_group=track.sub_group,
         manual_multiplier=track.manual_multiplier,
         clip_start_seconds=track.clip_start_seconds,
@@ -884,7 +927,8 @@ def apply_track_update(
     owner_config_id: int | None = None,
 ) -> None:
     fields = payload.model_dump(exclude_unset=True)
-    # Track metadata/groups/tags are SHARED content; an owned profile only edits its own ratings.
+    # Track metadata/groups/tags are SHARED content; an owned profile only edits its own ratings
+    # and its own private favourite tag (handled below).
     if owner_config_id is None:
         for field in [
             "title",
@@ -905,6 +949,10 @@ def apply_track_update(
             replace_groups(session, track, payload.groups)
         if payload.cooldown_tags is not None:
             replace_tags(session, track, payload.cooldown_tags)
+    elif "favourite" in fields:
+        # Favourite is a per-user opinion: an owned profile writes it to its own link, never onto
+        # the shared Track (which would leak its taste to everyone sharing the song).
+        set_owner_favourite(session, owner_config_id, track.id, bool(fields["favourite"]))
     if payload.ratings is not None:
         upsert_ratings(
             session,

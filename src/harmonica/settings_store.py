@@ -372,8 +372,8 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="rediscovery_enabled",
         label="Resurface dormant favourites",
         description=(
-            "Once a song you rated highly has gone unheard for a long while, give it a single "
-            "gentle nudge back into the queue so you meet it fresh instead of losing it for good. "
+            "Once a song you rated highly has gone unheard for a long while, give it a gentle "
+            "nudge back up the queue so it comes round again while it still feels fresh. "
             "Only applies to your above-average songs that you have heard before."
         ),
         value_type="boolean",

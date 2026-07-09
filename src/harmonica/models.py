@@ -16,7 +16,7 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from harmonica.db import Base
 
@@ -374,6 +374,9 @@ class DeviceConfigTrack(Base):
         ForeignKey("device_configs.id", ondelete="CASCADE"), index=True
     )
     track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    # Per-profile favourite tag. A favourite is one user's private opinion of a shared song, so it
+    # lives on the per-user link, not on the shared Track (legacy/local mode uses Track.favourite).
+    favourite: Mapped[bool] = mapped_column(Boolean, default=False)
 
     config: Mapped[DeviceConfig] = relationship(back_populates="tracks")
 
@@ -484,6 +487,32 @@ def ensure_additive_playback_event_columns(engine: Engine) -> None:
         for name, statement in additions.items():
             if name not in columns:
                 connection.exec_driver_sql(statement)
+
+
+def ensure_additive_device_config_track_columns(engine: Engine) -> None:
+    """Add the per-profile ``favourite`` column to the profile-track link on a pre-existing DB."""
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as connection:
+        columns = {
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(device_config_tracks)").all()
+        }
+        if "favourite" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE device_config_tracks ADD COLUMN favourite BOOLEAN DEFAULT 0"
+            )
+
+
+def favourite_track_ids(session: Session, owner_config_id: int) -> set[int]:
+    """The track ids one profile has tagged as favourites (its private per-user opinion)."""
+    rows = session.scalars(
+        select(DeviceConfigTrack.track_id).where(
+            DeviceConfigTrack.config_id == owner_config_id,
+            DeviceConfigTrack.favourite.is_(True),
+        )
+    )
+    return set(rows)
 
 
 def ensure_additive_owner_columns(engine: Engine) -> None:

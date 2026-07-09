@@ -34,6 +34,7 @@ from harmonica.models import (
     TrackRating,
     WeightGroup,
     ensure_additive_playlist_run_columns,
+    favourite_track_ids,
     now_utc,
 )
 from harmonica.normalization import (
@@ -72,6 +73,11 @@ def load_algorithm_inputs(
     )
     # Per-user normalisation is calibrated to the owner's own library; legacy stays whole-library.
     ratings_tracks = tracks if owner_config_id is not None else all_tracks
+    # Favourites are per-profile: an owned run reads the owner's own tags; legacy reads the shared
+    # Track flag. None here means "fall back to Track.favourite" in the loop below.
+    owner_favourites = (
+        favourite_track_ids(session, owner_config_id) if owner_config_id is not None else None
+    )
     variant_counts = dict(
         session.execute(
             select(Track.sub_group, func.count(Track.id))
@@ -156,7 +162,11 @@ def load_algorithm_inputs(
                 groups={membership.group_id: membership.share for membership in track.memberships},
                 sub_group=track.sub_group,
                 manual_multiplier=track.manual_multiplier,
-                favourite=bool(getattr(track, "favourite", False)),
+                favourite=(
+                    track.id in owner_favourites
+                    if owner_favourites is not None
+                    else bool(getattr(track, "favourite", False))
+                ),
                 rating_multiplier=song_mult,
                 song_rating_multiplier=song_mult,
                 is_original_rendition=bool(getattr(track, "is_original_rendition", False)),

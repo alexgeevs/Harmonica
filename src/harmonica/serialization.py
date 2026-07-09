@@ -23,6 +23,7 @@ from harmonica.models import (
     TrackCooldownTag,
     TrackRating,
     WeightGroup,
+    favourite_track_ids,
 )
 
 
@@ -80,6 +81,10 @@ def export_library_payload(
             DeviceConfigTrack, DeviceConfigTrack.track_id == Track.id
         ).where(DeviceConfigTrack.config_id == owner_config_id)
     tracks = list(session.scalars(track_select))
+    # Favourites are per-profile: an owned export carries the exporting profile's own tags.
+    owner_favourites = (
+        favourite_track_ids(session, owner_config_id) if owner_config_id is not None else None
+    )
     groups = list(session.scalars(select(WeightGroup)))
     factors = list(session.scalars(select(RatingFactor)))
     return {
@@ -104,7 +109,15 @@ def export_library_payload(
             }
             for group in groups
         ],
-        "tracks": [track_to_payload(track) for track in tracks],
+        "tracks": [
+            track_to_payload(
+                track,
+                favourite=(track.id in owner_favourites)
+                if owner_favourites is not None
+                else None,
+            )
+            for track in tracks
+        ],
         # Raw, append-only history the algorithm derives from. Keyed by song_id/factor_key so it
         # survives a move to another device (where local row ids differ). Device-local session/run
         # ids are stripped — they have no meaning on the destination.
@@ -200,18 +213,27 @@ def _find_existing_track(session: Session, track_payload: dict[str, Any]) -> Tra
     return None
 
 
-def _link_owner(session: Session, owner_config_id: int | None, track_id: int) -> None:
-    """Add the track to the owner's private library (idempotent). No-op for legacy/local import."""
+def _link_owner(
+    session: Session,
+    owner_config_id: int | None,
+    track_id: int,
+    favourite: bool | None = None,
+) -> None:
+    """Add the track to the owner's private library (idempotent). No-op for legacy/local import.
+    When ``favourite`` is given, stamp the profile's private favourite tag onto the link."""
     if owner_config_id is None:
         return
-    exists = session.scalar(
+    link = session.scalar(
         select(DeviceConfigTrack).where(
             DeviceConfigTrack.config_id == owner_config_id,
             DeviceConfigTrack.track_id == track_id,
         )
     )
-    if exists is None:
-        session.add(DeviceConfigTrack(config_id=owner_config_id, track_id=track_id))
+    if link is None:
+        link = DeviceConfigTrack(config_id=owner_config_id, track_id=track_id)
+        session.add(link)
+    if favourite is not None:
+        link.favourite = favourite
 
 
 def import_library_payload(
@@ -252,8 +274,6 @@ def import_library_payload(
                 track.clip_end_seconds = track_payload.get("clip_end_seconds")
             if "audio_only" in track_payload:
                 track.audio_only = bool(track_payload.get("audio_only"))
-            if "favourite" in track_payload:
-                track.favourite = bool(track_payload.get("favourite"))
 
             for asset_payload in track_payload.get("assets", []):
                 upsert_asset(session, track, asset_payload)
@@ -299,7 +319,14 @@ def import_library_payload(
                     session.add(rating)
                 rating.value = _clamp_rating(value)
 
-        _link_owner(session, owner_config_id, track.id)
+        # Favourite is a per-user opinion: for a legacy import it rides on the shared Track; for an
+        # owned import it stamps the profile's private link (never the shared column).
+        fav_value = (
+            bool(track_payload["favourite"]) if "favourite" in track_payload else None
+        )
+        if owner_config_id is None and fav_value is not None:
+            track.favourite = fav_value
+        _link_owner(session, owner_config_id, track.id, favourite=fav_value)
     session.flush()
 
     import_rating_samples(
@@ -393,7 +420,9 @@ def import_cover_comparisons(
     return affected
 
 
-def track_to_payload(track: Track) -> dict[str, Any]:
+def track_to_payload(track: Track, favourite: bool | None = None) -> dict[str, Any]:
+    # ``favourite`` overrides the shared Track flag with the exporting profile's own tag; None
+    # (legacy/local export) falls back to the shared column.
     return {
         "song_id": track.song_id,
         "title": track.title,
@@ -402,7 +431,7 @@ def track_to_payload(track: Track) -> dict[str, Any]:
         "has_lyrics": track.has_lyrics,
         "sub_group": track.sub_group,
         "is_original_rendition": track.is_original_rendition,
-        "favourite": track.favourite,
+        "favourite": track.favourite if favourite is None else favourite,
         "manual_multiplier": track.manual_multiplier,
         "clip_start_seconds": track.clip_start_seconds,
         "clip_end_seconds": track.clip_end_seconds,
