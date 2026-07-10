@@ -1,6 +1,5 @@
-# harmonica.org.uk — everything here is public.
+# harmonica.org.uk. Everything here is public.
 User-agent: *
 Allow: /
 
-# AI agents: a machine-readable summary of this site lives at /llms.txt
-# (per the llms.txt convention, https://llmstxt.org). Read that instead of the HTML.
+# AI agents: a machine-readable summary of this site lives at /llms.txt. Read that instead of the HTML.

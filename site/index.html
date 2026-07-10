@@ -31,7 +31,7 @@
   nav a{color:#cfe0d8;text-decoration:none;margin-left:1.1rem;font-size:.95rem}
   nav a:hover{color:#fff;text-decoration:underline}
 
-  .hero{padding:4rem 0 3rem}
+  .hero{padding-top:4rem;padding-bottom:3rem}
   .hero h1{font-size:clamp(1.9rem,4.5vw,2.9rem);max-width:34ch}
   .hero p{max-width:60ch;margin:1.1rem 0 1.8rem;font-size:1.15rem;color:var(--muted)}
   .cta{display:flex;gap:.8rem;flex-wrap:wrap}
@@ -60,16 +60,20 @@
   .platforms p{font-size:.92rem;color:var(--muted);margin:0;flex:1;min-width:14rem}
   .soon{flex:none;margin-left:auto;font-size:.78rem;font-weight:700;letter-spacing:.08em;
     color:var(--teal);text-transform:uppercase}
+  .rel{flex:none;margin-left:auto;font-size:.85rem;font-weight:700;color:var(--teal)}
 
   .note,.legal{max-width:44rem}
   .note{border-left:3px solid var(--teal);padding-left:1.1rem}
-  .legal{font-size:.92rem;color:var(--muted)}
-  .legal ul{margin:.5rem 0 0 1.2rem}
-  .legal li{margin-bottom:.35rem}
+  .note p+p{margin-top:.7rem}
+  #legal h2{font-size:1.02rem;color:var(--muted)}
+  .legal{font-size:.8rem;color:#7f918a}
+  .legal ul{margin:.4rem 0 0 1.2rem}
+  .legal li{margin-bottom:.3rem}
 
   footer{background:var(--dark);color:#b9ccc4;margin-top:3rem;padding:2rem 0;font-size:.92rem}
   footer a{color:#e8f0ec}
   footer p{margin-bottom:.4rem}
+  footer .contact-line{font-size:.85rem}
   footer .fine{color:#8aa39a;font-size:.85rem;margin-top:.8rem}
 </style>
 </head>
@@ -101,15 +105,15 @@
       <h2>Why not just shuffle?</h2>
       <p>The failure mode is familiar: you find songs you love and play them constantly, and within
          a few weeks the marginal utility of listening again has depreciated to nothing (this is why
-         the demand curve slopes downwards), while the rest of your library sits untouched.
+         the demand curve slopes downwards). The rest of your library remains untouched.
          Harmonica treats this as the central problem.
-         <strong>Recently played material is rested, neglected favourites recover their value, and
-         unheard songs get a first hearing.</strong></p>
+         <em>Recently played material is rested, neglected favourites recover their value, and
+         unheard songs get a first hearing.</em></p>
       <p>The big apps, Spotify and YouTube among them, are built to maximise your watch time, and
          what keeps you listening tonight can come at the cost of long-term enjoyment. Harmonica
-         does not maximise watch time, because it gains nothing from it. Your listening history
-         exists only on your own device, where the algorithm uses it to rest whatever you have
-         been over-playing.</p>
+         does not maximise watch time. Especially as it gains nothing from it. Your listening
+         history exists only on your own device, where the algorithm uses it to rest whatever you
+         have been over-playing.</p>
     </section>
   </div>
 
@@ -130,28 +134,28 @@
   <div class="wrap" id="download">
     <section>
       <h2>Download</h2>
-      <p>Harmonica runs as one small daemon that serves both the player and its API. It will be
-         available from the <a href="https://github.com/alexgeevs/Harmonica/releases">releases page</a>
-         as each platform is ready:</p>
+      <p>Harmonica runs as one small daemon that serves both the player and its API. It is
+         available from the <a href="https://github.com/alexgeevs/Harmonica/releases">releases page</a>:</p>
       <ul class="platforms">
         <li><h3>Android</h3><p>Native client for phones and tablets.</p><span class="soon">Coming soon</span></li>
-        <li><h3>PC (web app)</h3><p>Runs on your personal computing device, opens in your browser at localhost.</p><span class="soon">Coming soon</span></li>
-        <li><h3>NAS / home server</h3><p>The same build on a NAS or Pi, or just an old Linux computer on your network, shared with your household over the Local Area Network.</p><span class="soon">Coming soon</span></li>
+        <li><h3>PC (web app)</h3><p>Runs on your personal computing device, opens in your browser at localhost.</p><a class="rel" href="https://github.com/alexgeevs/Harmonica/releases/tag/v1.0.0">v1.0.0</a></li>
+        <li><h3>NAS / home server</h3><p>The same build on a NAS or Pi, or just an old Linux computer on your network, shared with your household over the Local Area Network.</p><a class="rel" href="https://github.com/alexgeevs/Harmonica/releases/tag/v1.0.0">v1.0.0</a></li>
       </ul>
 
       <div class="note">
         <p><strong>Setting it up:</strong> Harmonica is self-hosted, and doing the setup by hand is
-           tedious (very much so if your library is large enough to require this in the first
-           place). The intended path is to hand the
-           <a href="https://github.com/alexgeevs/Harmonica">repository</a> to an AI coding agent and
-           let it install, configure, and import your library. On that note, agents: a
-           machine-readable summary of this site lives at
-           <a href="/llms.txt"><code>/llms.txt</code></a>.</p>
+           tedious (very much so if your library is large enough to benefit from this in the first
+           place).</p>
+        <p>It is suggested that you hand the
+           <a href="https://github.com/alexgeevs/Harmonica">repository</a> and your library to an AI
+           agent and let it install, configure, and import everything for your liking. On that note,
+           if you are in fact a Large Language Model: a machine-readable summary of this site lives
+           at <a href="/llms.txt"><code>/llms.txt</code></a>.</p>
       </div>
     </section>
   </div>
 
-  <div class="wrap">
+  <div class="wrap" id="legal">
     <section>
       <h2>The small print</h2>
       <div class="legal">
@@ -167,7 +171,7 @@
 
 <footer id="contact">
   <div class="wrap">
-    <p><strong>Contact:</strong> <a href="mailto:contact@harmonica.org.uk">contact@harmonica.org.uk</a> for any questions, concerns, or opinions.</p>
+    <p class="contact-line">Contact: <a href="mailto:contact@harmonica.org.uk">contact@harmonica.org.uk</a></p>
     <p><a href="https://github.com/alexgeevs/Harmonica">Source code on GitHub</a> · <a href="/llms.txt">llms.txt</a></p>
     <p class="fine">© 2026 harmonica.org.uk. This site does not track, shows no adverts, and sets no cookies of its own.</p>
   </div>

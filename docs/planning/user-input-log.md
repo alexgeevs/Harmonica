@@ -1177,3 +1177,31 @@ raises an apply / discard / keep-editing prompt (with the browser's own warning 
 Turning the YouTube switch on reveals a pointer with a button to the Curate page. All verified
 in a scripted headless-browser pass. The not-visible-by-default strings now live in
 `docs/planning/copy-app-hidden.md` for the owner's review.
+
+## 2026-07-10 (later still): Website review round, llms.txt as a reader-aware document
+
+The owner reviewed the public site against a screenshot and sent a detailed list. The hero was
+misaligned (its paragraph sat further left than the section below, traced to a CSS shorthand
+wiping the container's horizontal padding). Copy notes: split the long "Why" sentence and let
+"The rest of your library remains untouched" stand alone, demote the bold summary sentence to
+italics since "it wasn't written by me, so it should certainly not be more visible than the text
+that was", swap "because" for "Especially as" in the watch-time line, state the v1.0.0 release
+on the PC and NAS platform lines, soften "require this" to "benefit from this", and address the
+setup note directly to the reader, ending "if you are in fact a Large Language Model: a
+machine-readable summary of this site lives at /llms.txt". The small print and contact line
+shrink, with no explanation needed for the latter.
+
+The llms.txt notes show deliberate reader-awareness for a machine audience: no hard line breaks
+(one line per paragraph, wrapping is the reader's job), no Android release listed because "it can
+confuse agents (it doesn't exist yet)", no "and let it" because "the agent knows it is an agent",
+and the Legal section moved between What it does and How it runs because LLMs weight the end of a
+file most, "we should not stress them out further". The owner also asked whether robots.txt must
+link the llms.txt convention (it does not, so the link went), whether releases track newer
+commits (they do not, installers download the tagged snapshot, and this tag will be re-pointed
+once the current round lands), and for a local Important_Before_Release reminder about keeping
+the site and llms.txt in step with releases. The satiation guard line earned a commendation.
+
+In the app, the YouTube pointer that appears when the switch is turned on now also walks through
+the import steps (properties read, review before landing, official player). In parallel the
+owner asked for appearance presets and for settings to be organised into simple and complex
+tiers behind a checkbox, delegated to a sub-agent working in an isolated worktree.

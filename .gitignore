@@ -40,3 +40,4 @@ venv/
 
 # Local agent working guide (not published)
 /CLAUDE.md
+/Important_Before_Release.md

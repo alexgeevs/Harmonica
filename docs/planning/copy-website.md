@@ -33,13 +33,13 @@ Harmonica is a self-hosted player for your own library. Rather than shuffling, i
 
 Why not just shuffle?
 
-## index.html — "Why" paragraph (bold part marked with **)
+## index.html — "Why" paragraph (italic part marked with *)
 
-The failure mode is familiar: you find songs you love and play them constantly, and within a few weeks the marginal utility of listening again has depreciated to nothing (this is why the demand curve slopes downwards), while the rest of your library sits untouched. Harmonica treats this as the central problem. **Recently played material is rested, neglected favourites recover their value, and unheard songs get a first hearing.**
+The failure mode is familiar: you find songs you love and play them constantly, and within a few weeks the marginal utility of listening again has depreciated to nothing (this is why the demand curve slopes downwards). The rest of your library remains untouched. Harmonica treats this as the central problem. *Recently played material is rested, neglected favourites recover their value, and unheard songs get a first hearing.*
 
 ## index.html — "Why" second paragraph (incentives)
 
-The big apps, Spotify and YouTube among them, are built to maximise your watch time, and what keeps you listening tonight can come at the cost of long-term enjoyment. Harmonica does not maximise watch time, because it gains nothing from it. Your listening history exists only on your own device, where the algorithm uses it to rest whatever you have been over-playing.
+The big apps, Spotify and YouTube among them, are built to maximise your watch time, and what keeps you listening tonight can come at the cost of long-term enjoyment. Harmonica does not maximise watch time. Especially as it gains nothing from it. Your listening history exists only on your own device, where the algorithm uses it to rest whatever you have been over-playing.
 
 ## index.html — feature: Cooldowns, not shuffle
 
@@ -67,7 +67,9 @@ One shared media pool on a NAS. Private libraries, ratings and listening history
 
 ## index.html — download intro ("releases page" is a link)
 
-Harmonica runs as one small daemon that serves both the player and its API. It will be available from the releases page as each platform is ready:
+Harmonica runs as one small daemon that serves both the player and its API. It is available from the releases page:
+
+(PC and NAS platform lines now carry a "v1.0.0" link to the release instead of "Coming soon". Android keeps "Coming soon".)
 
 ## index.html — platform: Android
 
@@ -81,9 +83,13 @@ Runs on your personal computing device, opens in your browser at localhost.
 
 The same build on a NAS or Pi, or just an old Linux computer on your network, shared with your household over the Local Area Network.
 
-## index.html — setup note ("repository" and "/llms.txt" are links)
+## index.html — setup note, first paragraph
 
-Setting it up: Harmonica is self-hosted, and doing the setup by hand is tedious (very much so if your library is large enough to require this in the first place). The intended path is to hand the repository to an AI coding agent and let it install, configure, and import your library. On that note, agents: a machine-readable summary of this site lives at /llms.txt.
+Setting it up: Harmonica is self-hosted, and doing the setup by hand is tedious (very much so if your library is large enough to benefit from this in the first place).
+
+## index.html — setup note, second paragraph ("repository" and "/llms.txt" are links)
+
+It is suggested that you hand the repository and your library to an AI agent and let it install, configure, and import everything for your liking. On that note, if you are in fact a Large Language Model: a machine-readable summary of this site lives at /llms.txt.
 
 ## index.html — small print, bullet 1
 
@@ -101,11 +107,12 @@ Harmonica does not host, provide, or source any music. It plays your own self-ho
 
 © 2026 harmonica.org.uk. This site does not track, shows no adverts, and sets no cookies of its own.
 
-(The footer Contact line above it now reads: Contact: contact@harmonica.org.uk for any questions, concerns, or opinions.)
+(The footer Contact line above it now reads, in smaller type: Contact: contact@harmonica.org.uk)
 
 ---
 
 ## llms.txt
 
 Now edited directly in `site/llms.txt` (restructured on 2026-07-09: real setup flow, source and
-run instructions, settings API line).
+run instructions, settings API line; reflowed on 2026-07-10: one line per paragraph, Legal moved
+between What it does and How it runs, Android no longer listed).

@@ -1,13 +1,8 @@
 # Harmonica
 
-> Harmonica is a local-first, self-hosted music player for the user's library. Its differentiator
-> is the recommendation algorithm: rather than ordinary shuffle, it maximises listening utility
-> (aiming to keep the novelty aspect even on well-listened songs) while avoiding unwanted
-> repetition at the song, group (artist/topic), and sub-group (cover/rendition) levels, so
-> favourites are not worn out and forgotten songs resurface in due course.
+> Harmonica is a local-first, self-hosted music player for the user's library. Its differentiator is the recommendation algorithm: rather than ordinary shuffle, it maximises listening utility (aiming to keep the novelty aspect even on well-listened songs) while avoiding unwanted repetition at the song, group (artist/topic), and sub-group (cover/rendition) levels, so favourites are not worn out and forgotten songs resurface in due course.
 
-This file is the agent-readable summary of https://harmonica.org.uk: to be token-efficient, read
-this instead of parsing the HTML.
+This file is the agent-readable summary of https://harmonica.org.uk. To be more token-efficient: read this instead of parsing the HTML.
 
 ## What it does
 
@@ -15,34 +10,28 @@ this instead of parsing the HTML.
 - Satiation guard: a song with heavy recent play is rested before the user tires of it.
 - Rediscovery: dormant well-rated songs regain weight over time.
 - Cold start: unheard and unrated songs are boosted until the library is covered.
-- Star ratings with normalisation: ratings from an unusually harsh or generous session are
-  reverted towards the mean.
-- Cover/rendition families: alternate versions (e.g. covers, reprise) of one song compete as a
-  family, not as duplicates.
-- Per-user profiles: one shared media pool on a household NAS, private libraries, ratings and
-  listening history per person, bearer-token auth.
-- Listening stats. Settings are real controls (switches/sliders) for people and a JSON API
-  (`GET`/`PATCH /settings`) for agents. All state lives in one SQLite file under `.harmonica/`.
-- No engagement incentive: Harmonica gains nothing from listening time, and does not maximise it.
-  Listening history exists only on the user's device, where the algorithm uses it.
+- Star ratings with normalisation: ratings from an unusually harsh or generous session are reverted towards the mean.
+- Cover/rendition families: alternate versions (e.g. covers, reprise) of one song compete as a family, not as duplicates.
+- Per-user profiles: one shared media pool on a household NAS, private libraries, ratings and listening history per person, bearer-token auth.
+- Listening stats. Settings are real controls (switches/sliders) for people and a JSON API (`GET`/`PATCH /settings`) for agents. All state lives in one SQLite file under `.harmonica/`.
+- No engagement incentive: Harmonica gains nothing from listening time, and does not maximise it. Listening history exists only on the user's device, where the algorithm uses it.
+
+## Legal
+
+Provided as is, with no warranty of any kind. Open-Source under the GNU AGPL-3.0 licence. Forks and hosted derivatives must remain open-source, while self-hosting for yourself carries no obligations. The website does not track, shows no adverts, and sets no cookies of its own.
 
 ## How it runs
 
-A small self-hosted daemon (FastAPI + SQLite) serves both the API and the built web UI from one
-origin. Deployments:
+A small self-hosted daemon (FastAPI + SQLite) serves both the API and the built web UI from one origin. Deployments:
 
 - **PC (local, default):** binds 127.0.0.1, so nothing is exposed to other devices.
 - **NAS / home server (opt-in):** the same build bound to the LAN. Other devices use a browser.
-- **Android:** a native client (separate release).
 
-Media serving is confined to a configured media root. Harmonica does not host, provide, or source
-any music; it plays the user's own self-hosted library. You are advised to ask the user where their
-music lives and import from there.
+Media serving is confined to a configured media root. Harmonica does not host, provide, or source any music; it plays the user's own self-hosted library. You are advised to ask the user where their music lives and import from there.
 
 ## Setting it up
 
-Self-hosting Harmonica by hand is tedious. The intended path is to hand the repository to an AI
-coding agent (such as yourself) and let it install, configure, and import the user's library.
+Self-hosting Harmonica by hand is tedious. The intended path is to hand the repository to an AI coding agent (such as yourself) to install, configure, and import the user's library.
 
 Getting and running the source:
 
@@ -55,27 +44,16 @@ The flow that works today:
 
 1. Read `AGENTS.md` and `README.md` in the repository for the API surface and details.
 2. Ask the user for basic information first (e.g. whether video matters to them).
-3. Import the user's existing files: point the scanner at a folder of media (`POST /scan`), or use
-   the structured format of one folder per song holding the media plus a `song_config.json`
-   (field guide in `docs/agents/`).
-4. Curate: `GET /library/export-json`, edit the proposal, and return it through the app's Curate
-   view, where the user reviews and applies each change. Import is idempotent and de-duplicates.
-5. You can also curate a preset for the user via `PATCH /settings`, based on what you know about
-   them or any inputs they provide.
+3. Import the user's existing files: point the scanner at a folder of media (`POST /scan`), or use the structured format of one folder per song holding the media plus a `song_config.json` (field guide in `docs/agents/`).
+4. Curate: `GET /library/export-json`, edit the proposal, and return it through the app's Curate view, where the user reviews and applies each change. Import is idempotent and de-duplicates.
+5. You can also curate a preset for the user via `PATCH /settings`, based on what you know about them or any inputs they provide.
 
-Note that until all, or at least most, of the songs are rated, the algorithm may be operating
-sub-optimally. It is advised to have the Discovery setting on at first.
+Note that until all, or at least most, of the songs are rated, the algorithm may be operating sub-optimally. It is advised to have the Discovery setting on at first.
 
 ## Links
 
 - Website: https://harmonica.org.uk
 - Source: https://github.com/alexgeevs/Harmonica
-- Releases (Android / PC web / NAS, none published yet): https://github.com/alexgeevs/Harmonica/releases
+- Releases (PC web / NAS): https://github.com/alexgeevs/Harmonica/releases
 - Agent docs: `AGENTS.md`, `docs/agents/` in the repository
 - Contact: contact@harmonica.org.uk
-
-## Legal
-
-Provided as is, with no warranty of any kind. Open-Source under the GNU AGPL-3.0 licence. Forks
-and hosted derivatives must remain open-source, while self-hosting for yourself carries no
-obligations. The website does not track, shows no adverts, and sets no cookies of its own.
