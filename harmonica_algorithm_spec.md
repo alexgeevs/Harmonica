@@ -2,17 +2,14 @@
 
 ## Provenance
 
-This document is the record of the algorithm's design as it happened, before any code existed.
-It came out of a long back-and-forth between the project owner and an AI assistant. The owner set
-the problem, supplied the economic framing of diminishing marginal utility and concave group
-weighting, and accepted or rejected every mechanism. The assistant proposed alternatives, pushed
-back where a mechanism would not survive contact with a real library, and formalised what was
-agreed. Section 3 preserves the shape of that exchange: each entry is an approach that was argued
-over and either rejected with the reasons recorded or reshaped until it earned its place. A
-similar exchange later settled the app's interface.
+This document is the record of the algorithm's design as it happened, before any code existed. It
+came out of a long back-and-forth between the project owner and an AI assistant. The owner set the
+problem and supplied the economic framing: diminishing marginal utility, concave group weighting.
+He accepted or rejected every mechanism. The assistant proposed alternatives and pushed back where
+one would not survive contact with a real library. Section 3 preserves the shape of that exchange.
 
-The document is kept as it was designed. Where the shipped implementation has since moved on, a
-note says so in place, and section 14 records which defaults still hold.
+Parts of this document are now historical. Where the shipped app has moved past a design decision
+here, the relevant section says so.
 
 ## 1. Purpose
 
@@ -73,7 +70,11 @@ This is desirable because it is concave. Each extra song increases the group's c
 
 ---
 
-## 3. Criticisms and Design Corrections
+## 3. Arguing Out the Design
+
+Six mechanisms were argued out before the algorithm was finalised. Each one below started as a
+proposal, was tested against a real-library scenario, and was either rejected with the reasons
+kept, or reshaped until it held up.
 
 ### 3.1 Do not remove songs from the pool until the cycle resets
 
@@ -211,7 +212,7 @@ title: song title
 artist: display artist
 album: display album
 weight_groups: list of long-run groups
-sub_groups: list of version/reprise/cover families
+sub_group: version/reprise/cover family name (a song belongs to at most one)
 cooldown_tags: list of short-run similarity tags
 song_multiplier: individual preference multiplier
 ratings: optional multi-factor ratings
@@ -491,6 +492,8 @@ C_{tag}=\max(0.25,\prod_i C_i)
 
 Recommended MVP decision: implement cooldown tags after the core weight-group and sub-group system works.
 
+As shipped, cooldown tags are stored and editable per track but are not yet applied as a scoring penalty. Group and sub-group cooldowns currently do the short-run variety work described here.
+
 ---
 
 ## 7. Song Ratings
@@ -537,8 +540,6 @@ So:
 | 5 | 1.0 |
 | 10 | 1.5 |
 
-*Update (2026-07-10): the shipped implementation kept the modest-multiplier principle but moved to five-star factor ratings with session normalisation. The effective rating maps to a multiplier between 0.5 and 2.0, both ends adjustable in Settings.*
-
 Do not allow ratings to create extreme multipliers early on. Otherwise the system will overplay current favourites and undermine the whole anti-repetition goal.
 
 MVP recommendation:
@@ -548,6 +549,8 @@ Set all song multipliers to 1.0.
 Store optional rating fields in the metadata.
 Implement the rating UI later.
 ```
+
+The shipped rating system moved on from this sketch. Ratings are five stars, corrected for session mood and calibrated to how the listener personally uses the scale, then mapped to a song multiplier. The default range is 0.5 to 2.0, and both ends are adjustable in Settings. The modest-multiplier principle held: a rating still cannot swing a song's weight to an extreme without the user deliberately widening the range.
 
 ---
 
@@ -700,68 +703,9 @@ This is working Python rather than pseudocode, but it is not the production code
 
 ---
 
-## 10. Suggested Metadata Format
+## 10. Metadata Format
 
-### CSV version
-
-```csv
-song_id,file_path,title,artist,album,weight_groups,sub_group,cooldown_tags,group_notes,song_multiplier
-meridian_my_mark_001,/Music/Meridian/My Mark.flac,My Mark,Meridian Original Cast,Meridian,"Meridian;Marlowe Vance",My Mark variants,"rap;musical;ensemble;upbeat",,1.0
-ashen_city_one_more_dawn_001,/Music/The Ashen City/One More Dawn.flac,One More Dawn,Ashen City Original Cast,The Ashen City,"The Ashen City;dramatic finale",One More Dawn variants,"ensemble;finale;musical",,1.0
-standalone_001,/Music/Other/Song.flac,Song,Artist,Album,"Standalone",,"pop;slow",,1.0
-```
-
-CSV is easy to edit manually, but nested ratings and unequal membership shares are awkward.
-
-### JSON version
-
-```json
-{
-  "songs": [
-    {
-      "song_id": "meridian_my_mark_001",
-      "file_path": "/Music/Meridian/My Mark.flac",
-      "title": "My Mark",
-      "artist": "Meridian Original Cast",
-      "album": "Meridian",
-      "weight_groups": {
-        "Meridian": 0.5,
-        "Marlowe Vance": 0.5
-      },
-      "sub_group": "My Mark variants",
-      "cooldown_tags": ["rap", "musical", "ensemble", "upbeat"],
-      "song_multiplier": 1.0,
-      "ratings": {
-        "lyrics": null,
-        "message": null,
-        "music": null,
-        "performance": null,
-        "replayability": null,
-        "overall": null
-      }
-    }
-  ],
-  "groups": {
-    "Meridian": {
-      "group_type": "source",
-      "group_multiplier": 0.8
-    },
-    "Marlowe Vance": {
-      "group_type": "artist",
-      "group_multiplier": 1.0
-    }
-  }
-}
-```
-
-JSON is better for the long run because it can store custom group shares, ratings, and app state more cleanly.
-
-Recommendation:
-
-```text
-Use CSV for the first throwaway prototype.
-Move to JSON or SQLite once the algorithm feels correct.
-```
+Two formats were weighed early on: a CSV file with one row per song and semicolon-separated group lists, and a JSON file with nested weight-group shares and rating fields. CSV is easy to hand-edit but awkward once a song needs unequal group shares or multi-dimensional ratings, both of which need nesting. The recommendation at the time was to prototype in CSV and move to JSON or a database once the algorithm felt right. In practice, Harmonica went straight to a SQLite database (`create_all`, not migrations) with JSON as the import/export format, skipping the CSV stage entirely.
 
 ---
 
@@ -783,6 +727,8 @@ The generated `.m3u8` file should contain ordered local file paths:
 ```
 
 Important: do not use VLC shuffle. Harmonica should generate the order. VLC should only play it.
+
+In the shipped app, this export path still exists (`GET /playlist-runs/{id}/m3u8`), but most listening happens through Harmonica's own built-in player rather than VLC.
 
 ---
 
@@ -844,7 +790,7 @@ default_song_multiplier: 1.0
 playlist_generation_length: 100 to 200 songs
 ```
 
-*Verified against the shipped defaults on 2026-07-10. All of the above still hold, with the playlist length shipping as a setting that defaults to 100. Later mechanisms that this document predates, such as rating multipliers, normalisation, satiation, rediscovery, and cold start, have their live defaults in the app's Settings, and `GET /settings` is the source of truth for every current value.*
+All of the above still match the shipped defaults. Playlist length is now a setting with a default of 100, adjustable from 1 to 1000, rather than the fixed 100 to 200 sketched above. Mechanisms this document predates, such as rating multipliers, normalisation, satiation, rediscovery, and cold start, have their own defaults in Settings, and `GET /settings` is the source of truth for every current value.
 
 ---
 

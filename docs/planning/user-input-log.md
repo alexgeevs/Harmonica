@@ -1254,3 +1254,17 @@ field in the editor, and zero mentions of YouTube on the Curate page while the s
 The owner also asked for an independent critical review of the algorithm spec, unconvinced that
 the first round of fixes did more than add annotations. A reviewer agent was given the owner's
 verbatim concerns and the goals, with its suggested edits to be applied after review.
+
+### Outcome (spec review)
+
+The independent reviewer agreed with the owner: the first round of fixes had bolted annotations
+onto the document instead of editing it, and the real source of the assistant-in-charge reading
+was section 3's passive voice, not anything the Provenance section could compensate for from
+seventy lines away. Applied: section 3 is retitled "Arguing Out the Design" with a lead-in saying
+each mechanism started as a proposal and had to hold up or be rejected, the Provenance section
+lost its self-referential half, the two italic changelog-style notes became plain closing prose
+in their sections, and sixty lines of CSV and JSON examples collapsed into one paragraph ending
+with what actually shipped. The reviewer also fact-checked the document against the code and
+found one genuinely outdated claim nothing had flagged: cooldown tags are stored and editable
+but not yet applied as a scoring penalty, which section 6.4 now says. Every value in the
+recommended defaults matches the shipped implementation.
