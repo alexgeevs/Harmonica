@@ -23,18 +23,28 @@ function blankData() {
    The cookie prompt is real: the user picks where the demo's data lives and
    for how long. "none" keeps everything in memory and forgets it on leave. */
 
-let mode = null; // null = not asked yet | "none" | "session" | "local30" | "local"
+let mode = null; // null = not asked yet | "none" | "session" | "days" | "local"
+let modeDays = 30; // retention for "days" mode, one of DAY_STOPS
 let data = blankData();
+
+const DAY_STOPS = [1, 3, 7, 14, 30, 60, 90, 180, 365];
+
+function isLocalMode(m) {
+  return m === "local" || m === "days" || m === "local30"; // local30 = pre-slider stored choice
+}
 
 function initStorage() {
   try {
     const localMeta = JSON.parse(localStorage.getItem(META_KEY) || "null");
-    if (localMeta && (localMeta.mode === "local" || localMeta.mode === "local30")) {
+    if (localMeta && isLocalMode(localMeta.mode)) {
       if (localMeta.expiresAt && Date.now() > localMeta.expiresAt) {
         localStorage.removeItem(META_KEY);
         localStorage.removeItem(DATA_KEY);
       } else {
         mode = localMeta.mode;
+        if (mode === "days" && DAY_STOPS.includes(localMeta.days)) {
+          modeDays = localMeta.days;
+        }
         data = Object.assign(blankData(), JSON.parse(localStorage.getItem(DATA_KEY) || "{}"));
         return;
       }
@@ -53,7 +63,7 @@ function persist() {
   try {
     if (mode === "session") {
       sessionStorage.setItem(DATA_KEY, JSON.stringify(data));
-    } else if (mode === "local" || mode === "local30") {
+    } else if (isLocalMode(mode)) {
       localStorage.setItem(DATA_KEY, JSON.stringify(data));
     }
   } catch {
@@ -61,19 +71,28 @@ function persist() {
   }
 }
 
-function applyStorageChoice(newMode) {
+function applyStorageChoice(newMode, days) {
   localStorage.removeItem(META_KEY);
   localStorage.removeItem(DATA_KEY);
   sessionStorage.removeItem(META_KEY);
   sessionStorage.removeItem(DATA_KEY);
   mode = newMode;
-  if (mode === "local" || mode === "local30") {
-    const expiresAt = mode === "local30" ? Date.now() + 30 * 86400000 : null;
-    localStorage.setItem(META_KEY, JSON.stringify({ mode, expiresAt }));
+  if (mode === "days") {
+    const keep = DAY_STOPS.includes(days) ? days : 30;
+    modeDays = keep;
+    localStorage.setItem(META_KEY, JSON.stringify({
+      mode, days: keep, expiresAt: Date.now() + keep * 86400000,
+    }));
+  } else if (mode === "local") {
+    localStorage.setItem(META_KEY, JSON.stringify({ mode, expiresAt: null }));
   } else if (mode === "session") {
     sessionStorage.setItem(META_KEY, JSON.stringify({ mode }));
   }
   persist();
+}
+
+function sliderDays() {
+  return DAY_STOPS[Number($("days-range").value)] || 30;
 }
 
 function showStoragePrompt() {
@@ -83,7 +102,7 @@ function showStoragePrompt() {
     modal.querySelectorAll("button[data-mode]").forEach((btn) => {
       btn.onclick = () => {
         modal.hidden = true;
-        applyStorageChoice(btn.dataset.mode);
+        applyStorageChoice(btn.dataset.mode, sliderDays());
         resolve(mode);
       };
     });
@@ -247,6 +266,156 @@ async function createLibrary() {
   await regenerateQueue($("read-status"));
   renderAll();
   loadCurrent(false);
+}
+
+/* ------------------------------------------------------------------ backup
+   Export as a downloadable file, import by choosing one. The imported file is
+   untrusted: every field is rebuilt by hand rather than merged, video ids must be
+   exactly 11 safe characters, strings are trimmed and capped, ratings clamped to
+   1..5 and the storage choice checked against the known modes. Nothing from a
+   file is ever executed, fetched, or written into the page as markup. */
+
+const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+const STORAGE_MODES = ["session", "days", "local", "none"];
+const MAX_IMPORT_BYTES = 1024 * 1024;
+const MAX_LIBRARY = 500;
+
+function cleanText(value, fallback) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, 200) : fallback;
+}
+
+function exportScope(scope) {
+  const out = {
+    format: "harmonica-demo-export",
+    version: 1,
+    scope,
+    exportedAt: new Date().toISOString(),
+  };
+  if (scope === "all" || scope === "metadata") {
+    out.metadata = {
+      tracks: data.tracks.map((t) => ({
+        videoId: t.videoId, title: t.title, artist: t.artist, uploader: t.uploader,
+      })),
+    };
+  }
+  if (scope === "all" || scope === "ratings") {
+    out.ratings = data.tracks
+      .filter((t) => t.rating != null)
+      .map((t) => ({ videoId: t.videoId, rating: t.rating }));
+  }
+  if (scope === "all" || scope === "settings") {
+    out.settings = {
+      storage: mode === null ? null : { mode, days: mode === "days" ? modeDays : undefined },
+    };
+  }
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "harmonica-demo-" + scope + "-" + new Date().toISOString().slice(0, 10) + ".json";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importFromFile(file) {
+  const el = $("view-import").hidden ? $("player-status") : $("read-status");
+  if (file.size > MAX_IMPORT_BYTES) {
+    el.textContent = "That file is larger than any demo export.";
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    el.textContent = "That file is not a demo export.";
+    return;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    el.textContent = "That file is not a demo export.";
+    return;
+  }
+  const summary = [];
+
+  // Storage choice first, so a full restore does not also have to answer the cookie prompt.
+  const settings = parsed.settings;
+  const storage = settings && typeof settings === "object" && !Array.isArray(settings)
+    ? settings.storage : null;
+  if (storage && typeof storage === "object" && STORAGE_MODES.includes(storage.mode)) {
+    applyStorageChoice(storage.mode, DAY_STOPS.includes(storage.days) ? storage.days : 30);
+    summary.push("storage choice applied");
+  }
+
+  const meta = parsed.metadata && typeof parsed.metadata === "object" ? parsed.metadata : null;
+  const rawTracks = meta && Array.isArray(meta.tracks) ? meta.tracks : [];
+  let added = 0;
+  for (const raw of rawTracks) {
+    if (!raw || typeof raw !== "object" || data.tracks.length >= MAX_LIBRARY) {
+      continue;
+    }
+    const videoId = typeof raw.videoId === "string" && VIDEO_ID_RE.test(raw.videoId)
+      ? raw.videoId : null;
+    if (!videoId || data.tracks.some((t) => t.videoId === videoId)) {
+      continue;
+    }
+    const uploader = cleanText(raw.uploader, "Unknown uploader");
+    let group = data.groups.find((g) => g.name.toLowerCase() === uploader.toLowerCase());
+    if (!group) {
+      group = { id: data.nextGroupId++, name: uploader };
+      data.groups.push(group);
+    }
+    data.tracks.push({
+      id: data.nextTrackId++, videoId, title: cleanText(raw.title, videoId),
+      artist: cleanText(raw.artist, uploader), uploader, groupId: group.id, rating: null,
+    });
+    added += 1;
+  }
+  if (added) {
+    summary.push(added + " song" + (added === 1 ? "" : "s"));
+  }
+
+  const rawRatings = Array.isArray(parsed.ratings) ? parsed.ratings : [];
+  let starred = 0;
+  for (const raw of rawRatings) {
+    if (!raw || typeof raw !== "object") {
+      continue;
+    }
+    const track = typeof raw.videoId === "string"
+      ? data.tracks.find((t) => t.videoId === raw.videoId) : null;
+    const rating = Number(raw.rating);
+    if (!track || !Number.isFinite(rating)) {
+      continue;
+    }
+    track.rating = Math.min(5, Math.max(1, Math.round(rating)));
+    starred += 1;
+  }
+  if (starred) {
+    summary.push(starred + " rating" + (starred === 1 ? "" : "s"));
+  }
+
+  if (!summary.length) {
+    el.textContent = "Nothing in that file could be used here.";
+    return;
+  }
+  if ((added || starred) && mode === null) {
+    await showStoragePrompt();
+  }
+  persist();
+  const message = "Imported: " + summary.join(", ") + ".";
+  if (data.tracks.length) {
+    showView("player");
+    if (added || !data.queue.length) {
+      await regenerateQueue();
+    }
+    renderAll();
+    loadCurrent(false);
+    $("player-status").textContent = message;
+  } else {
+    el.textContent = message;
+  }
 }
 
 /* ------------------------------------------------------------------ python */
@@ -655,6 +824,23 @@ function init() {
   $("storage-link").onclick = (event) => {
     event.preventDefault();
     showStoragePrompt();
+  };
+  $("days-range").oninput = () => {
+    const days = sliderDays();
+    $("days-btn").textContent = "For " + days + " day" + (days === 1 ? "" : "s");
+  };
+  document.querySelectorAll("button[data-export]").forEach((btn) => {
+    btn.onclick = () => exportScope(btn.dataset.export);
+  });
+  const pickFile = () => $("import-file").click();
+  $("import-btn").onclick = pickFile;
+  $("restore-btn").onclick = pickFile;
+  $("import-file").onchange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = "";
+    if (file) {
+      importFromFile(file);
+    }
   };
 
   if (data.tracks.length) {

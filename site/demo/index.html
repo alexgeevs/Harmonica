@@ -102,6 +102,9 @@
   details{margin-top:1.6rem;max-width:62rem}
   details summary{cursor:pointer;font-weight:600;color:var(--dark);padding:.4rem 0}
   .lib-actions{display:flex;gap:.7rem;margin:.9rem 0}
+  .backup-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.6rem 0 .2rem}
+  .backup-label{font-size:.85rem;color:var(--muted)}
+  .restore-hint{margin-top:2.2rem}
   .statsline{font-size:.85rem;color:var(--muted);margin-top:1rem}
 
   .modal-back{position:fixed;inset:0;background:rgba(24,34,33,.55);display:flex;
@@ -114,6 +117,9 @@
   .modal p{font-size:.92rem;margin-bottom:.8rem;color:var(--ink)}
   .modal .choices{display:flex;flex-direction:column;gap:.5rem;margin:.9rem 0}
   .modal .fine{font-size:.8rem;color:var(--muted)}
+  .days-row{display:flex;align-items:center;gap:.8rem}
+  .days-row .btn{flex:0 0 auto;min-width:9.5rem;text-align:left}
+  .days-row input[type=range]{flex:1;accent-color:var(--teal)}
 
   footer{background:var(--dark);color:#b9ccc4;margin-top:3rem;padding:1.8rem 0;font-size:.85rem}
   footer a{color:#e8f0ec}
@@ -154,6 +160,9 @@
     <button id="read-btn" class="btn primary">Read and organise</button>
     <div id="read-status" class="status" role="status"></div>
     <div id="organised"></div>
+    <p class="hint restore-hint">Coming back? If you exported this demo's data as a file
+      before, you can restore it.</p>
+    <button id="restore-btn" class="btn small">Import an export file</button>
   </section>
 
   <section id="view-player" hidden>
@@ -196,6 +205,16 @@
         <button id="add-more" class="btn">Add more links</button>
         <button id="reset-demo" class="btn danger">Reset the demo</button>
       </div>
+      <div class="backup-row">
+        <span class="backup-label">Export as a file:</span>
+        <button class="btn small" data-export="metadata">Metadata</button>
+        <button class="btn small" data-export="ratings">Ratings</button>
+        <button class="btn small" data-export="settings">Settings</button>
+        <button class="btn small" data-export="all">Everything</button>
+        <button id="import-btn" class="btn small">Import a file</button>
+      </div>
+      <p class="hint">Metadata is the song list, ratings are your stars, settings is your
+        storage choice. Importing a file adds what it holds and never deletes anything.</p>
     </details>
     <p class="statsline" id="statsline"></p>
   </section>
@@ -209,14 +228,19 @@
       Nothing is sent to a server. Choose how long to keep them.</p>
     <div class="choices">
       <button class="btn" data-mode="session">Until this tab closes</button>
-      <button class="btn" data-mode="local30">For 30 days</button>
+      <div class="days-row">
+        <button class="btn" id="days-btn" data-mode="days">For 30 days</button>
+        <input type="range" id="days-range" min="0" max="8" step="1" value="4"
+          aria-label="How many days to keep the demo's data">
+      </div>
       <button class="btn" data-mode="local">Until I remove them</button>
       <button class="btn" data-mode="none">Store nothing</button>
     </div>
     <p class="fine">Strictly it is local storage rather than a cookie, but the idea is the same
       and so is the choice. It covers only the demo's own data. YouTube's player sets its own
-      cookies under its own policies once you load it, which this page does not control. With
-      "store nothing" the demo still works but forgets everything when you leave.</p>
+      cookies under its own policies once you load it, which this page does not control.
+      "Until this tab closes" survives reloads and lasts as long as the tab does. "Store
+      nothing" keeps the demo working but forgets everything the moment you reload or leave.</p>
   </div>
 </div>
 
@@ -234,6 +258,8 @@
       <a href="#" id="storage-link">Storage choices</a></p>
   </div>
 </footer>
+
+<input type="file" id="import-file" accept="application/json,.json" hidden>
 
 <script src="app.js"></script>
 </body>

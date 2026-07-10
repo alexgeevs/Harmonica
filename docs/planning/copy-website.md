@@ -119,7 +119,9 @@ between What it does and How it runs, Android no longer listed).
 
 ## Demo page (/demo)
 
-Edited directly in `site/demo/index.html` (static copy: banner, import view, consent gate,
-cookie prompt, footer) and `site/demo/app.js` (strings built at runtime: statuses, buttons,
-why-lines). The why-line phrasing mirrors `web/src/format.ts` and `copy-app-hidden.md`; if the
-app's wording changes, change the demo's to match.
+Edited directly in `site/demo/index.html` (static copy: banner, import view, restore hint,
+consent gate, cookie prompt with the retention slider, export/import row, footer) and
+`site/demo/app.js` (strings built at runtime: statuses, buttons, why-lines, import summaries).
+The why-line phrasing mirrors `web/src/format.ts` and `copy-app-hidden.md`; if the app's
+wording changes, change the demo's to match. The app's own export/import card copy lives in
+`web/src/App.tsx` (BackupPanel); keep the two consistent in register.

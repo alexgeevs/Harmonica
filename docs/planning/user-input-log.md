@@ -1325,3 +1325,32 @@ only when a visitor actually uses the page.
 
 Also noted for later: the owner would like app.harmonica.org.uk to at least try resolving to a
 locally running Harmonica, which is DNS work rather than code and carries HTTPS caveats.
+
+## 2026-07-10: Portability becomes a feature, and the cookie prompt gets a dial
+
+The owner's next request took the demo's storage story to its logical end: the data a person
+builds up should be theirs to carry. Export as a downloadable file, with the choice of what to
+take: metadata, ratings, settings, or all three at once. Import by uploading the file back. The
+instruction came with a security brief attached, in exactly the right form: assume the worst
+case, a user who is handed a malicious file, and make sure it cannot do anything bad when
+uploaded.
+
+One correction mid-build set the order: the real app should get export and import first, and
+the demo only afterwards. That produced scoped exports on the daemon (metadata, ratings,
+settings, everything) surfaced as a card on the Settings page, and a hardened import path
+shared by the UI, agents and the demo pattern alike: every section and field of an uploaded
+file is rebuilt rather than merged, strings capped, numbers cleaned, ratings clamped to the
+star scale, settings clamped to each control's own range and never able to name a credential,
+a bind address, or a path. A crafted media path can be stored but never served, since media
+streaming stays confined to the media root. On a multi-user install, one profile's file cannot
+touch another profile's data or the shared settings.
+
+Two refinements to the demo's cookie prompt from the same message. First, the fixed thirty-day
+option became a slider (one day to a year, sensible stops) after the owner asked whether the
+duration could be chosen rather than fixed. Second, the owner asked what actually separates
+"store nothing" from "until this tab closes", and the honest answer (session storage survives a
+reload, memory does not) now sits in the prompt's fine print instead of being left for the
+visitor to wonder about.
+
+DNS pointing for the demo and app subdomains stays a flip-day task; the owner asked for
+guidance when the time comes, and a step-by-step now lives in the private release checklist.
