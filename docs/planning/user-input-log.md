@@ -4,13 +4,15 @@ This file records direction-setting user input, clarification questions, and ans
 
 These notes reflect the user's current intent at the time recorded. They are not permanent constraints: the user explicitly said the direction can change on a whim.
 
+Where a group or artist from the owner's own library is named as an example (Meridian, Marlowe Vance), the name is a placeholder, not the real library.
+
 ## 2026-06-24: Project Creation
 
 ### User Input
 
 The user wants to create a music app named Harmonica. The app should have its own algorithm that aims to maximize the user's utility while avoiding repetition.
 
-The user asked to create a GitHub project named `Harmonica` before providing a prior ChatGPT conversation in Markdown.
+The user asked to create a GitHub project named `Harmonica` before providing a prior conversation in Markdown.
 
 ### Result
 
@@ -90,7 +92,7 @@ Question: How much algorithm visibility should v1 expose?
 
 Answer: None of the offered choices exactly.
 
-User note: Debug should be visible in log files. The app should have simple output, but also eventually a richer dashboard. The user wants the app to do most things Spotify can do while still being a web app interacting with a local daemon. Target OS is Windows, but starting with WSL present is acceptable. The architecture is up to the assistant.
+User note: Debug should be visible in log files. The app should have simple output, but also eventually a richer dashboard. The user wants the app to do most things Spotify or YouTube can do while still being a web app interacting with a local daemon. Target OS is Windows, but starting with WSL present is preferred. The architecture is up to the assistant.
 
 Current interpretation: v1 should include JSONL/debug logs and a basic dashboard, while preserving a daemon/client architecture for future extensibility.
 
@@ -470,8 +472,8 @@ while keeping models/schemas/tests coherent.
 ### User Input
 
 The user said: do video review for visual tracks AND broad polish — including simplifying settings
-and adding **listening presets**. The presets should be researched and could "steal"/emulate
-Spotify-style behaviour through the existing parameters: e.g. a short-run "addictive"/familiar preset,
+and adding **listening presets**. The presets should be researched and could emulate
+Spotify-style behaviour through the existing parameters: e.g. a short-run familiar preset,
 and a long-term-utility preset that punishes repeats much harder for maximum variety. The user then
 left for ~1 hour and said to implement all four of: curation review UI, real-data polish, in-app
 curation, and algorithm refinement — "do what you can/want", noting the full 250 songs should be
@@ -508,8 +510,7 @@ Codex was rate-limited (usage cap) during this session, so Claude led the backen
 
 "I'll have the NAS up and running sometime soon. For now, how do you propose we implement
 this for iOS? I don't currently have access to a mac." After hearing the options, the user
-chose: "For now, a web-app is probably best as I can't be bothered with the developer things,
-I might reconsider if I get a mac."
+chose: "For now, a web-app is probably best"
 
 ### Result
 
@@ -537,7 +538,7 @@ See `docs/planning/multi-device-architecture.md` → "iOS app".
   must stay optional; local-only use must keep working with zero config). (2) Install-hint banner:
   *"probably not just yet."* (3) Test-DB isolation: *"Do this yourself."* (4) Android: *"Sounds
   good, I will give you access to the Android phone shortly, basically you should make it entirely
-  an iPod or something like that where its sole purpose will be to play local music in your UI."*
+  an iPod or walkman or something like that where its sole purpose will be to play local music in your UI."*
 
 ### Result
 
@@ -681,8 +682,8 @@ overlaps, auto-flagged smells) so the user can approve a classification **before
   bit more (its artist-half is full-strength while the other half is standard) — and said **"that
   sounds good."** *(Confirmed correct against the formula: the sole-artist song gets a full `1.0`
   per-song share from that half.)*
-- **Meridian vs Marlowe Vance (near-coextensive groups):** the user suspected almost every
-  Meridian song is also LMM and asked whether to simplify/merge such cases. Concluded **leave it be** —
+- **Meridian vs Marlowe Vance (near-coextensive groups, placeholder names):** the user suspected
+  almost every Meridian song is also Marlowe Vance and asked whether to simplify/merge such cases. Concluded **leave it be** —
   merging only helps the perfectly-overlapping case and adds complexity for the one stray song. Agreed.
 - **Sub-groups OFF by default** — they are for **covers**: a cover **shares the general weight groups of
   the original song** and is additionally marked a cover (so it's **less prominent**).
@@ -1088,7 +1089,7 @@ review-before-import screen. The importer UI shows no video thumbnails, so the b
 request to Google during import, consistent with "nothing reaches YouTube until the user opts in".
 The endpoint inherits the CSRF and exposed-mode token guards (tested), so it stays safe on a NAS.
 
-## 2026-07-10: Versioning, public README, watch-time framing, and pre-publish polish
+## 2026-07-10: Versioning, public README, watch-time framing, and publish polish
 
 ### User Input
 
