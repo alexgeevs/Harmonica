@@ -7,11 +7,19 @@ string lives so the edits can be applied back to `site/index.html` and `site/llm
 
 ## index.html — page title (browser tab)
 
-Harmonica: a Music Player and Algorithm to diminish diminishing returns
+Harmonica
 
 ## index.html — meta description (search results)
 
-Harmonica is a self-hosted music player. Its algorithm selects songs, artists and topics so nothing is over-played and nothing is forgotten. Customise the algorithm yourself, or use presets built by LLMs from behavioural-economics and music-recommendation research.
+A self-hosted, open-source music player that replaces shuffle. It rests what you have played lately and revives neglected favourites, so nothing is over-played or forgotten.
+
+## index.html — social preview title (og:title, shown when the link is shared)
+
+Harmonica: a music player that does not wear out your favourites
+
+## index.html — social preview description (og:description)
+
+Self-hosted and open source. Instead of shuffle, it rests what you have played lately and brings back neglected songs, so nothing is over-played or forgotten.
 
 ## index.html — hero heading
 
@@ -28,6 +36,10 @@ Why not just shuffle?
 ## index.html — "Why" paragraph (bold part marked with **)
 
 The failure mode is familiar: you find songs you love and play them constantly, and within a few weeks the marginal utility of listening again has depreciated to nothing (this is why the demand curve slopes downwards), while the rest of your library sits untouched. Harmonica treats this as the central problem. **Recently played material is rested, neglected favourites recover their value, and unheard songs get a first hearing.**
+
+## index.html — "Why" second paragraph (incentives)
+
+The big apps, Spotify and YouTube among them, are built to maximise your watch time, and what keeps you listening tonight can come at the cost of long-term enjoyment. Harmonica has no such goal, because it gains nothing from your watch time. It does not measure it. There is no telemetry and no tracking of any kind. Your listening history exists only on your own device, where the algorithm uses it to rest whatever you have been over-playing.
 
 ## index.html — feature: Cooldowns, not shuffle
 
