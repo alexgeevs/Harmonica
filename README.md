@@ -4,10 +4,8 @@ Harmonica is a self-hosted, open-source music player. Rather than replaying the 
 favourites until they wear out, it rests what you have heard lately and brings back what you have
 not, so nothing is over-played and nothing is forgotten.
 
-The big platforms are built to maximise watch time, and what keeps you listening tonight can come
-at the cost of long-term enjoyment. Harmonica gains nothing from your watch time and does not
-measure it. There is no telemetry and no tracking. Your listening history exists only on your own
-device, where the algorithm uses it.
+The big platforms maximise watch time, which can come at the cost of long-term enjoyment.
+Harmonica gains nothing from your watch time and does not measure it. No telemetry, no tracking.
 
 Website: https://harmonica.org.uk
 
