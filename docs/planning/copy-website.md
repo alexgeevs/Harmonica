@@ -101,7 +101,7 @@ It is **Open-Source** under the GNU AGPL-3.0 licence: free to use, study, modify
 
 ## index.html — small print, bullet 3
 
-Harmonica does not host, provide, or source any music. It plays your own self-hosted library: your files, your server.
+Harmonica does not host, provide, or source any music. It plays your own self-hosted library: your files, your device.
 
 ## index.html — footer fine print
 
