@@ -13,7 +13,7 @@ const $ = (id) => document.getElementById(id);
 
 function blankData() {
   return {
-    tracks: [], groups: [], events: [], queue: [], queueIndex: 0,
+    tracks: [], groups: [], events: [], queue: [], queueIndex: 0, settings: {},
     ytConsent: false, nextTrackId: 1, nextGroupId: 1,
   };
 }
@@ -335,6 +335,7 @@ function exportScope(scope) {
   if (scope === "all" || scope === "settings") {
     out.settings = {
       storage: mode === null ? null : { mode, days: mode === "days" ? modeDays : undefined },
+      algorithm: Object.assign({}, data.settings),
     };
   }
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
@@ -372,6 +373,27 @@ async function importFromFile(file) {
   if (storage && typeof storage === "object" && STORAGE_MODES.includes(storage.mode)) {
     applyStorageChoice(storage.mode, DAY_STOPS.includes(storage.days) ? storage.days : 30);
     summary.push("storage choice applied");
+  }
+
+  // Algorithm tuning: only known keys, clamped to each control's own range.
+  const rawAlgorithm = settings && typeof settings === "object" && !Array.isArray(settings)
+    ? settings.algorithm : null;
+  let tuned = 0;
+  if (rawAlgorithm && typeof rawAlgorithm === "object" && !Array.isArray(rawAlgorithm)) {
+    for (const ctl of SETTING_CONTROLS) {
+      const raw = rawAlgorithm[ctl.key];
+      if (typeof ctl.def === "boolean" && typeof raw === "boolean") {
+        setSetting(ctl, raw);
+        tuned += 1;
+      } else if (typeof ctl.def === "number" && typeof raw === "number" && Number.isFinite(raw)) {
+        setSetting(ctl, Math.min(ctl.max, Math.max(ctl.min, raw)));
+        tuned += 1;
+      }
+    }
+  }
+  if (tuned) {
+    renderSettings();
+    summary.push(tuned + " algorithm setting" + (tuned === 1 ? "" : "s"));
   }
 
   const meta = parsed.metadata && typeof parsed.metadata === "object" ? parsed.metadata : null;
@@ -441,6 +463,121 @@ async function importFromFile(file) {
   } else {
     el.textContent = message;
   }
+}
+
+/* ---------------------------------------------------------------- settings
+   Real controls over the real algorithm. Every key except queue_length is a field of the
+   driver's Settings class with the app's own default, and only values moved off their default
+   are stored and sent, so the app stays the single source of truth for what normal means.
+   The strength sliders double as switches: at 0 their multiplier collapses to exactly 1. */
+
+const SETTING_CONTROLS = [
+  { key: "queue_length", label: "Queue length", def: QUEUE_LEN, min: 5, max: 30, step: 1,
+    expl: "How many songs each generated queue holds." },
+  { key: "cold_start_enabled", label: "Unheard songs first", def: true,
+    expl: "Prioritises songs that have never been played, so everything gets a first hearing " +
+      "before anything is worn in." },
+  { key: "satiation_strength", label: "Satiation guard", def: 0.5, min: 0, max: 2, step: 0.1,
+    expl: "How firmly a song with heavy recent listening is rested. At 0 a binge has no " +
+      "after-effect. At 2 a binged song needs a proper break before it returns." },
+  { key: "rediscovery_strength", label: "Rediscovery", def: 0.4, min: 0, max: 1, step: 0.05,
+    expl: "How strongly a well-rated song that has gone unheard for weeks is invited back." },
+  { key: "skip_penalty_strength", label: "Skip penalty", def: 0.25, min: 0, max: 1, step: 0.05,
+    expl: "How much skipping a song early counts against it. Skips near the end barely " +
+      "count, and later full listens forgive old skips." },
+  { key: "song_rating_max_multiplier", label: "Five-star boost", def: 2.0, min: 1, max: 3,
+    step: 0.1,
+    expl: "How many times more weight a five-star song carries than an unrated one. Ratings " +
+      "below the neutral midpoint reduce weight instead." },
+  { key: "group_clustering_bias", label: "Uploader clustering", def: 0.0, min: -1, max: 1,
+    step: 0.1,
+    expl: "Below zero spreads one uploader's songs apart. Above zero lets them arrive in " +
+      "runs. The full app applies this to artists and topics." },
+  { key: "beta", label: "Large-group weighting", def: 1.25, min: 0, max: 3, step: 0.25,
+    expl: "How much extra draw an uploader gets for holding many songs. At 0 every uploader " +
+      "gets an equal share of the queue, however big." },
+];
+
+function settingValue(ctl) {
+  const stored = data.settings ? data.settings[ctl.key] : undefined;
+  if (typeof ctl.def === "boolean") {
+    return typeof stored === "boolean" ? stored : ctl.def;
+  }
+  return typeof stored === "number" && Number.isFinite(stored)
+    ? Math.min(ctl.max, Math.max(ctl.min, stored))
+    : ctl.def;
+}
+
+function setSetting(ctl, value) {
+  if (!data.settings) {
+    data.settings = {};
+  }
+  if (value === ctl.def) {
+    delete data.settings[ctl.key];
+  } else {
+    data.settings[ctl.key] = value;
+  }
+  persist();
+  $("settings-note").textContent = "Saved. The next queue is generated with these settings.";
+}
+
+function formatSetting(ctl, value) {
+  if (typeof ctl.def === "boolean") {
+    return value ? "on" : "off";
+  }
+  const text = String(Number(value.toFixed(2)));
+  return ctl.min < 0 && value > 0 ? "+" + text : text;
+}
+
+function renderSettings() {
+  const box = $("settings-list");
+  box.innerHTML = "";
+  for (const ctl of SETTING_CONTROLS) {
+    const row = document.createElement("div");
+    row.className = "setting";
+    const label = document.createElement("label");
+    label.textContent = ctl.label;
+    label.htmlFor = "set-" + ctl.key;
+    const input = document.createElement("input");
+    input.id = "set-" + ctl.key;
+    const val = document.createElement("span");
+    val.className = "val";
+    val.textContent = formatSetting(ctl, settingValue(ctl));
+    if (typeof ctl.def === "boolean") {
+      input.type = "checkbox";
+      input.checked = settingValue(ctl);
+      input.onchange = () => {
+        setSetting(ctl, input.checked);
+        val.textContent = formatSetting(ctl, input.checked);
+      };
+    } else {
+      input.type = "range";
+      input.min = ctl.min;
+      input.max = ctl.max;
+      input.step = ctl.step;
+      input.value = settingValue(ctl);
+      input.oninput = () => {
+        setSetting(ctl, Number(input.value));
+        val.textContent = formatSetting(ctl, Number(input.value));
+      };
+    }
+    const expl = document.createElement("p");
+    expl.className = "expl";
+    expl.textContent = ctl.expl;
+    row.append(label, input, val, expl);
+    box.appendChild(row);
+  }
+}
+
+function settingsPayload() {
+  const overrides = {};
+  for (const ctl of SETTING_CONTROLS) {
+    const value = settingValue(ctl);
+    if (ctl.key !== "queue_length" && value !== ctl.def) {
+      overrides[ctl.key] = value;
+    }
+  }
+  return overrides;
 }
 
 /* ------------------------------------------------------------------ python
@@ -530,7 +667,8 @@ async function regenerateQueue(statusEl) {
       })),
       groups: data.groups,
       events: data.events,
-      length: QUEUE_LEN,
+      length: settingValue(SETTING_CONTROLS[0]),
+      settings: settingsPayload(),
       seed: Math.floor(Math.random() * 2147483647),
     };
     data.queue = JSON.parse(await generateInWorker(JSON.stringify(payload)));
@@ -847,6 +985,7 @@ function renderAll() {
 
 function init() {
   initStorage();
+  renderSettings();
   $("read-btn").onclick = readAndOrganise;
   $("consent-btn").onclick = () => {
     data.ytConsent = true;
@@ -858,9 +997,16 @@ function init() {
     advance();
   };
   $("requeue-btn").onclick = async () => {
+    $("settings-note").textContent = "";
     await regenerateQueue();
     renderAll();
     loadCurrent(false);
+  };
+  $("settings-defaults").onclick = () => {
+    data.settings = {};
+    persist();
+    renderSettings();
+    $("settings-note").textContent = "Back to the app's own defaults.";
   };
   $("add-more").onclick = () => {
     showView("import");

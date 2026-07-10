@@ -104,6 +104,16 @@
 
   details{margin-top:1.6rem;max-width:62rem}
   details summary{cursor:pointer;font-weight:600;color:var(--dark);padding:.4rem 0}
+  .setting{display:grid;grid-template-columns:minmax(9rem,13rem) minmax(8rem,1fr) 3.6rem;
+    gap:.15rem .9rem;align-items:center;padding:.6rem 0;border-bottom:1px solid var(--line);
+    max-width:44rem}
+  .setting label{font-weight:600;font-size:.92rem;color:var(--dark)}
+  .setting input[type=range]{width:100%;accent-color:var(--teal)}
+  .setting input[type=checkbox]{width:1.15rem;height:1.15rem;accent-color:var(--teal);
+    justify-self:start}
+  .setting .val{font-size:.85rem;color:var(--teal);text-align:right;
+    font-variant-numeric:tabular-nums}
+  .setting .expl{grid-column:1 / -1;font-size:.83rem;color:var(--muted);margin:0;max-width:62ch}
   .lib-actions{display:flex;gap:.7rem;margin:.9rem 0}
   .backup-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.6rem 0 .2rem}
   .backup-label{font-size:.85rem;color:var(--muted)}
@@ -202,6 +212,20 @@
     </div>
 
     <details>
+      <summary>Algorithm settings</summary>
+      <p class="hint">These are real controls over the real algorithm, the same knobs the full
+        app exposes in its Settings. Changes are saved at once and shape the next queue.</p>
+      <div id="settings-list"></div>
+      <div class="lib-actions">
+        <button id="settings-defaults" class="btn small">Back to the defaults</button>
+      </div>
+      <div class="status" id="settings-note" role="status"></div>
+      <p class="hint">The full app goes further, with controls the demo has no material for,
+        such as video priority, favourite pacing, per-factor rating weights and rating
+        normalisation.</p>
+    </details>
+
+    <details>
       <summary>Your demo library (<span id="lib-count">0</span> songs)</summary>
       <ul class="rows" id="library-list"></ul>
       <div class="lib-actions">
@@ -216,8 +240,9 @@
         <button class="btn small" data-export="all">Everything</button>
         <button id="import-btn" class="btn small">Import a file</button>
       </div>
-      <p class="hint">Metadata is the song list, ratings are your stars, settings is your
-        storage choice. Importing a file adds what it holds and never deletes anything.</p>
+      <p class="hint">Metadata is the song list, ratings are your stars, settings are your
+        storage choice and algorithm tuning. Importing a file adds what it holds and never
+        deletes anything.</p>
     </details>
     <p class="statsline" id="statsline"></p>
   </section>

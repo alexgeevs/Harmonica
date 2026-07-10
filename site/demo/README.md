@@ -3,8 +3,10 @@
 A static demonstration of Harmonica's queueing algorithm, served at `/demo` on the website.
 Visitors paste YouTube links, the page reads each video's title and uploader through YouTube's
 oEmbed endpoint, and the repo's real `algorithm.py`, `history.py` and `ratings.py` generate the
-queue in the browser through Pyodide. Playback goes through YouTube's official embedded player
-behind a consent gate. Everything the visitor builds (links, ratings, listening history) stays
+queue in the browser through Pyodide. An Algorithm settings panel exposes the real algorithm's
+controls (cooldown weighting, satiation, rediscovery, skip penalty, rating boost, clustering) as
+sliders and switches, sent to the driver as overrides. Playback goes through YouTube's official
+embedded player behind a consent gate. Everything the visitor builds (links, ratings, listening history) stays
 in their own browser storage, behind a working cookie-style prompt that asks how long to keep it.
 
 ## Layout
