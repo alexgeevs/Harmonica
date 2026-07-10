@@ -11,6 +11,10 @@ uv run harmonica serve                    # FastAPI daemon + SQLite on http://12
 cd web && npm install && npm run build    # the daemon then serves the built UI at that origin
 ```
 
+That one origin, `http://localhost:8765`, is the app: build the UI once and let the daemon serve
+it. The Vite dev server on port 5173 (`npm run dev`) exists only for working on the UI itself.
+Do not point the user at it.
+
 All state lives in one SQLite file under `.harmonica/`. There are no migrations: the schema is
 created on first run, and new columns are added additively.
 

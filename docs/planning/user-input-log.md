@@ -1129,3 +1129,26 @@ destroyed and rebuilt per video, which forces the browser out of fullscreen), so
 created once and videos are swapped in place, the same way YouTube's own playlists keep fullscreen.
 The paused-video "More videos" shelf stays: `rel=0` already limits it to same-channel suggestions,
 and the only ways to remove it outright would breach the embed terms the feature is built to honour.
+
+## 2026-07-10: The 1.0.0 release, and first contact with a fresh machine
+
+The owner started the cold-machine test on a second computer (Windows) and asked for the first
+release in parallel: v1.0.0, whose artifacts are small installer scripts that download Harmonica
+and set it up for a first start. One for local use, one for a NAS. Nothing for Android yet.
+
+**Fresh-machine lesson:** the local agent on the Windows machine set the project up in development
+mode and pointed the owner at the Vite dev server on port 5173, instead of building the UI and
+serving everything from the daemon at `localhost:8765`. Nothing in the repo told it to do that; it
+found Vite on its own. `AGENTS.md` now says explicitly that the single origin is the app and the
+dev server is only for working on the UI itself.
+
+**Curate placement (logged for later):** once the library holds local songs, the Curate page should
+be opened from Settings rather than sitting in the sidebar. Curation is an occasional act, not a
+daily surface.
+
+### Outcome
+
+Three installers in `install/` (Windows local, Linux/macOS local, NAS), each of which downloads the
+tagged source into the home folder and hands over to the start scripts, with the NAS one binding
+`HARMONICA_HOST=0.0.0.0` and printing the LAN address. The README's "Running it" now leads with the
+releases page. Tag `v1.0.0` marks the release, with the installers attached as release assets.

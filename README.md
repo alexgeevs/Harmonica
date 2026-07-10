@@ -37,7 +37,11 @@ files, on your own server.
 
 ## Running it
 
-Download the repository (Code → Download ZIP, or `git clone`), then:
+The quickest path is an installer from the
+[releases page](https://github.com/alexgeevs/Harmonica/releases): download the one for your
+platform and run it. It fetches Harmonica into your home folder, sets it up, and starts it.
+
+If you already have the repository (Code → Download ZIP, or `git clone`):
 
 - **Windows:** double-click `start-harmonica.bat`.
 - **Linux and macOS:** run `./start-harmonica.sh`.
