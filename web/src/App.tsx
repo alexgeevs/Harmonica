@@ -34,8 +34,11 @@ import {
   applyTheme,
   BAR_OPTIONS,
   loadTheme,
+  matchThemePreset,
   saveTheme,
   SURFACE_OPTIONS,
+  THEME_PRESETS,
+  themePresetPreview,
   type ThemeSelection
 } from "./theme";
 import { displayArtist, formatTime, pct, whyMath, whyReasons } from "./format";
@@ -2203,6 +2206,7 @@ const SETTING_SECTIONS: {
 // setting: it applies immediately and is not part of the Apply-changes draft.
 function AppearanceSection() {
   const [theme, setTheme] = useState<ThemeSelection>(loadTheme);
+  const activePreset = matchThemePreset(theme);
 
   function update(patch: Partial<ThemeSelection>) {
     setTheme((current) => {
@@ -2222,6 +2226,27 @@ function AppearanceSection() {
           The choices are limited on purpose, so text stays readable on every combination.
           <em className="cosmetic-tag">cosmetic</em>
         </p>
+      </div>
+      <div className="theme-presets" role="group" aria-label="Appearance presets">
+        {THEME_PRESETS.map((preset) => {
+          const preview = themePresetPreview(preset);
+          return (
+            <button
+              key={preset.key}
+              type="button"
+              className={preset.key === activePreset ? "theme-preset active" : "theme-preset"}
+              aria-pressed={preset.key === activePreset}
+              onClick={() => update({ ...preset.selection })}
+            >
+              <span className="theme-preset-swatches" aria-hidden="true">
+                <span className="theme-preset-dot" style={{ background: preview.surface }} />
+                <span className="theme-preset-dot" style={{ background: preview.sidebar }} />
+                <span className="theme-preset-dot" style={{ background: preview.playerbar }} />
+              </span>
+              {preset.name}
+            </button>
+          );
+        })}
       </div>
       <div className="appearance-rows">
         <SwatchRow
