@@ -645,6 +645,7 @@ p {
 .editor-empty,
 .setting-control,
 .settings-note,
+.complex-toggle,
 .factor-card {
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -2587,6 +2588,29 @@ input:focus {
 .settings-side {
   display: grid;
   gap: 12px;
+}
+
+.complex-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.complex-toggle-copy strong {
+  font-size: 14px;
+}
+
+.complex-toggle-copy p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.complex-toggle .switch-control {
+  flex: none;
 }
 
 .settings-note {

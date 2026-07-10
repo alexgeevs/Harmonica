@@ -2044,21 +2044,39 @@ function BarList(props: { rows: { label: string; value: number }[] }) {
 // Settings view
 // ---------------------------------------------------------------------------
 
+// Individual keys that are complex even inside an otherwise-simple section. These are the
+// fine-tuning knobs beside a plain everyday toggle: they stay hidden until "Show complex
+// settings" is ticked, while the toggle they sit next to stays visible.
+const ADVANCED_KEYS = new Set<string>([
+  "cold_start_unrated_boost",
+  "visual_priority_multiplier",
+  "loudness_warning_level"
+]);
+
 const SETTING_SECTIONS: {
   title: string;
   note: string | JSX.Element;
   cosmetic?: boolean;
+  // Whole-section complexity: when true, every control in the section is hidden until "Show
+  // complex settings" is ticked. Simpler than tagging each key. Mixed sections leave this off
+  // and rely on ADVANCED_KEYS for the odd complex knob instead.
+  advanced?: boolean;
   keys: string[];
   // Optional richer guidance rendered as a block below the controls (for setup steps that need
   // more than a one-line note, e.g. enabling YouTube playback).
   extra?: JSX.Element;
 }[] = [
   {
+    title: "Queue",
+    note: "How many songs a freshly generated queue holds.",
+    keys: ["default_playlist_length"]
+  },
+  {
     title: "Recommendation core",
     note: "How strongly groups and your ratings shape the queue.",
+    advanced: true,
     keys: [
       "beta",
-      "default_playlist_length",
       "enable_group_rating_multiplier",
       "song_rating_min_multiplier",
       "song_rating_max_multiplier"
@@ -2067,11 +2085,13 @@ const SETTING_SECTIONS: {
   {
     title: "Anti-repetition & variety",
     note: "How quickly a just-played song, group, or variant is allowed back.",
+    advanced: true,
     keys: ["group_cooldown_floor", "sub_group_cooldown_floor", "group_clustering_bias"]
   },
   {
     title: "History & feedback",
     note: "How your plays and skips steer the next session.",
+    advanced: true,
     keys: ["history_influence_enabled", "skip_penalty_strength"]
   },
   {
@@ -2109,6 +2129,7 @@ const SETTING_SECTIONS: {
   {
     title: "Rating normalisation",
     note: "How repeat ratings are averaged and normalised before they steer the queue.",
+    advanced: true,
     keys: [
       "rating_normalization_enabled",
       "rating_calibration_enabled",
@@ -2121,6 +2142,7 @@ const SETTING_SECTIONS: {
   {
     title: "Repetition & rediscovery",
     note: "Avoid wearing a song out by over-playing it, and bring back dormant favourites.",
+    advanced: true,
     keys: [
       "satiation_enabled",
       "satiation_strength",
@@ -2141,6 +2163,7 @@ const SETTING_SECTIONS: {
   {
     title: "Covers",
     note: "When a song has several renditions, let the queue pick which one to play. (Off by default, turn it on if your library has covers.)",
+    advanced: true,
     keys: ["cover_two_level_enabled", "cover_count_log_base", "cover_original_bonus"]
   },
   {
@@ -2317,6 +2340,26 @@ function SwatchRow(props: {
   );
 }
 
+// Whether the complex settings tier is shown. Per-device, like the theme, so it lives in
+// localStorage rather than the server-side settings draft.
+const SHOW_COMPLEX_KEY = "harmonica.settings.show-complex";
+
+function loadShowComplex(): boolean {
+  try {
+    return localStorage.getItem(SHOW_COMPLEX_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveShowComplex(value: boolean): void {
+  try {
+    localStorage.setItem(SHOW_COMPLEX_KEY, value ? "1" : "0");
+  } catch {
+    /* private mode; the preference just won't persist. */
+  }
+}
+
 function SettingsView(props: {
   settings: AppSettings;
   ratingFactors: RatingFactor[];
@@ -2333,6 +2376,15 @@ function SettingsView(props: {
 }) {
   const [draft, setDraft] = useState<Record<string, number | boolean>>(() => settingsToDraft(props.settings));
   useEffect(() => setDraft(settingsToDraft(props.settings)), [props.settings]);
+  const [showComplex, setShowComplex] = useState<boolean>(loadShowComplex);
+
+  function toggleComplex() {
+    setShowComplex((current) => {
+      const next = !current;
+      saveShowComplex(next);
+      return next;
+    });
+  }
 
   const dirty = useMemo(
     () => props.settings.controls.some((control) => draft[control.key] !== props.settings[control.key]),
@@ -2391,6 +2443,19 @@ function SettingsView(props: {
       ));
   }
 
+  // Which of a section's keys to render given the current tier. Hiding is display-only: the
+  // draft still holds every value, so Apply changes, the leave guard and Reset cover the hidden
+  // controls too.
+  function visibleKeys(section: (typeof SETTING_SECTIONS)[number]): string[] {
+    if (showComplex) {
+      return section.keys;
+    }
+    if (section.advanced) {
+      return [];
+    }
+    return section.keys.filter((key) => !ADVANCED_KEYS.has(key));
+  }
+
   return (
     <section className="settings-view">
       <div className="settings-main">
@@ -2421,52 +2486,58 @@ function SettingsView(props: {
           )}
         </div>
 
-        {SETTING_SECTIONS.map((section) => (
-          <div key={section.title} className="settings-section">
-            <div className="section-head">
-              <h4>{section.title}</h4>
-              <p>
-                {section.note}
-                {section.cosmetic ? <em className="cosmetic-tag">cosmetic</em> : null}
-              </p>
-            </div>
-            <div className="settings-controls">{renderControls(section.keys)}</div>
-            {section.extra}
-            {section.title === "YouTube playback" && draft.youtube_embed_enabled ? (
-              <div className="setup-guidance">
-                <h5>YouTube playback is on</h5>
+        {SETTING_SECTIONS.map((section) => {
+          const keys = visibleKeys(section);
+          if (!keys.length) {
+            return null;
+          }
+          return (
+            <div key={section.title} className="settings-section">
+              <div className="section-head">
+                <h4>{section.title}</h4>
                 <p>
-                  Paste a list of YouTube links on the{" "}
-                  <button className="link-button" onClick={props.onOpenCurate}>
-                    Curate page
-                  </button>{" "}
-                  and each link becomes a song, or open one song in the library editor and paste
-                  its link there.{dirty ? " Apply your changes first." : ""}
+                  {section.note}
+                  {section.cosmetic ? <em className="cosmetic-tag">cosmetic</em> : null}
                 </p>
-                <ul>
-                  <li>
-                    <b>Importing reads each video's properties.</b> Harmonica reads the links'
-                    metadata on the server, the uploader and title by default and more with a Data
-                    API key, and organises them into tracks. Nothing is downloaded.
-                  </li>
-                  <li>
-                    <b>You review before anything lands.</b> The organised tracks appear as a
-                    proposal on the Curate page, where you check them and apply the ones you
-                    accept.
-                  </li>
-                  <li>
-                    <b>Playback stays official.</b> Each imported song plays through YouTube's own
-                    embedded player.
-                  </li>
-                </ul>
               </div>
-            ) : null}
-          </div>
-        ))}
+              <div className="settings-controls">{renderControls(keys)}</div>
+              {section.extra}
+              {section.title === "YouTube playback" && draft.youtube_embed_enabled ? (
+                <div className="setup-guidance">
+                  <h5>YouTube playback is on</h5>
+                  <p>
+                    Paste a list of YouTube links on the{" "}
+                    <button className="link-button" onClick={props.onOpenCurate}>
+                      Curate page
+                    </button>{" "}
+                    and each link becomes a song, or open one song in the library editor and paste
+                    its link there.{dirty ? " Apply your changes first." : ""}
+                  </p>
+                  <ul>
+                    <li>
+                      <b>Importing reads each video's properties.</b> Harmonica reads the links'
+                      metadata on the server, the uploader and title by default and more with a
+                      Data API key, and organises them into tracks. Nothing is downloaded.
+                    </li>
+                    <li>
+                      <b>You review before anything lands.</b> The organised tracks appear as a
+                      proposal on the Curate page, where you check them and apply the ones you
+                      accept.
+                    </li>
+                    <li>
+                      <b>Playback stays official.</b> Each imported song plays through YouTube's
+                      own embedded player.
+                    </li>
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
 
         <AppearanceSection />
 
-        {extraKeys.length ? (
+        {showComplex && extraKeys.length ? (
           <div className="settings-section">
             <div className="section-head">
               <h4>More</h4>
@@ -2486,6 +2557,24 @@ function SettingsView(props: {
             <Check size={16} /> Saved
           </div>
         )}
+        <div className="complex-toggle">
+          <div className="complex-toggle-copy">
+            <strong>Show complex settings</strong>
+            <p>Off keeps the list to the everyday controls. On reveals the fine-tuning knobs.</p>
+          </div>
+          <button
+            className={showComplex ? "switch-control on" : "switch-control"}
+            onClick={toggleComplex}
+            role="switch"
+            aria-checked={showComplex}
+            type="button"
+          >
+            <span className="switch-label">{showComplex ? "On" : "Off"}</span>
+            <span className="switch-track">
+              <span className="switch-knob" />
+            </span>
+          </button>
+        </div>
         <button
           className="reset-defaults"
           onClick={() =>
