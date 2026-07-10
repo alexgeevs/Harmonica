@@ -3339,10 +3339,12 @@ input:focus {
 }
 
 /* ----------------------------------------------------------------- dark mode */
-/* Toggled from Settings → Appearance (theme.ts sets data-dark on <html>). The variables
-   flip here; below them, the handful of hardcoded light hover/selection tints get dark
-   replacements. The sidebar and player-bar colours stay whatever the user chose — every
-   bar option is dark already. */
+/* Toggled from Settings → Appearance (theme.ts sets data-dark + data-dark-tone on <html>).
+   The base block is the green tone; the neutral and warm blocks override the same variables
+   with desaturated and amber-shifted versions at the same lightness, so dark mode at night
+   need not be cool-tinted. The hardcoded light hover/selection tints go through --dark-*
+   variables so every tone recolours them at once. The sidebar and player-bar colours stay
+   whatever the user chose — every bar option is dark already. */
 
 :root[data-dark] {
   --bg: #141c1b;
@@ -3359,18 +3361,76 @@ input:focus {
   --accent: #2f9480;
   --accent-soft: #3aaf98;
   --danger: #d05f5f;
+  --dark-topbar: #1a2423;
+  --dark-btn: #2c3a38;
+  --dark-btn-hover: #35453f;
+  --dark-mini-hover: #2d3b39;
+  --dark-hover: #263533;
+  --dark-hover-soft: #223130;
+  --dark-active: #253431;
+  --dark-card: #223230;
+  --dark-profile: #233530;
+  --dark-switch: #3c4c49;
+}
+
+:root[data-dark][data-dark-tone="neutral"] {
+  --bg: #181818;
+  --panel: #222222;
+  --panel-soft: #2b2b2b;
+  --ink: #e8e8e8;
+  --ink-soft: #e8e8e880;
+  --muted: #aeaeae;
+  --line: #3b3b3b;
+  --line-soft: #323232;
+  --field: #1c1c1c;
+  --field-line: #424242;
+  --emphasis: #d8d8d8;
+  --dark-topbar: #1f1f1f;
+  --dark-btn: #333333;
+  --dark-btn-hover: #3d3d3d;
+  --dark-mini-hover: #343434;
+  --dark-hover: #2e2e2e;
+  --dark-hover-soft: #2a2a2a;
+  --dark-active: #2c2c2c;
+  --dark-card: #2a2a2a;
+  --dark-profile: #2c2c2c;
+  --dark-switch: #444444;
+}
+
+:root[data-dark][data-dark-tone="warm"] {
+  --bg: #1b1815;
+  --panel: #27221e;
+  --panel-soft: #302b25;
+  --ink: #ebe8e5;
+  --ink-soft: #ebe8e580;
+  --muted: #b5aea8;
+  --line: #413b34;
+  --line-soft: #38322c;
+  --field: #201c17;
+  --field-line: #49423b;
+  --emphasis: #dfd8d0;
+  --dark-topbar: #231f1b;
+  --dark-btn: #39332d;
+  --dark-btn-hover: #443d36;
+  --dark-mini-hover: #3a342e;
+  --dark-hover: #342e27;
+  --dark-hover-soft: #302a23;
+  --dark-active: #332c26;
+  --dark-card: #312a23;
+  --dark-profile: #342c24;
+  --dark-switch: #4b443d;
 }
 
 :root[data-dark] .topbar {
-  background: #1a2423;
+  background: var(--dark-topbar);
 }
 
 :root[data-dark] .icon-button {
-  background: #2c3a38;
+  background: var(--dark-btn);
 }
 
 :root[data-dark] .icon-button:hover {
-  background: #35453f;
+  background: var(--dark-btn-hover);
 }
 
 :root[data-dark] .icon-button.ghost {
@@ -3378,53 +3438,53 @@ input:focus {
 }
 
 :root[data-dark] .mini:hover {
-  background: #2d3b39;
+  background: var(--dark-mini-hover);
 }
 
 :root[data-dark] .compare-card {
-  background: #223230;
+  background: var(--dark-card);
 }
 
 :root[data-dark] .compare-replay:hover {
-  background: #2d3b39;
+  background: var(--dark-mini-hover);
 }
 
 :root[data-dark] .saved-runs li:hover {
-  background: #263533;
+  background: var(--dark-hover);
 }
 
 :root[data-dark] .queue-row.current {
-  background: #253431;
+  background: var(--dark-active);
 }
 
 :root[data-dark] .queue-row:hover {
-  background: #223130;
+  background: var(--dark-hover-soft);
 }
 
 :root[data-dark] .facet:hover {
-  background: #263533;
+  background: var(--dark-hover);
 }
 
 :root[data-dark] .track-card.active {
-  background: #243130;
+  background: var(--panel-soft);
 }
 
 :root[data-dark] .mini-text:hover {
-  background: #263533;
+  background: var(--dark-hover);
 }
 
 :root[data-dark] .preset.active {
-  background: #253431;
+  background: var(--dark-active);
 }
 
 :root[data-dark] .primary.ghost-primary:hover {
-  background: #253431;
+  background: var(--dark-active);
 }
 
 :root[data-dark] .profile-active {
-  background: #233530;
+  background: var(--dark-profile);
 }
 
 :root[data-dark] .switch-track {
-  background: #3c4c49;
+  background: var(--dark-switch);
 }

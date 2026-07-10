@@ -33,6 +33,7 @@ import { api, configsSupported, savedQueuesSupported } from "./api";
 import {
   applyTheme,
   BAR_OPTIONS,
+  DARK_TONES,
   loadTheme,
   matchThemePreset,
   saveTheme,
@@ -445,7 +446,8 @@ export default function App() {
               <Volume2 size={16} />
               <span>
                 Sustained loudness looks high{currentCompressed ? " for compressed audio" : ""}. Consider
-                turning it down to protect your hearing. <em>(relative estimate)</em>
+                turning it down to protect your hearing. <em>This is a relative estimate, not an exact
+                measurement.</em>
               </span>
             </div>
           </div>
@@ -1769,7 +1771,7 @@ function TrackEditor(props: {
               checked={draft.audio_only ?? false}
               onChange={(e) => update("audio_only", e.target.checked)}
             />
-            Audio only — hide the video, keep the sound
+            Audio only: hide the video, keep the sound
           </label>
         ) : null}
         <div className="trim-grid">
@@ -1789,7 +1791,7 @@ function TrackEditor(props: {
           />
         </div>
         <small className="trim-note">
-          Non-destructive — playback just skips the intro/outro. The unused parts stay on disk for now.
+          Non-destructive: playback just skips the intro/outro. The unused parts stay on disk for now.
         </small>
         {props.youtubeEnabled ? (
           <label className="wide youtube-link-field">
@@ -1936,7 +1938,7 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
           <CoverageBar label="Heard" value={playedIds.size} total={stats.track_count} tone="neutral" />
           <CoverageBar label="Still unrated" value={stats.unrated_track_count} total={stats.track_count} tone="suppress" />
           <p className="stat-note">
-            Cold-start keeps surfacing unrated tracks until every song has had a fair chance — coverage should
+            Cold-start keeps surfacing unrated tracks until every song has had a fair chance. Coverage should
             climb steadily before anything repeats heavily.
           </p>
         </div>
@@ -1973,7 +1975,7 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
           {health.samples === 0 ? (
             <p className="stat-note">
               Loudness is measured live while you listen. Play a few tracks and your average and peak levels
-              will appear here.
+              will appear here. They are relative estimates, not exact measurements.
             </p>
           ) : (
             <>
@@ -1981,7 +1983,7 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
               <CoverageBar label="Peak loudness" value={Math.round(health.peak * 100)} total={100} tone={health.peak > 0.92 ? "suppress" : "neutral"} />
               <CoverageBar label="Weekly exposure" value={Math.min(health.dosePct, 100)} total={100} tone={health.dosePct > 100 ? "suppress" : "boost"} />
               <p className="stat-note">
-                Relative estimates, not calibrated dB — browsers can't read true sound pressure. The{" "}
+                Relative estimates, not calibrated dB, because browsers can't read true sound pressure. The{" "}
                 <a href="https://www.who.int/activities/making-listening-safe" target="_blank" rel="noreferrer">
                   WHO
                 </a>{" "}
@@ -2226,6 +2228,17 @@ const SETTING_SECTIONS: {
       </>
     ),
     keys: ["spotify_enabled"]
+  },
+  {
+    title: "Device profiles",
+    note: (
+      <>
+        What creating a new profile in the panel to the right may see. Off keeps the song list
+        hidden from whoever is creating a profile, which matters when this install is shared over
+        a network.
+      </>
+    ),
+    keys: ["profile_song_picker_enabled"]
   }
 ];
 
@@ -2311,6 +2324,20 @@ function AppearanceSection() {
             </span>
           </button>
         </div>
+        {theme.dark ? (
+          <>
+            <SwatchRow
+              label="Dark tone"
+              options={DARK_TONES.map((option) => ({ key: option.key, name: option.name, colour: option.bg }))}
+              value={theme.darkTone}
+              onPick={(key) => update({ darkTone: key })}
+            />
+            <p className="swatch-hint">
+              Neutral is a plain dark. Warm leans amber, which sits easier with night-time viewing.
+              Green matches the classic look.
+            </p>
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -2597,6 +2624,7 @@ function SettingsView(props: {
           <DeviceProfilePanel
             activeConfig={props.activeConfig}
             allTracks={props.allTracks}
+            songPicker={Boolean(props.settings.profile_song_picker_enabled)}
             onClaim={props.onClaim}
             onCreate={props.onCreate}
             onSwitchLocal={props.onSwitchLocal}
@@ -2626,6 +2654,10 @@ function SettingsView(props: {
 function DeviceProfilePanel(props: {
   activeConfig: DeviceConfigDetail | null;
   allTracks: Track[];
+  // Whether the create form may list the library for picking a subset (the
+  // profile_song_picker_enabled setting). Off = new profiles include all songs, and the
+  // library's song list is never shown to whoever is creating a profile.
+  songPicker: boolean;
   onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
   onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
   onSwitchLocal: () => void;
@@ -2633,7 +2665,9 @@ function DeviceProfilePanel(props: {
   const [mode, setMode] = useState<"claim" | "create">("claim");
   const [name, setName] = useState("");
   const [passphrase, setPassphrase] = useState("");
-  const [scopeAll, setScopeAll] = useState(true);
+  // Pre-filling from the current library is opt-in twice over: the songPicker setting must be
+  // on, and the creator must tick the box. Otherwise a new profile starts empty and imports.
+  const [preFill, setPreFill] = useState(false);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2651,7 +2685,7 @@ function DeviceProfilePanel(props: {
     setName("");
     setPassphrase("");
     setError(null);
-    setScopeAll(true);
+    setPreFill(false);
     setChosen(new Set());
     setSearch("");
   }
@@ -2679,9 +2713,11 @@ function DeviceProfilePanel(props: {
       if (mode === "claim") {
         await props.onClaim(name.trim(), passphrase);
       } else {
-        const ids = scopeAll ? [] : [...chosen];
-        if (!scopeAll && ids.length === 0) {
-          setError("Pick at least one song, or choose “All songs”.");
+        // No pre-fill (or picker off) = an empty profile that imports its own library.
+        const filling = preFill && props.songPicker;
+        const ids = filling ? [...chosen] : [];
+        if (filling && ids.length === 0) {
+          setError("Pick at least one song, or untick pre-filling.");
           setBusy(false);
           return;
         }
@@ -2704,7 +2740,7 @@ function DeviceProfilePanel(props: {
           <Smartphone size={15} /> Device profile
         </h4>
         <p>
-          Optional. Share one library across devices — each device claims its own profile (its songs and
+          Optional. Share one library across devices. Each device claims its own profile (its songs and
           settings) by passphrase. Leave this be for normal single-device use.
         </p>
       </div>
@@ -2715,7 +2751,7 @@ function DeviceProfilePanel(props: {
             <strong>{props.activeConfig.name}</strong>
             <small>
               {props.activeConfig.included_track_ids.length === 0
-                ? "All songs"
+                ? "No songs yet"
                 : `${props.activeConfig.included_track_ids.length} songs`}
             </small>
           </div>
@@ -2749,13 +2785,20 @@ function DeviceProfilePanel(props: {
           onChange={(event) => setPassphrase(event.target.value)}
         />
 
-        {mode === "create" ? (
+        {mode === "create" && !props.songPicker ? (
+          <small className="profile-hint">
+            A new profile starts with an empty library. Import or scan songs once it is active. To
+            let new profiles pick songs from this library instead, turn on “Let new profiles pick
+            songs” in the settings list.
+          </small>
+        ) : null}
+        {mode === "create" && props.songPicker ? (
           <div className="scope-control">
             <label className="scope-toggle">
-              <input type="checkbox" checked={scopeAll} onChange={(event) => setScopeAll(event.target.checked)} />
-              Include all songs
+              <input type="checkbox" checked={preFill} onChange={(event) => setPreFill(event.target.checked)} />
+              Pre-fill from this library
             </label>
-            {!scopeAll ? (
+            {preFill ? (
               <div className="scope-picker">
                 <div className="scope-picker-head">
                   <input
@@ -2774,11 +2817,15 @@ function DeviceProfilePanel(props: {
                     </label>
                   ))}
                   {filtered.length > 300 ? (
-                    <p className="scope-more">Showing first 300 — search to narrow.</p>
+                    <p className="scope-more">Showing the first 300. Search to narrow.</p>
                   ) : null}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <small className="profile-hint">
+                Unticked: the profile starts with an empty library and imports its own songs.
+              </small>
+            )}
           </div>
         ) : null}
 

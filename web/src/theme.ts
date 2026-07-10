@@ -11,7 +11,25 @@ export type ThemeSelection = {
   sidebar: string;
   playerbar: string;
   dark: boolean;
+  darkTone: string;
 };
+
+// Dark mode comes in three tones, because people mostly use it at night: a plain grey dark, a
+// slightly warm (amber-leaning) dark that avoids cool light entirely, and the original
+// green-tinted dark. The tone only applies while dark mode is on (styles.css keys the surface
+// variables off data-dark-tone).
+export type DarkToneOption = {
+  key: string;
+  name: string;
+  hint: string;
+  bg: string;
+};
+
+export const DARK_TONES: DarkToneOption[] = [
+  { key: "neutral", name: "Neutral", hint: "Plain grey dark", bg: "#181818" },
+  { key: "warm", name: "Warm", hint: "Slightly warm, easier at night", bg: "#1b1815" },
+  { key: "green", name: "Green", hint: "Green-tinted, matches the classic look", bg: "#141c1b" }
+];
 
 export type SurfaceOption = {
   key: string;
@@ -50,7 +68,8 @@ export const DEFAULT_THEME: ThemeSelection = {
   surface: "mint",
   sidebar: "deep-green",
   playerbar: "ink-green",
-  dark: false
+  dark: false,
+  darkTone: "neutral"
 };
 
 // Named appearance presets: each is a full ThemeSelection built only from the existing surface
@@ -64,12 +83,13 @@ export type ThemePreset = {
 };
 
 export const THEME_PRESETS: ThemePreset[] = [
-  { key: "classic", name: "Classic", selection: { surface: "mint", sidebar: "deep-green", playerbar: "ink-green", dark: false } },
-  { key: "charcoal", name: "Charcoal", selection: { surface: "paper", sidebar: "charcoal", playerbar: "charcoal", dark: false } },
-  { key: "espresso", name: "Espresso", selection: { surface: "sand", sidebar: "espresso", playerbar: "espresso", dark: false } },
-  { key: "midnight", name: "Midnight", selection: { surface: "sky", sidebar: "midnight", playerbar: "midnight", dark: false } },
-  { key: "plum", name: "Plum", selection: { surface: "blossom", sidebar: "plum", playerbar: "plum", dark: false } },
-  { key: "night", name: "Night", selection: { surface: "mint", sidebar: "deep-green", playerbar: "ink-green", dark: true } }
+  { key: "classic", name: "Classic", selection: { surface: "mint", sidebar: "deep-green", playerbar: "ink-green", dark: false, darkTone: "neutral" } },
+  { key: "charcoal", name: "Charcoal", selection: { surface: "paper", sidebar: "charcoal", playerbar: "charcoal", dark: false, darkTone: "neutral" } },
+  { key: "espresso", name: "Espresso", selection: { surface: "sand", sidebar: "espresso", playerbar: "espresso", dark: false, darkTone: "neutral" } },
+  { key: "midnight", name: "Midnight", selection: { surface: "sky", sidebar: "midnight", playerbar: "midnight", dark: false, darkTone: "neutral" } },
+  { key: "plum", name: "Plum", selection: { surface: "blossom", sidebar: "plum", playerbar: "plum", dark: false, darkTone: "neutral" } },
+  { key: "night", name: "Night", selection: { surface: "mint", sidebar: "deep-green", playerbar: "ink-green", dark: true, darkTone: "neutral" } },
+  { key: "ember", name: "Ember", selection: { surface: "sand", sidebar: "espresso", playerbar: "espresso", dark: true, darkTone: "warm" } }
 ];
 
 /** Returns the preset whose full selection matches the current theme exactly, if any. */
@@ -80,7 +100,9 @@ export function matchThemePreset(theme: ThemeSelection): string | null {
       s.surface === theme.surface &&
       s.sidebar === theme.sidebar &&
       s.playerbar === theme.playerbar &&
-      s.dark === theme.dark
+      s.dark === theme.dark &&
+      // The tone only matters while dark; a light theme matches whatever tone is stored.
+      (!s.dark || s.darkTone === theme.darkTone)
     ) {
       return preset.key;
     }
@@ -88,17 +110,15 @@ export function matchThemePreset(theme: ThemeSelection): string | null {
   return null;
 }
 
-// Background colour a preset chip shows for its surface dot. Dark presets preview the dark
-// background (see :root[data-dark] in styles.css) rather than their stored light surface, which
-// dark mode overrides anyway.
-const DARK_PREVIEW_BG = "#141c1b";
-
 export function themePresetPreview(preset: ThemePreset): { surface: string; sidebar: string; playerbar: string } {
   const surface = SURFACE_OPTIONS.find((o) => o.key === preset.selection.surface) ?? SURFACE_OPTIONS[0];
   const sidebar = BAR_OPTIONS.find((o) => o.key === preset.selection.sidebar) ?? BAR_OPTIONS[0];
   const playerbar = BAR_OPTIONS.find((o) => o.key === preset.selection.playerbar) ?? BAR_OPTIONS[1];
+  // Dark presets preview their tone's dark background (see :root[data-dark] in styles.css)
+  // rather than their stored light surface, which dark mode overrides anyway.
+  const tone = DARK_TONES.find((o) => o.key === preset.selection.darkTone) ?? DARK_TONES[0];
   return {
-    surface: preset.selection.dark ? DARK_PREVIEW_BG : surface.bg,
+    surface: preset.selection.dark ? tone.bg : surface.bg,
     sidebar: sidebar.base,
     playerbar: playerbar.base
   };
@@ -125,7 +145,10 @@ export function loadTheme(): ThemeSelection {
         playerbar: BAR_OPTIONS.some((o) => o.key === parsed.playerbar)
           ? (parsed.playerbar as string)
           : DEFAULT_THEME.playerbar,
-        dark: Boolean(parsed.dark)
+        dark: Boolean(parsed.dark),
+        darkTone: DARK_TONES.some((o) => o.key === parsed.darkTone)
+          ? (parsed.darkTone as string)
+          : DEFAULT_THEME.darkTone
       };
     }
   } catch {
@@ -154,8 +177,10 @@ export function applyTheme(theme: ThemeSelection): void {
   }
   if (theme.dark) {
     root.setAttribute("data-dark", "");
+    root.setAttribute("data-dark-tone", theme.darkTone);
   } else {
     root.removeAttribute("data-dark");
+    root.removeAttribute("data-dark-tone");
     style.setProperty("--bg", surface.bg);
     style.setProperty("--panel-soft", surface.panelSoft);
     style.setProperty("--line", surface.line);

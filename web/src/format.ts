@@ -30,8 +30,9 @@ type GroupContribution = {
 };
 
 /**
- * Turn the algorithm's score breakdown into a handful of plain-language reasons a
- * listener can actually read. Ordered most-salient first, capped to keep it calm.
+ * Turn the algorithm's score breakdown into at most three plain-language lines: where the
+ * pick came from, the single strongest boost, and the single strongest damper. One of each,
+ * so the lines never overlap or contradict each other.
  */
 export function whyReasons(item: QueueItem | null): WhyReason[] {
   if (!item) {
@@ -40,6 +41,7 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
   const ex = item.explanation ?? {};
   const reasons: WhyReason[] = [];
 
+  // 1. Where it came from.
   const groups = Array.isArray(ex.group_contributions)
     ? ([...ex.group_contributions] as GroupContribution[])
     : [];
@@ -55,114 +57,102 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
     });
   }
 
+  // 2. The single strongest boost: the multiplier that raised this pick's odds the most.
+  type Candidate = { weight: number; icon: WhyReason["icon"]; text: string };
+  const boosts: Candidate[] = [];
   const rating = metricNumber(ex.rating_multiplier);
   if (rating >= 1.15) {
-    reasons.push({ icon: "star", tone: "boost", text: "You rate this highly" });
-  } else if (rating <= 0.85) {
-    reasons.push({
-      icon: "star",
-      tone: "suppress",
-      text: "You rate this lower than most, so it comes up less often"
-    });
+    boosts.push({ weight: rating, icon: "star", text: "You rate this highly" });
   }
-
-  // A dormant favourite being brought back fresh — directly serves the binge-then-rest pattern.
   const rediscovery = metricNumber(ex.rediscovery_multiplier);
   if (rediscovery > 1.02) {
-    reasons.push({
+    boosts.push({
+      weight: rediscovery,
       icon: "spark",
-      tone: "boost",
-      text: "A favourite you haven't heard in a while — bringing it back fresh"
+      text: "A favourite you haven't heard in a while"
     });
   }
-
-  // Two-level cover selection: which song, then which rendition.
-  const nCovers = metricNumber(ex.n_covers, 1);
-  if (nCovers > 1) {
-    reasons.push({
-      icon: "variant",
-      tone: "neutral",
-      text: `One of ${nCovers} versions of this song`
-    });
-    if (metricNumber(ex.original_prior, 1) > 1.001) {
-      reasons.push({ icon: "star", tone: "boost", text: "The original recording" });
-    } else if (metricNumber(ex.cover_performance, 1) > 1.05) {
-      reasons.push({ icon: "star", tone: "boost", text: "Your favourite rendition of it" });
-    }
-  }
-
   const coldStart = metricNumber(ex.cold_start_multiplier);
   if (coldStart > 1.01) {
-    reasons.push({
+    boosts.push({
+      weight: coldStart,
       icon: "spark",
-      tone: "boost",
-      text: "New to you — surfaced early so you can rate it"
+      text: "New to you, surfaced early so you can rate it"
     });
   }
+  const nCovers = metricNumber(ex.n_covers, 1);
+  if (nCovers > 1 && metricNumber(ex.original_prior, 1) > 1.001) {
+    boosts.push({
+      weight: metricNumber(ex.original_prior, 1),
+      icon: "variant",
+      text: `The original recording, out of ${nCovers} versions`
+    });
+  } else if (nCovers > 1 && metricNumber(ex.cover_performance, 1) > 1.05) {
+    boosts.push({
+      weight: metricNumber(ex.cover_performance, 1),
+      icon: "variant",
+      text: `Your favourite of ${nCovers} versions`
+    });
+  }
+  const visual = metricNumber(ex.visual_multiplier);
+  if (visual > 1.01) {
+    boosts.push({ weight: visual, icon: "video", text: "Has a video, easier to rate on screen" });
+  }
+  boosts.sort((a, b) => b.weight - a.weight);
+  if (boosts[0]) {
+    reasons.push({ icon: boosts[0].icon, tone: "boost", text: boosts[0].text });
+  }
 
-  // Satiation: eased off because you've been playing it a lot lately (avoid burning it out).
+  // 3. The single strongest damper. Dampers lower a song's odds, they never block it, so a
+  // damped song still plays sometimes. The phrasing says "less often", not "resting", because
+  // this song was in fact picked.
+  const dampers: Candidate[] = [];
+  if (rating <= 0.85) {
+    dampers.push({ weight: rating, icon: "star", text: "you rate it lower than most" });
+  }
   const satiation = metricNumber(ex.satiation_multiplier);
   if (satiation <= 0.92) {
-    reasons.push({
-      icon: "cooldown",
-      tone: "suppress",
-      text: "You've played this a lot lately — resting it so it doesn't wear out"
-    });
+    dampers.push({ weight: satiation, icon: "cooldown", text: "it has had a lot of play lately" });
   }
-
-  // The single highest-trust anti-repetition message: you literally just heard this song.
   const songCooldown = metricNumber(ex.song_cooldown);
   if (songCooldown <= 0.6) {
-    reasons.push({
-      icon: "cooldown",
-      tone: "suppress",
-      text: "You heard this exact song recently"
+    dampers.push({ weight: songCooldown, icon: "cooldown", text: "you heard it recently" });
+  }
+  const history = metricNumber(ex.history_multiplier);
+  if (history <= 0.95) {
+    dampers.push({ weight: history, icon: "history", text: "you skipped it recently" });
+  }
+  const subCooldown = metricNumber(ex.sub_group_cooldown);
+  if (subCooldown <= 0.6) {
+    dampers.push({
+      weight: subCooldown,
+      icon: "variant",
+      text: "another version of it played recently"
     });
   }
-
-  // The most-cooled group this track belongs to (e.g. "eased off this artist/source").
   const cooledGroup = groups
     .filter((g) => g.name && typeof g.cooldown === "number")
     .sort((a, b) => metricNumber(a.cooldown, 1) - metricNumber(b.cooldown, 1))[0];
   if (cooledGroup?.name && metricNumber(cooledGroup.cooldown, 1) <= 0.5) {
-    reasons.push({
+    dampers.push({
+      weight: metricNumber(cooledGroup.cooldown, 1),
       icon: "cooldown",
-      tone: "suppress",
-      text: `Eased off ${cooledGroup.name} for variety`
+      text: `${cooledGroup.name} has played a lot recently`
     });
   }
-
-  const visual = metricNumber(ex.visual_multiplier);
-  if (visual > 1.01) {
+  dampers.sort((a, b) => a.weight - b.weight);
+  if (dampers[0]) {
     reasons.push({
-      icon: "video",
-      tone: "boost",
-      text: "Has a video — easier to review while you're here"
-    });
-  }
-
-  const history = metricNumber(ex.history_multiplier);
-  if (history <= 0.95) {
-    reasons.push({
-      icon: "history",
+      icon: dampers[0].icon,
       tone: "suppress",
-      text: "Recently skipped, so it's eased off for now"
-    });
-  }
-
-  const subCooldown = metricNumber(ex.sub_group_cooldown);
-  if (subCooldown <= 0.6) {
-    reasons.push({
-      icon: "variant",
-      tone: "suppress",
-      text: "Another version of this song played recently"
+      text: `Coming up less often right now: ${dampers[0].text}`
     });
   }
 
   if (reasons.length === 0) {
     reasons.push({ icon: "group", tone: "neutral", text: "A balanced pick for variety" });
   }
-  return reasons.slice(0, 4);
+  return reasons;
 }
 
 /** A one-line summary used in compact spots (queue rows, tooltips). */
@@ -190,8 +180,8 @@ const MATH_FACTORS: { key: string; label: string }[] = [
   { key: "satiation_multiplier", label: "Played a lot lately" },
   { key: "rediscovery_multiplier", label: "Dormant favourite" },
   { key: "visual_multiplier", label: "Has a video" },
-  { key: "song_cooldown", label: "Resting this song" },
-  { key: "sub_group_cooldown", label: "Resting this version" }
+  { key: "song_cooldown", label: "Heard recently" },
+  { key: "sub_group_cooldown", label: "Version heard recently" }
 ];
 
 /** Build the numeric breakdown shown when "show the maths" is enabled. Null if no explanation. */

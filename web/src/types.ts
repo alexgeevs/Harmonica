@@ -174,6 +174,7 @@ export type AppSettings = {
   cover_original_bonus: number;
   youtube_embed_enabled: boolean;
   spotify_enabled: boolean;
+  profile_song_picker_enabled: boolean;
   controls: SettingControl[];
 };
 
