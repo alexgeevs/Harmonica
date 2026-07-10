@@ -624,7 +624,11 @@ function Sidebar(props: { view: View; onView: (view: View) => void; trackCount: 
   const items: { key: View; label: string; icon: JSX.Element }[] = [
     { key: "queue", label: "Listen", icon: <ListMusic size={18} /> },
     { key: "library", label: "Library", icon: <LibraryIcon size={18} /> },
-    { key: "curate", label: "Curate", icon: <ClipboardCheck size={18} /> },
+    // Curation is an occasional act, not a daily surface: once the library holds
+    // songs, the Curate page is opened from Settings instead of the sidebar.
+    ...(props.trackCount === 0
+      ? [{ key: "curate" as View, label: "Curate", icon: <ClipboardCheck size={18} /> }]
+      : []),
     { key: "stats", label: "Insights", icon: <BarChart3 size={18} /> },
     { key: "settings", label: "Settings", icon: <SettingsIcon size={18} /> }
   ];
@@ -2636,6 +2640,19 @@ function SettingsView(props: {
           />
         ) : null}
         <BackupPanel onImported={props.onImported} />
+        <div className="backup-card">
+          <h5>Curate</h5>
+          <p>
+            The Curate page is where you review an agent's organising proposal and bring in new
+            songs. It is opened from here once your library has songs, since curation is an
+            occasional act rather than a daily surface.
+          </p>
+          <div className="backup-buttons">
+            <button type="button" onClick={props.onOpenCurate}>
+              <ClipboardCheck size={13} /> Open the Curate page
+            </button>
+          </div>
+        </div>
         <div className="settings-note">
           <h4>How settings apply</h4>
           <p>
