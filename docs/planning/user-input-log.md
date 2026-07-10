@@ -1087,3 +1087,45 @@ organising, and `POST /youtube/import-preview` returns proposed tracks that flow
 review-before-import screen. The importer UI shows no video thumbnails, so the browser makes no
 request to Google during import, consistent with "nothing reaches YouTube until the user opts in".
 The endpoint inherits the CSRF and exposed-mode token guards (tested), so it stays safe on a NAS.
+
+## 2026-07-10: Versioning, public README, watch-time framing, and pre-publish polish
+
+### User Input
+
+A cluster of go-public decisions. **Versioning:** the owner designed a milestone scheme — `v0.x.1`
+opens a milestone band ("exists but doesn't work", "works at the minimum", "trusted with my own
+library", and so on) and later patch numbers are the marginal changes inside the band. Agreed to
+express it as annotated git tags on the existing commits rather than rewriting messages, and to
+keep tags separate from GitHub Releases: no Release exists until there is something a non-technical
+person can actually run. `v1.0.0` is defined as that first runnable artifact, not a date, and will
+exist before the project is publicised.
+
+**README:** rewritten for humans first. The owner's insight: agents that read a file whole see it
+truncated with most weight at the tail, so the agent-facing section belongs at the END of the
+README, and the human pitch at the top. Licence sits just above it. The manual setup path was cut
+in favour of double-click start scripts (`start-harmonica.bat` / `start-harmonica.sh`), which are
+also the seed of the 1.0.0 artifact. The player opens at `localhost:8765` (friendlier than an IP;
+dropping the port is not worth requiring admin rights).
+
+**Watch-time framing:** the owner wanted the site and README to name the incentive difference —
+the big platforms maximise watch time, which can come at the cost of long-term enjoyment, while
+Harmonica gains nothing from watch time. An earlier draft said Harmonica "does not measure it";
+the owner corrected this since the app does keep local listening history for the cooldowns. The
+final wording — "gains nothing from your watch time, and does not maximise it" — says only what is
+true.
+
+**Deferred, by owner decision:** UI themes (the green stays untouched as the default; fully dark
+and fully white to be added, amongst others) and an in-browser demo at a test subdomain — the real
+engine compiled to WebAssembly on a static page, where the user pastes YouTube links to build
+their own throwaway library (no pre-baked library), with an honest note that the local version is
+better. Both parked until after the repo is public.
+
+### Outcome
+
+Nine tags (`v0.0.1`–`v0.7.1`) pushed at the band boundaries. README rewritten and trimmed to the
+owner's register. Site, llms.txt, and copy file carry the corrected watch-time paragraph. Along the
+way the owner asked whether YouTube fullscreen survives a queue advance: it did not (the player was
+destroyed and rebuilt per video, which forces the browser out of fullscreen), so the player is now
+created once and videos are swapped in place, the same way YouTube's own playlists keep fullscreen.
+The paused-video "More videos" shelf stays: `rel=0` already limits it to same-channel suggestions,
+and the only ways to remove it outright would breach the embed terms the feature is built to honour.
