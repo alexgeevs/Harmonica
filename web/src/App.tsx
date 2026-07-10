@@ -2418,6 +2418,22 @@ function SettingsView(props: {
                   and each link becomes a song, or open one song in the library editor and paste
                   its link there.{dirty ? " Apply your changes first." : ""}
                 </p>
+                <ul>
+                  <li>
+                    <b>Importing reads each video's properties.</b> Harmonica reads the links'
+                    metadata on the server, the uploader and title by default and more with a Data
+                    API key, and organises them into tracks. Nothing is downloaded.
+                  </li>
+                  <li>
+                    <b>You review before anything lands.</b> The organised tracks appear as a
+                    proposal on the Curate page, where you check them and apply the ones you
+                    accept.
+                  </li>
+                  <li>
+                    <b>Playback stays official.</b> Each imported song plays through YouTube's own
+                    embedded player.
+                  </li>
+                </ul>
               </div>
             ) : null}
           </div>

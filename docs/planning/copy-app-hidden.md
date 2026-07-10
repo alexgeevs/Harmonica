@@ -85,6 +85,13 @@ favourite · Has a video · Resting this song · Resting this version
 becomes a song, or open one song in the library editor and paste its link there. [if unapplied:]
 Apply your changes first.
 
+- **Importing reads each video's properties.** Harmonica reads the links' metadata on the server,
+  the uploader and title by default and more with a Data API key, and organises them into tracks.
+  Nothing is downloaded.
+- **You review before anything lands.** The organised tracks appear as a proposal on the Curate
+  page, where you check them and apply the ones you accept.
+- **Playback stays official.** Each imported song plays through YouTube's own embedded player.
+
 ## YouTube consent gate (YouTubePlayer.tsx, replaces the player until accepted, only with YouTube playback on)
 
 - Heading: Play this song on YouTube?
