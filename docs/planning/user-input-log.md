@@ -1407,3 +1407,16 @@ widens. The reader also tried typing podcast titles into the demo instead of pas
 which cannot work in a static page (searching YouTube needs an API key that a public page
 cannot carry), so the demo now says plainly that it cannot search by title. Podcasts
 themselves already work: the demo takes any YouTube link and the app plays any local file.
+
+## 2026-07-10: The demo gains real settings and the site explains the maths
+
+Two owner directions in one message. First, the demo should surface algorithm settings, to show
+how customisable the queueing actually is. The demo's Python driver already accepted overrides,
+so the work was a front-end panel: eight real sliders and switches (queue length, cold start,
+satiation, rediscovery, skip penalty, five-star boost, clustering, group weighting), each mapped
+one-to-one onto a field of the app's own Settings, with only values moved off their defaults
+stored and sent. Second, the main website should describe the algorithm in depth, including the
+maths. A new algorithm page now derives every multiplier in the scoring chain from the shipped
+code, cooldown recovery, partial-listen credits, skip penalties, rating curves, cold start,
+satiation, rediscovery and clustering, in plain HTML with no new dependencies, linked from the
+navigation and llms.txt.

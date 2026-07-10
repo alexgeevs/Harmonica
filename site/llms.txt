@@ -53,6 +53,7 @@ Note that until all, or at least most, of the songs are rated, the algorithm may
 ## Links
 
 - Website: https://harmonica.org.uk
+- The algorithm in depth (formulas for cooldowns, satiation, rediscovery, cold start, ratings, skips): https://harmonica.org.uk/algorithm.html
 - Source: https://github.com/alexgeevs/Harmonica
 - Releases (PC web / NAS): https://github.com/alexgeevs/Harmonica/releases
 - Agent docs: `AGENTS.md`, `docs/agents/` in the repository

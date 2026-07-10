@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<!-- Agents: a machine-readable summary of this site lives at /llms.txt. This page describes the
+     queueing algorithm as implemented in src/harmonica/algorithm.py, history.py and ratings.py. -->
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harmonica: the algorithm</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="description" content="The maths behind Harmonica's queueing: cooldowns, satiation, rediscovery, cold start, ratings and skips, each an explicit multiplier on a song's weight.">
+<meta property="og:title" content="Harmonica: the algorithm, in full">
+<meta property="og:description" content="How Harmonica decides what plays next. Every signal is an explicit multiplier on a song's weight, and this page lists all of them, with the maths.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://harmonica.org.uk/algorithm.html">
+<meta name="twitter:card" content="summary">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary">
+<style>
+  :root{
+    --dark:#20302f; --mint:#eef3f1; --teal:#206a5d; --gold:#f1c84b;
+    --ink:#22312f; --muted:#54655f; --card:#ffffff; --line:#d8e3de;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--mint);color:var(--ink);
+    font:400 1.0625rem/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif}
+  .wrap{max-width:56rem;margin:0 auto;padding:0 1.25rem}
+  a{color:var(--teal)}
+  h1,h2,h3{line-height:1.2;color:var(--dark)}
+
+  header{background:var(--dark);color:#e8f0ec;padding:.9rem 0}
+  header .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  .brand{font-size:1.25rem;font-weight:700;color:#fff;text-decoration:none;letter-spacing:.01em}
+  .brand span{color:var(--gold)}
+  nav a{color:#cfe0d8;text-decoration:none;margin-left:1.1rem;font-size:.95rem}
+  nav a:hover{color:#fff;text-decoration:underline}
+
+  .hero{padding-top:3.2rem;padding-bottom:1.2rem}
+  .hero h1{font-size:clamp(1.7rem,4vw,2.4rem);max-width:34ch}
+  .hero p{max-width:65ch;margin:1.1rem 0 0;font-size:1.1rem;color:var(--muted)}
+
+  section{padding:1.6rem 0}
+  section h2{font-size:1.35rem;margin-bottom:.8rem}
+  .prose p{max-width:65ch;margin-bottom:1rem}
+  .prose strong{color:var(--dark)}
+  .prose ul{max-width:65ch;margin:0 0 1rem 1.2rem}
+  .prose li{margin-bottom:.35rem}
+
+  .math{background:var(--card);border:1px solid var(--line);border-radius:.4rem;
+    padding:.8rem 1.1rem;margin:.4rem 0 1rem;max-width:44rem;overflow-x:auto;
+    white-space:nowrap;font-size:1.05rem;color:var(--dark)}
+  .math var{font-family:Georgia,"Times New Roman",serif;font-style:italic}
+  .math sub,.math sup{font-size:.72em}
+  .where{font-size:.9rem;color:var(--muted);max-width:65ch;margin:-.4rem 0 1rem}
+
+  .defaults{font-size:.9rem;color:var(--muted);max-width:65ch;border-left:3px solid var(--gold);
+    padding-left:1rem;margin-bottom:1rem}
+
+  footer{background:var(--dark);color:#b9ccc4;margin-top:3rem;padding:2rem 0;font-size:.92rem}
+  footer a{color:#e8f0ec}
+  footer p{margin-bottom:.4rem}
+  footer .fine{color:#8aa39a;font-size:.85rem;margin-top:.8rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="/">Harmonica<span>&#9834;</span></a>
+    <nav aria-label="Site">
+      <a href="/#why">Why</a><a href="/#features">Features</a><a href="/#download">Download</a><a href="/#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>The algorithm, in full.</h1>
+    <p>Harmonica fills a queue one position at a time. At each position every song in the library
+       receives a score, and the next song is drawn at random with probability proportional to
+       that score. Nothing is ever removed from the pool. Everything the player knows about your
+       listening enters as an explicit multiplier on that score, and this page lists every one of
+       them, as implemented.</p>
+  </div>
+
+  <div class="wrap prose">
+    <section>
+      <h2>The base score</h2>
+      <p>Every song belongs to one or more <strong>groups</strong>: an artist, a topic, a
+         franchise, anything worth resting as a unit. Membership carries a share
+         <var>q</var><sub>s,g</sub>, split equally by default, so a song is not favoured merely
+         for carrying many labels. A group <var>g</var> holding <var>N</var><sub>g</sub> songs
+         contributes</p>
+      <div class="math"><var>B</var><sub>s,g</sub> = <var>q</var><sub>s,g</sub> &middot;
+        <var>m</var><sub>g</sub> (1 + <var>&beta;</var> ln <var>N</var><sub>g</sub>) /
+        <var>N</var><sub>g</sub> &middot; <var>C</var><sub>g</sub></div>
+      <p class="where">where <var>m</var><sub>g</sub> is the group's rating multiplier,
+        <var>C</var><sub>g</sub> its cooldown, and <var>&beta;</var> a global constant
+        (default 1.25).</p>
+      <p>The division by <var>N</var><sub>g</sub> makes each group compete as a unit rather than
+         by headcount, and the logarithmic term hands a larger group a measured advantage rather
+         than a proportional one. Double a group's size and its total draw grows by a constant
+         increment, not by a factor. A song's base score is the sum over its groups, and its
+         final score is that base under a chain of multipliers, each of which defaults to
+         exactly 1 and moves only on evidence.</p>
+      <div class="math"><var>S</var><sub>s</sub> = <var>B</var><sub>s</sub> &middot;
+        <var>m</var><sub>rating</sub> &middot; <var>m</var><sub>skips</sub> &middot;
+        <var>m</var><sub>cold</sub> &middot; <var>m</var><sub>satiation</sub> &middot;
+        <var>m</var><sub>rediscovery</sub> &middot; <var>C</var><sub>song</sub> &middot;
+        <var>C</var><sub>sub</sub></div>
+      <p class="where">Two further multipliers sit in the chain at 1 unless you use them: a manual
+        per-song weight, and a video-priority boost for when the player is visible on screen.</p>
+    </section>
+
+    <section>
+      <h2>Cooldowns</h2>
+      <p>A cooldown is a price on recency. After a play it drops to a floor and recovers linearly
+         over a horizon of <var>H</var> subsequent plays.</p>
+      <div class="math"><var>C</var>(<var>d</var>) = floor + (1 &minus; floor) &middot;
+        min(<var>d</var> / <var>H</var>, 1)</div>
+      <p class="where">where <var>d</var> is the number of songs played since the last hearing.
+        A song never played at all sits at 1.</p>
+      <p>It runs at three levels. The <strong>song</strong> itself has a floor of zero and a
+         horizon of the whole library, so an immediate repeat is impossible and full recovery
+         takes a library's worth of listening. The song's <strong>groups</strong> have a floor of
+         0.05 and a horizon of at most 12, so an artist rests for a few songs but is never shut
+         out. The <strong>sub-group</strong>, meaning renditions of the same underlying song such
+         as covers, has a floor of 0.01 and a horizon of up to 30, because two versions of one
+         song in close succession is the most conspicuous repetition of all.</p>
+      <p>Listening is not binary, so neither are cooldowns. Each play carries a
+         <strong>repeat credit</strong> <var>r</var> between 0 and 1 (defined below), and a
+         partial listen only partially resets the clock, in two ways: the observed distance is
+         stretched to <var>d</var> / <var>r</var>, and the cooldown is blended toward neutral as
+         <var>C</var>&prime; = 1 &minus; <var>r</var> (1 &minus; <var>C</var>). A song you
+         abandoned in the first seconds barely counts as played at all.</p>
+    </section>
+
+    <section>
+      <h2>What one listen teaches it</h2>
+      <p>Every play ends at some fraction <var>f</var> of the song's duration, and that position
+         is read as two smooth signals rather than a verdict.</p>
+      <div class="math"><var>r</var> = clamp((<var>f</var> &minus; 0.10) / 0.80, 0, 1)
+        &emsp;&emsp; <var>p</var> = clamp((0.50 &minus; <var>f</var>) / 0.40, 0, 1)</div>
+      <p class="where"><var>r</var> is the repeat credit above, <var>p</var> the skip penalty. A
+        completion is <var>r</var> = 1, <var>p</var> = 0.</p>
+      <p>Bailing out inside the first tenth is a full-strength dislike. Skipping past the halfway
+         mark costs nothing, since you gave the song a fair hearing and simply moved on. The
+         penalties are aggregated as a recency-weighted mean with a half-life of 30 events, in
+         which completions count as zeros, so one bad first impression depreciates and later full
+         listens forgive it. The result scales a multiplier</p>
+      <div class="math"><var>m</var><sub>skips</sub> = max(0.2, 1 &minus; 0.25
+        <var>p&#772;</var>)</div>
+      <div class="defaults">The strength 0.25 is a setting. The floor of 0.2 is fixed, so even a
+        song you always skip is dampened rather than deleted.</div>
+    </section>
+
+    <section>
+      <h2>Ratings</h2>
+      <p>Stars map to a multiplier through a piecewise linear curve around a neutral midpoint of
+         2.5.</p>
+      <div class="math">below: <var>m</var> = 0.5 + 0.5 &middot; rating / 2.5
+        &emsp;&emsp; above: <var>m</var> = 1 + (rating &minus; 2.5) / 2.5</div>
+      <p>So five stars doubles a song's weight and the bottom of the scale halves it, with both
+         ends adjustable in Settings. An unrated song sits at exactly 1, since the absence of a
+         rating is not evidence against a song. Groups receive the same treatment from the mean
+         of their members' ratings, deliberately compressed into a narrower band (0.7 to 1.4) so
+         taste acts mostly at the song level.</p>
+    </section>
+
+    <section>
+      <h2>Cold start</h2>
+      <p>The aim is that everything gets heard before anything is worn in. Cold start stays
+         active until more than half the library has been played twice. While it is active the
+         draw is restricted in two phases: first to songs never played and never rated, until
+         everything has had a first hearing, and then to songs with fewer than two plays. On top
+         of the restriction, unrated songs carry a boost (default &times;2) so first hearings
+         arrive sooner and can be rated.</p>
+    </section>
+
+    <section>
+      <h2>Satiation</h2>
+      <p>Repetition depreciates a song faster than anything else, so recent listening is metered
+         directly. Each play adds its repeat credit to a running weight that decays with a
+         two-week half-life</p>
+      <div class="math"><var>w</var> = &Sigma; <var>r</var><sub>e</sub> &middot;
+        0.5<sup>age<sub>e</sub> / 14 days</sup>
+        &emsp;&emsp; <var>m</var><sub>satiation</sub> = max(0.3, 1 / (1 + 0.5 <var>w</var>))</div>
+      <p>A binge therefore suppresses its own object, smoothly and temporarily. The suppression
+         deepens with each recent play, recovers on its own as those plays age out, and is
+         floored so a favourite is rested, never exiled. The strength and window are settings.</p>
+    </section>
+
+    <section>
+      <h2>Rediscovery</h2>
+      <p>The mirror image. A song rated above the library's mean that has gone quiet accrues a
+         bonus the longer it stays dormant.</p>
+      <div class="math"><var>m</var><sub>rediscovery</sub> = 1 + 0.4 &middot;
+        min(rating &minus; mean, 1) &middot; (1 &minus; 0.5<sup>days / 60</sup>)</div>
+      <p>The bonus grows with a 60-day half-life, collapses back to 1 the moment the song plays,
+         and never fires for songs below the mean or never played, since unheard songs are cold
+         start's business. Neglected favourites recover their value instead of being forgotten.</p>
+    </section>
+
+    <section>
+      <h2>Clustering</h2>
+      <p>Some listeners want an artist's songs spread apart, others enjoy a run of them. A bias
+         <var>b</var> between &minus;1 and +1 (default 0) tilts the group cooldown by proximity
+         <var>&rho;</var> = 1 &minus; <var>d</var> / <var>H</var>. A positive bias adds
+         <var>b&rho;</var> to the cooldown so a just-played group returns sooner, and a negative
+         bias multiplies it by (1 + 0.5 <var>b&rho;</var>), pushing the group's songs further
+         apart.</p>
+    </section>
+
+    <section>
+      <h2>The draw, and why it never deadlocks</h2>
+      <p>Selection is a weighted random draw, proportional to the scores. After each pick the
+         chosen song and its groups reset their distances, so the queue's own contents cool each
+         other as it fills. If every eligible score reaches zero, which small libraries and
+         aggressive settings can manage, the cooldowns are relaxed in order of importance, group
+         and sub-group first, then the song cooldown, until something is playable.</p>
+      <p>The guarantee is total: the queue always fills and nothing is ever banned. Over-playing
+         a song merely raises the relative price of hearing it again, and the rest of the library
+         gets correspondingly cheaper.</p>
+    </section>
+
+    <section>
+      <h2>See it run</h2>
+      <p>The <a href="/demo/">in-browser demo</a> executes these exact source files through
+         Python in your browser, with the settings above exposed as controls. The full
+         <a href="https://github.com/alexgeevs/Harmonica/blob/main/harmonica_algorithm_spec.md">specification</a>,
+         including the design arguments and test scenarios, and the implementation
+         (<a href="https://github.com/alexgeevs/Harmonica/blob/main/src/harmonica/algorithm.py">algorithm.py</a>,
+         <a href="https://github.com/alexgeevs/Harmonica/blob/main/src/harmonica/history.py">history.py</a>,
+         <a href="https://github.com/alexgeevs/Harmonica/blob/main/src/harmonica/ratings.py">ratings.py</a>)
+         are in the repository.</p>
+    </section>
+  </div>
+</main>
+
+<footer id="contact">
+  <div class="wrap">
+    <p class="contact-line">Contact: <a href="mailto:contact@harmonica.org.uk">contact@harmonica.org.uk</a></p>
+    <p><a href="https://github.com/alexgeevs/Harmonica">Source code on GitHub</a> · <a href="/llms.txt">llms.txt</a></p>
+    <p class="fine">© 2026 harmonica.org.uk. This site does not track, shows no adverts, and sets no cookies of its own.</p>
+  </div>
+</footer>
+
+</body>
+</html>
