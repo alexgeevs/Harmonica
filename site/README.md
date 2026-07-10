@@ -14,6 +14,9 @@ website is gone from the repo.
 - `llms.txt` — agent-readable summary of the site (linked from the pages). Keep in sync with
   `index.html` content.
 - `CNAME` — custom domain for GitHub Pages (`harmonica.org.uk`).
+- `icon.svg`, `favicon-32.png`, `apple-touch-icon.png` — favicons, copies of the app's icons in
+  `web/public/` (both here and in `demo/`, so the demo keeps them when served from its own
+  origin). If the app's icon ever changes, re-copy.
 
 ## Deploying (when the repo goes public)
 
