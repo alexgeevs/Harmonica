@@ -1205,3 +1205,21 @@ In the app, the YouTube pointer that appears when the switch is turned on now al
 the import steps (properties read, review before landing, official player). In parallel the
 owner asked for appearance presets and for settings to be organised into simple and complex
 tiers behind a checkbox, delegated to a sub-agent working in an isolated worktree.
+
+## 2026-07-10 (evening): Contributor guidance and the spec's provenance
+
+A public-docs review round. CONTRIBUTING.md now asks agents to get their user's permission
+before doing anything, requests that issues and pull requests be organised by what they do
+(bug report, adding a setting or preset, adding to the algorithm, additional integration,
+added feature, amongst others), and writes the licence line as "GNU AGPL-3.0 or later" without
+the run of dashes. The Android deployment line left CONTRIBUTING and the README, matching the
+llms.txt decision that a platform which does not exist yet should not be listed.
+
+Two corrections to `harmonica_algorithm_spec.md` from the owner's read-through. The section
+titled Pseudocode was in fact working Python, and now says so. And the document read as if the
+assistant had designed the algorithm with occasional inputs, when it was actually the surviving
+record of a long design exchange the owner drove, so a Provenance section now states plainly who
+set the problem, who supplied the economic framing, and how each mechanism in section 3 had to
+earn its place. The recommended defaults were verified against the shipped implementation (all
+core values still hold, with a note pointing at GET /settings as the live source of truth) and
+the rating section carries an update note for the five-star mapping that shipped later.

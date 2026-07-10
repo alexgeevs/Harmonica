@@ -1,5 +1,19 @@
 # Harmonica: Weighted Local Music Playlist Algorithm Specification
 
+## Provenance
+
+This document is the record of the algorithm's design as it happened, before any code existed.
+It came out of a long back-and-forth between the project owner and an AI assistant. The owner set
+the problem, supplied the economic framing of diminishing marginal utility and concave group
+weighting, and accepted or rejected every mechanism. The assistant proposed alternatives, pushed
+back where a mechanism would not survive contact with a real library, and formalised what was
+agreed. Section 3 preserves the shape of that exchange: each entry is an approach that was argued
+over and either rejected with the reasons recorded or reshaped until it earned its place. A
+similar exchange later settled the app's interface.
+
+The document is kept as it was designed. Where the shipped implementation has since moved on, a
+note says so in place, and section 14 records which defaults still hold.
+
 ## 1. Purpose
 
 Harmonica is intended to be a local, open-source music library and playlist-generation app. Its main purpose is not simply to shuffle music, but to generate listening queues that reflect the user's real preferences while avoiding the common failure mode where one large group, such as a musical soundtrack, dominates the playlist.
@@ -346,7 +360,7 @@ This is better for overlapping groups because a song's contribution through a re
 
 ### 6.1 Song cooldown
 
-The user wanted a song to have zero or near-zero probability immediately after being played, then gradually recover until the full song-count horizon has passed.
+The requirement was that a song has zero or near-zero probability immediately after being played, then gradually recovers until the full song-count horizon has passed.
 
 Let:
 
@@ -523,6 +537,8 @@ So:
 | 5 | 1.0 |
 | 10 | 1.5 |
 
+*Update (2026-07-10): the shipped implementation kept the modest-multiplier principle but moved to five-star factor ratings with session normalisation. The effective rating maps to a multiplier between 0.5 and 2.0, both ends adjustable in Settings.*
+
 Do not allow ratings to create extreme multipliers early on. Otherwise the system will overplay current favourites and undermine the whole anti-repetition goal.
 
 MVP recommendation:
@@ -566,7 +582,7 @@ then ignore song cooldown only if absolutely necessary.
 
 ---
 
-## 9. Pseudocode
+## 9. Reference Sketch (Python)
 
 ```python
 import math
@@ -680,7 +696,7 @@ def generate_playlist(songs, groups, length, beta=1.25):
     return output
 ```
 
-This pseudocode is not final production code. It is meant to fix the algorithmic structure before implementation details are added.
+This is working Python rather than pseudocode, but it is not the production code. It is meant to fix the algorithmic structure before implementation details are added.
 
 ---
 
@@ -827,6 +843,8 @@ default_group_multiplier: 1.0
 default_song_multiplier: 1.0
 playlist_generation_length: 100 to 200 songs
 ```
+
+*Verified against the shipped defaults on 2026-07-10. All of the above still hold, with the playlist length shipping as a setting that defaults to 100. Later mechanisms that this document predates, such as rating multipliers, normalisation, satiation, rediscovery, and cold start, have their live defaults in the app's Settings, and `GET /settings` is the source of truth for every current value.*
 
 ---
 

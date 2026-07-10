@@ -56,7 +56,6 @@ the end of this file).
 - **PC (local, default):** binds `127.0.0.1`, so nothing is exposed to other devices.
 - **NAS or home server (opt-in):** the same build bound to the LAN with `HARMONICA_HOST=0.0.0.0`,
   shared with the household, with private per-person profiles. Never the default.
-- **Android:** a native client, released separately.
 
 ## Contributing
 
