@@ -1354,3 +1354,43 @@ visitor to wonder about.
 
 DNS pointing for the demo and app subdomains stays a flip-day task; the owner asked for
 guidance when the time comes, and a step-by-step now lives in the private release checklist.
+
+## 2026-07-10: The pre-publication review reaches a unanimous verdict
+
+Before flipping the repository public, three independent reviewers (two Claude models and
+Codex, each working from scratch with the same brief) reviewed the repository end to end for
+release readiness: copy accuracy, licence coherence, version metadata, documentation, and the
+health checks. Each produced an initial verdict, the owner ruled on the contested points, and
+a discussion round then gave every reviewer the others' findings and the rulings and asked for
+a final position.
+
+Final verdicts: READY, unanimously, with no blockers left standing. The round also paid its
+way in small fixes: version metadata brought up to 1.0.0, a licence field added to the web
+package, a stale reference removed, and the site README corrected to admit the one external
+request the demo makes.
+
+## 2026-07-10: An outside check on instruction-following, and the website architecture goes to committee
+
+The owner ran an independent verification agent over their own past inputs to test whether the
+instructions had been followed. It caught one genuine miss. The Curate page had been given a
+Settings pointer, but the sidebar item was never removed nor gated as the logged instruction
+required. Fixed the same day: with an empty library the sidebar shows Curate as the on-ramp,
+and once the library holds songs the page is opened from a Settings card instead, since
+curation is an occasional act rather than a daily surface. The other flag, historical spec
+content annotated in place rather than moved to docs, was defended as deliberate: one
+continuous record at the root reads better than two half-documents, and the call stays with
+the owner.
+
+A second agent, with read access to the owner's hosting infrastructure, proposed a different
+website architecture: two Cloudflare Pages projects built from the single public repository,
+the main site on the apex and the demo served natively at demo.harmonica.org.uk, with /demo
+redirecting to it, cookie-free Cloudflare Web Analytics on both, and the algorithm files still
+copied from src/harmonica at build time so no committed duplicate can drift. The owner's
+clarified requirements: the demo must be visibly its own address in the browser, analytics must
+not introduce cookies or fingerprinting, and one repository holds everything. The repo-side
+assessment agreed with amendments on the mechanics: the redirect rules versioned in the
+repository, canonical addresses for the duplicate hosting aliases, and build filters so pushes
+only rebuild what changed. On wording, the owner settled it: the site's existing promises stay
+as they are, since the chosen analytics sets no cookies and identifies no one, so nothing on
+the page becomes untrue. Nothing is implemented until the owner and both agents agree on the
+plan.
