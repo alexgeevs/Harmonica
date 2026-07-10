@@ -1,6 +1,6 @@
-# Claude Handoff: Harmonica
+# Handoff: Harmonica
 
-This document is for Claude or any future agent joining the Harmonica project. It summarizes the user's intent, the current implementation, and a sensible collaboration split.
+This document is for any agent joining the Harmonica project. It summarizes the user's intent, the current implementation, and a sensible collaboration split.
 
 ## Product Intent
 
