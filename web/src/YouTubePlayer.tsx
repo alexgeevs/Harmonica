@@ -25,12 +25,18 @@ export function YouTubePlayer(props: {
   const { player, videoId, startSeconds } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YTPlayer | null>(null);
+  const readyRef = useRef(false);
   // Autoplay only if the session was already playing when we reached this track.
   const autoplayRef = useRef(player.wantsPlay);
   autoplayRef.current = player.wantsPlay;
+  // Latest requested video, so onReady can catch up if the queue advanced while the
+  // player was still loading.
+  const wantedRef = useRef({ videoId, startSeconds });
+  wantedRef.current = { videoId, startSeconds };
 
   useEffect(() => {
     let cancelled = false;
+    const initial = wantedRef.current;
     loadYouTubeApi()
       .then((YT) => {
         const host = hostRef.current;
@@ -42,21 +48,26 @@ export function YouTubePlayer(props: {
         host.appendChild(target);
         const autoplay = autoplayRef.current;
         const instance = new YT.Player(target, {
-          videoId,
+          videoId: initial.videoId,
           playerVars: {
             autoplay: autoplay ? 1 : 0,
-            start: startSeconds != null ? Math.max(0, Math.floor(startSeconds)) : undefined,
+            start: toStart(initial.startSeconds),
             playsinline: 1,
             rel: 0,
             origin: window.location.origin
           },
           events: {
             onReady: (event) => {
+              readyRef.current = true;
               player.registerExternalControls({
                 play: () => event.target.playVideo(),
                 pause: () => event.target.pauseVideo()
               });
-              if (autoplayRef.current) {
+              const wanted = wantedRef.current;
+              if (wanted.videoId !== initial.videoId) {
+                // The queue moved on while the player was loading; catch up.
+                showVideo(event.target, wanted.videoId, wanted.startSeconds, autoplayRef.current);
+              } else if (autoplayRef.current) {
                 event.target.playVideo();
               }
             },
@@ -81,6 +92,7 @@ export function YouTubePlayer(props: {
 
     return () => {
       cancelled = true;
+      readyRef.current = false;
       player.registerExternalControls(null);
       try {
         playerRef.current?.destroy();
@@ -89,11 +101,46 @@ export function YouTubePlayer(props: {
       }
       playerRef.current = null;
     };
-    // Re-create only when the video changes; player is a stable memoized API.
+    // Created ONCE per mount. Reusing one iframe across queue advances is what keeps the
+    // browser from exiting fullscreen between songs: removing the iframe would force it out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Swap videos inside the SAME player when the queue advances. The iframe survives, so
+  // fullscreen (and the loaded player) persist from one song to the next.
+  useEffect(() => {
+    const instance = playerRef.current;
+    if (!instance || !readyRef.current) {
+      return; // still loading; onReady catches up from wantedRef
+    }
+    showVideo(instance, videoId, startSeconds, autoplayRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
   return <div className="youtube-stage" ref={hostRef} />;
+}
+
+function toStart(startSeconds: number | null): number | undefined {
+  return startSeconds != null ? Math.max(0, Math.floor(startSeconds)) : undefined;
+}
+
+// loadVideoById plays immediately; cueVideoById shows the video and waits for the user.
+function showVideo(
+  instance: YTPlayer,
+  videoId: string,
+  startSeconds: number | null,
+  play: boolean
+): void {
+  try {
+    const options = { videoId, startSeconds: toStart(startSeconds) };
+    if (play) {
+      instance.loadVideoById(options);
+    } else {
+      instance.cueVideoById(options);
+    }
+  } catch {
+    /* player torn down mid-change; the next mount recovers */
+  }
 }
 
 /**

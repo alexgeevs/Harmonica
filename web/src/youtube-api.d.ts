@@ -8,6 +8,8 @@ declare global {
   interface YTPlayer {
     playVideo(): void;
     pauseVideo(): void;
+    loadVideoById(options: { videoId: string; startSeconds?: number }): void;
+    cueVideoById(options: { videoId: string; startSeconds?: number }): void;
     getCurrentTime(): number;
     getDuration(): number;
     destroy(): void;
