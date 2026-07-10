@@ -1223,3 +1223,15 @@ set the problem, who supplied the economic framing, and how each mechanism in se
 earn its place. The recommended defaults were verified against the shipped implementation (all
 core values still hold, with a note pointing at GET /settings as the live source of truth) and
 the rating section carries an update note for the five-star mapping that shipped later.
+
+### Outcome (appearance presets and settings tiers)
+
+Delivered by the delegated agent and merged after review. Six appearance preset chips sit above
+the swatch rows (Classic, Charcoal, Espresso, Midnight, Plum, Night), each applying a full
+colour combination instantly, with the chip highlighting only while the live selection matches
+it exactly. Settings now open on the simple tier (Queue, Coverage, Visuals, Hearing health,
+Explanations, YouTube, Spotify, Appearance) and a Show complex settings switch in the right-hand
+panel reveals the fine-tuning sections. Hiding is display-only, so Apply changes, Reset and the
+leave guard still cover every value. The merge itself needed care: the automatic merge had
+placed the new YouTube import steps under every section heading, caught in review and verified
+fixed in a scripted browser pass.

@@ -163,7 +163,18 @@ Apply your changes first.
 
 - Note: Colours for this device. They apply immediately, with no need to press Apply changes.
   The choices are limited on purpose, so text stays readable on every combination.
+- Preset chips (each applies a full combination): Classic · Charcoal · Espresso · Midnight ·
+  Plum · Night
 - Rows: Background · Sidebar · Player bar · Dark mode
 - Surface names: Mint · Paper · Sand · Sky · Blossom
 - Bar names: Deep green · Ink green · Charcoal · Midnight · Plum · Espresso
 - While dark: Dark mode sets its own background.
+
+## Settings: complex tier (App.tsx, NEW; the toggle is visible by default in the right-hand panel, but the sections it reveals are hidden until it is on)
+
+- Toggle label: Show complex settings
+- Toggle helper: Off keeps the list to the everyday controls. On reveals the fine-tuning knobs.
+- Sections hidden until on: Recommendation core · Anti-repetition & variety · History & feedback ·
+  Rating normalisation · Repetition & rediscovery · Covers · More (their control copy is already
+  in copy-app.md)
+- New simple section: Queue — How many songs a freshly generated queue holds.
