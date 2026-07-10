@@ -6,8 +6,8 @@ this folder and `.github/workflows/pages.yml` and the website is gone from the r
 ## Layout
 
 - `index.html` — the live page (owner picked the Fable simple design, 2026-07-03; all preview/mock
-  variants were rejected). `candidates/opus-simple.html` is kept as the runner-up for reference —
-  delete it once the design settles.
+  variants were rejected and removed).
+- `demo/` — the in-browser demo (own README inside).
 - `llms.txt` — agent-readable summary of the site (linked from the pages). Keep in sync with
   `index.html` content.
 - `CNAME` — custom domain for GitHub Pages (`harmonica.org.uk`).
