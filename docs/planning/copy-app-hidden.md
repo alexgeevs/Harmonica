@@ -67,8 +67,8 @@ a nudge, not a measurement.
 - Line 1, source: Drawn from {group name} ({N} tracks)
 - Line 2, one boost, whichever multiplier is largest:
   - You rate this highly
-  - A favourite you haven't heard in a while
-  - New to you, surfaced early so you can rate it
+  - A favourite you haven't heard for a while
+  - New to you, played sooner so you can rate it
   - The original recording, out of {N} versions
   - Your favourite of {N} versions
   - Has a video, easier to rate on screen
@@ -76,16 +76,16 @@ a nudge, not a measurement.
   right now:" because a damper lowers a song's odds rather than blocking it (this song was still
   picked):
   - you rate it lower than most
-  - it has had a lot of play lately
+  - it has been played a lot recently
   - you heard it recently
   - you skipped it recently
-  - another version of it played recently
-  - {group name} has played a lot recently
+  - another version of it was played recently
+  - {group name} has been played a lot recently
 - Fallback when nothing stands out: A balanced pick for variety
 
 ## "Why this song" maths labels (format.ts, only with "show the maths" on)
 
-Manual nudge · Your rating · Skip history · New-song boost · Played a lot lately · Dormant
+Manual nudge · Your rating · Skip history · New-song boost · Played a lot recently · Dormant
 favourite · Has a video · Heard recently · Version heard recently
 
 ## Settings: leave with unapplied changes (App.tsx, NEW modal when navigating away from a dirty Settings page)

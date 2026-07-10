@@ -334,7 +334,7 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="satiation_enabled",
         label="Ease off recent favourites",
         description=(
-            "If a song has had a lot of play recently, space it out gently so it doesn't wear "
+            "If a song has been played a lot recently, space it out gently so it doesn't wear "
             "thin, then let it ease back to normal. Guards a song you love from being over-played "
             "until it starts to irritate."
         ),

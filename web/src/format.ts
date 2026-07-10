@@ -69,7 +69,7 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
     boosts.push({
       weight: rediscovery,
       icon: "spark",
-      text: "A favourite you haven't heard in a while"
+      text: "A favourite you haven't heard for a while"
     });
   }
   const coldStart = metricNumber(ex.cold_start_multiplier);
@@ -77,7 +77,7 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
     boosts.push({
       weight: coldStart,
       icon: "spark",
-      text: "New to you, surfaced early so you can rate it"
+      text: "New to you, played sooner so you can rate it"
     });
   }
   const nCovers = metricNumber(ex.n_covers, 1);
@@ -112,7 +112,7 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
   }
   const satiation = metricNumber(ex.satiation_multiplier);
   if (satiation <= 0.92) {
-    dampers.push({ weight: satiation, icon: "cooldown", text: "it has had a lot of play lately" });
+    dampers.push({ weight: satiation, icon: "cooldown", text: "it has been played a lot recently" });
   }
   const songCooldown = metricNumber(ex.song_cooldown);
   if (songCooldown <= 0.6) {
@@ -127,7 +127,7 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
     dampers.push({
       weight: subCooldown,
       icon: "variant",
-      text: "another version of it played recently"
+      text: "another version of it was played recently"
     });
   }
   const cooledGroup = groups
@@ -137,7 +137,7 @@ export function whyReasons(item: QueueItem | null): WhyReason[] {
     dampers.push({
       weight: metricNumber(cooledGroup.cooldown, 1),
       icon: "cooldown",
-      text: `${cooledGroup.name} has played a lot recently`
+      text: `${cooledGroup.name} has been played a lot recently`
     });
   }
   dampers.sort((a, b) => a.weight - b.weight);
@@ -177,7 +177,7 @@ const MATH_FACTORS: { key: string; label: string }[] = [
   { key: "rating_multiplier", label: "Your rating" },
   { key: "history_multiplier", label: "Skip history" },
   { key: "cold_start_multiplier", label: "New-song boost" },
-  { key: "satiation_multiplier", label: "Played a lot lately" },
+  { key: "satiation_multiplier", label: "Played a lot recently" },
   { key: "rediscovery_multiplier", label: "Dormant favourite" },
   { key: "visual_multiplier", label: "Has a video" },
   { key: "song_cooldown", label: "Heard recently" },
