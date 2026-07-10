@@ -19,5 +19,5 @@ if [ ! -f web/dist/index.html ]; then
 fi
 
 # Start Harmonica and open it in the browser (Ctrl+C here stops it).
-(sleep 3; xdg-open http://127.0.0.1:8765 2>/dev/null || open http://127.0.0.1:8765) &
+(sleep 3; xdg-open http://localhost:8765 2>/dev/null || open http://localhost:8765) &
 uv run harmonica serve

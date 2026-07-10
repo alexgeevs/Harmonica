@@ -5,7 +5,7 @@ favourites until they wear out, it rests what you have heard lately and brings b
 not, so nothing is over-played and nothing is forgotten.
 
 The big platforms maximise watch time, which can come at the cost of long-term enjoyment.
-Harmonica gains nothing from your watch time and does not measure it. No telemetry, no tracking.
+Harmonica gains nothing from your watch time, and does not maximise it.
 
 Website: https://harmonica.org.uk
 
@@ -43,7 +43,7 @@ Download the repository (Code → Download ZIP, or `git clone`), then:
 - **Linux and macOS:** run `./start-harmonica.sh`.
 
 The script installs what is missing, builds the player, and opens it in your browser at
-`http://127.0.0.1:8765`. It is safe to run again at any time. For a large library the recommended
+`http://localhost:8765`. It is safe to run again at any time. For a large library the recommended
 path is to hand this repository to an AI agent and let it do the setup and the import for you (see
 the end of this file).
 

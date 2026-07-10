@@ -18,7 +18,7 @@ if not exist web\dist\index.html (
 )
 
 rem Start Harmonica and open it in the browser (close this window to stop it).
-start "" /min cmd /c "timeout /t 3 /nobreak >nul & start "" http://127.0.0.1:8765"
+start "" /min cmd /c "timeout /t 3 /nobreak >nul & start "" http://localhost:8765"
 call uv run harmonica serve
 exit /b
 

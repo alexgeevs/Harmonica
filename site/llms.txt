@@ -23,9 +23,8 @@ this instead of parsing the HTML.
   listening history per person, bearer-token auth.
 - Listening stats. Settings are real controls (switches/sliders) for people and a JSON API
   (`GET`/`PATCH /settings`) for agents. All state lives in one SQLite file under `.harmonica/`.
-- No engagement incentive: unlike watch-time-maximising platforms, Harmonica gains nothing from
-  listening time and does not measure it. No telemetry, no tracking. Listening history exists only
-  on the user's device, where the algorithm uses it.
+- No engagement incentive: Harmonica gains nothing from listening time, and does not maximise it.
+  Listening history exists only on the user's device, where the algorithm uses it.
 
 ## How it runs
 
