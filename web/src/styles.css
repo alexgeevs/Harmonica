@@ -2458,6 +2458,23 @@ input:focus {
   font-size: 13px;
 }
 
+.setup-disclosure summary {
+  cursor: pointer;
+  width: fit-content;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+.setup-disclosure summary:hover {
+  text-decoration: underline;
+}
+
+.setup-disclosure[open] summary {
+  margin-bottom: 8px;
+}
+
 .setup-guidance {
   padding: 14px 16px;
   border: 1px solid var(--line);

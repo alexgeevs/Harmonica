@@ -79,6 +79,10 @@ favourite · Has a video · Resting this song · Resting this version
 - Body: You have changed settings but not applied them yet.
 - Buttons: Apply and continue · Discard changes · Keep editing
 
+## Settings: YouTube setup notes disclosure (App.tsx; the notes card with "Before you turn this on" is now folded behind this clickable line, so only the line shows by default. The card's text is unchanged and lives in copy-app.md)
+
+Setup notes: cookies, ads, and loudness
+
 ## Settings: YouTube pointer (App.tsx, NEW, appears under the YouTube section while its switch is on; "Curate page" is a button that navigates there)
 
 **YouTube playback is on** — Paste a list of YouTube links on the Curate page and each link

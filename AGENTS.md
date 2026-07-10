@@ -1,7 +1,6 @@
 # AGENTS.md — Setting Harmonica Up as a Coding Agent
 
-Harmonica is designed to be installed and configured by an AI coding agent on the user's behalf.
-This file is the provider-neutral entry point. It applies to any agent.
+Harmonica is designed to be installed and configured by an AI agent on the user's behalf.
 
 ## Run it
 
@@ -10,10 +9,6 @@ uv sync                                   # install Python deps (https://astral.
 uv run harmonica serve                    # FastAPI daemon + SQLite on http://127.0.0.1:8765
 cd web && npm install && npm run build    # the daemon then serves the built UI at that origin
 ```
-
-That one origin, `http://localhost:8765`, is the app: build the UI once and let the daemon serve
-it. The Vite dev server on port 5173 (`npm run dev`) exists only for working on the UI itself.
-Do not point the user at it.
 
 All state lives in one SQLite file under `.harmonica/`. There are no migrations: the schema is
 created on first run, and new columns are added additively.
@@ -62,7 +57,7 @@ Harmonica may hold secrets that belong to the user: API keys for optional integr
 token-signing key, profile passphrases. These are deliberately kept outside the source tree. Do
 not go looking for them, do not read or open them, and never copy their values into logs, exports,
 code, or commits. If a feature needs a key, have the user enter it through the app and refer to it
-by name only. You do not need its value, and you do not need to know where it lives, to do your work.
+by name only. You do not need its value, or its location, to do your work.
 
 ## Bugs and feedback
 

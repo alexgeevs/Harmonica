@@ -39,7 +39,7 @@ The failure mode is familiar: you find songs you love and play them constantly, 
 
 ## index.html — "Why" second paragraph (incentives)
 
-The big apps, Spotify and YouTube among them, are built to maximise your watch time, and what keeps you listening tonight can come at the cost of long-term enjoyment. Harmonica does not maximise watch time. Especially as it gains nothing from it. Your listening history exists only on your own device, where the algorithm uses it to rest whatever you have been over-playing.
+The big apps, Spotify and YouTube among them, are built to maximise your watch time, and what keeps you listening tonight can come at the cost of long-term enjoyment. Harmonica does not maximise watch time. It is built for the long term instead. Your listening history exists only on your own device, where the algorithm uses it to rest whatever you have been over-playing.
 
 ## index.html — feature: Cooldowns, not shuffle
 

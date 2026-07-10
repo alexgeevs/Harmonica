@@ -2176,39 +2176,43 @@ const SETTING_SECTIONS: {
     ),
     keys: ["youtube_embed_enabled"],
     extra: (
-      <div className="setup-guidance">
-        <h5>Before you turn this on</h5>
-        <ul>
-          <li>
-            <b>Cookies and consent.</b> A song with a YouTube link plays in YouTube's official
-            embedded player. Loading that player contacts YouTube and lets it set its own cookies,
-            so Harmonica asks you to accept once before the first video appears. Nothing is
-            requested from YouTube until then, and Harmonica itself stays cookie-light.
-          </li>
-          <li>
-            <b>Ads and tracking are YouTube's, not ours.</b> The embedded player may show ads and
-            will track you as YouTube normally does. Harmonica uses YouTube's own player and does
-            not remove either, take the audio out, hide the video, or strip anything, as YouTube's
-            terms require. Whether you block that tracking is your own choice in your own browser,
-            for example with a content blocker such as uBlock Origin. Harmonica does not do it for
-            you.
-          </li>
-          <li>
-            <b>Loudness is levelled by YouTube.</b> YouTube evens out loudness across videos, a
-            feature it calls "Stable Volume", and some clients add a voice boost. That is applied by
-            YouTube, so Harmonica cannot switch it off for you. If the player's settings gear offers
-            "Stable Volume" you can turn it off there. Otherwise it is controlled in your YouTube
-            account. Worth knowing if you would rather hear a track's original dynamics than a
-            levelled loudness.
-          </li>
-        </ul>
-        <p className="setup-how">
-          To use it, paste a list of YouTube links on the Curate page to bring in many songs at
-          once, or open one song in the library editor and paste its link. The optional Data API
-          key, for metadata lookups only, is set on the server and never in the browser, and is not
-          needed just to play a linked video.
-        </p>
-      </div>
+      <details className="setup-disclosure">
+        <summary>Setup notes: cookies, ads, and loudness</summary>
+        <div className="setup-guidance">
+          <h5>Before you turn this on</h5>
+          <ul>
+            <li>
+              <b>Cookies and consent.</b> A song with a YouTube link plays in YouTube's official
+              embedded player. Loading that player contacts YouTube and lets it set its own
+              cookies, so Harmonica asks you to accept once before the first video appears.
+              Nothing is requested from YouTube until then, and Harmonica itself stays
+              cookie-light.
+            </li>
+            <li>
+              <b>Ads and tracking are YouTube's, not ours.</b> The embedded player may show ads
+              and will track you as YouTube normally does. Harmonica uses YouTube's own player and
+              does not remove either, take the audio out, hide the video, or strip anything, as
+              YouTube's terms require. Whether you block that tracking is your own choice in your
+              own browser, for example with a content blocker such as uBlock Origin. Harmonica
+              does not do it for you.
+            </li>
+            <li>
+              <b>Loudness is levelled by YouTube.</b> YouTube evens out loudness across videos, a
+              feature it calls "Stable Volume", and some clients add a voice boost. That is
+              applied by YouTube, so Harmonica cannot switch it off for you. If the player's
+              settings gear offers "Stable Volume" you can turn it off there. Otherwise it is
+              controlled in your YouTube account. Worth knowing if you would rather hear a track's
+              original dynamics than a levelled loudness.
+            </li>
+          </ul>
+          <p className="setup-how">
+            To use it, paste a list of YouTube links on the Curate page to bring in many songs at
+            once, or open one song in the library editor and paste its link. The optional Data API
+            key, for metadata lookups only, is set on the server and never in the browser, and is
+            not needed just to play a linked video.
+          </p>
+        </div>
+      </details>
     )
   },
   {

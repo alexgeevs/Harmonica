@@ -1235,3 +1235,22 @@ panel reveals the fine-tuning sections. Hiding is display-only, so Apply changes
 leave guard still cover every value. The merge itself needed care: the automatic merge had
 placed the new YouTube import steps under every section heading, caught in review and verified
 fixed in a scripted browser pass.
+
+## 2026-07-10 (night): Second thoughts on framing, and YouTube out of sight when off
+
+Three refinements. The site's watch-time line had grown a conditional it never meant: "Especially
+as it gains nothing from it" could be read as saying the only reason Harmonica does not track
+listening is that there is nothing in it, so it now reads "It is built for the long term instead",
+with the matching llms.txt line aligned. The owner supplied a tightened AGENTS.md (shorter intro,
+a leaner credentials sentence) which replaced the previous one verbatim. And a standing rule was
+made explicit: YouTube should barely appear anywhere in the app unless the feature is enabled.
+An audit confirmed the player, consent gate, library editor link field, Curate import panel and
+settings pointer were already gated on the switch. The one leak was the settings section's large
+"Before you turn this on" card, which now folds behind a single "Setup notes: cookies, ads, and
+loudness" line, leaving the switch and two quiet lines as YouTube's whole footprint while off.
+Verified in a scripted browser pass: notes folded by default and opening on click, no YouTube
+field in the editor, and zero mentions of YouTube on the Curate page while the switch is off.
+
+The owner also asked for an independent critical review of the algorithm spec, unconvinced that
+the first round of fixes did more than add annotations. A reviewer agent was given the owner's
+verbatim concerns and the goals, with its suggested edits to be applied after review.

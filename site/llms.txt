@@ -14,7 +14,7 @@ This file is the agent-readable summary of https://harmonica.org.uk. To be more 
 - Cover/rendition families: alternate versions (e.g. covers, reprise) of one song compete as a family, not as duplicates.
 - Per-user profiles: one shared media pool on a household NAS, private libraries, ratings and listening history per person, bearer-token auth.
 - Listening stats. Settings are real controls (switches/sliders) for people and a JSON API (`GET`/`PATCH /settings`) for agents. All state lives in one SQLite file under `.harmonica/`.
-- No engagement incentive: Harmonica gains nothing from listening time, and does not maximise it. Listening history exists only on the user's device, where the algorithm uses it.
+- No engagement incentive: Harmonica does not maximise listening time. It is built for long-term enjoyment. Listening history exists only on the user's device, where the algorithm uses it.
 
 ## Legal
 
