@@ -503,7 +503,8 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         description=(
             "When on, the create-profile form offers a picker that lists every song in the "
             "library. Off hides that list, so creating a profile on a shared or networked "
-            "install does not reveal which songs exist. New profiles then include all songs."
+            "install does not reveal which songs exist. New profiles then start empty and "
+            "import their own songs."
         ),
         value_type="boolean",
         control="switch",

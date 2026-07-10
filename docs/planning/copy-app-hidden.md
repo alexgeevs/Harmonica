@@ -20,29 +20,40 @@ applied back to the source files. Lines already listed in `copy-app.md` are not 
 ## Errors: device profile (App.tsx, settings side panel)
 
 - Name and passphrase are both required.
-- Pick at least one song, or choose “All songs”.
+- Pick at least one song, or untick pre-filling.
 - Could not claim that profile. *(fallback)*
 - Could not create that profile. *(fallback)*
 
-## Banner: active profile (App.tsx, above the view while a profile is active; the empty-library suffix is already in copy-app.md)
+## Profile panel: create-mode hints (App.tsx; which one shows depends on the "Let new profiles pick songs" setting)
 
-Profile **{name}** is active · {N} songs in your library. — with button: Switch to local
+- Picker off (the default): A new profile starts with an empty library. Import or scan songs once
+  it is active. To let new profiles pick songs from this library instead, turn on "Let new
+  profiles pick songs" in the settings list.
+- Picker on, pre-fill unticked: Unticked: the profile starts with an empty library and imports
+  its own songs.
+- Picker on, checkbox label: Pre-fill from this library
+- Picker list overflow: Showing the first 300. Search to narrow.
+- Active profile with no songs, side-panel tag: No songs yet
+
+## Banner: active profile (App.tsx, above the view while a profile is active; the empty-library suffix is already in copy-app.md; followed by button: Switch to local)
+
+Profile **{name}** is active · {N} songs in your library.
 
 ## Banner: loudness warning (App.tsx, appears while sustained playback level is above the warning threshold)
 
 Sustained loudness looks high [for compressed audio]. Consider turning it down to protect your
-hearing. *(relative estimate)*
+hearing. *This is a relative estimate, not an exact measurement.*
 
 ## Insights: listening health, before any samples (App.tsx)
 
 Loudness is measured live while you listen. Play a few tracks and your average and peak levels
-will appear here.
+will appear here. They are relative estimates, not exact measurements.
 
 ## Insights: listening health, note under the bars (App.tsx; "WHO" is now a link to who.int/activities/making-listening-safe)
 
-Relative estimates, not calibrated dB — browsers can't read true sound pressure. The WHO suggests
-~80 dB for 40 h/week as a safe ceiling; each +3 dB halves the safe time. Treat these as a nudge,
-not a measurement.
+Relative estimates, not calibrated dB, because browsers can't read true sound pressure. The WHO
+suggests ~80 dB for 40 h/week as a safe ceiling; each +3 dB halves the safe time. Treat these as
+a nudge, not a measurement.
 
 ## Cover comparison card (App.tsx, appears while the second rendition of an A/B pair plays)
 
@@ -51,27 +62,31 @@ not a measurement.
 - Vote buttons: The first was better · About the same · This one's better
 - Replay button: ▸ Replay {first title} to compare
 
-## "Why this song" reasons (format.ts, one or more shown per playing track depending on algorithm state)
+## "Why this song" reasons (format.ts; at most three lines per playing track: where it came from, the single strongest boost, the single strongest damper)
 
-- Drawn from {group name} ({N} tracks)
-- You rate this highly
-- You rate this lower than most, so it comes up less often
-- A favourite you haven't heard in a while — bringing it back fresh
-- The original recording
-- Your favourite rendition of it
-- New to you — surfaced early so you can rate it
-- You've played this a lot lately — resting it so it doesn't wear out
-- You heard this exact song recently
-- Eased off {group name} for variety
-- Has a video — easier to review while you're here
-- Recently skipped, so it's eased off for now
-- Another version of this song played recently
-- A balanced pick for variety
+- Line 1, source: Drawn from {group name} ({N} tracks)
+- Line 2, one boost, whichever multiplier is largest:
+  - You rate this highly
+  - A favourite you haven't heard in a while
+  - New to you, surfaced early so you can rate it
+  - The original recording, out of {N} versions
+  - Your favourite of {N} versions
+  - Has a video, easier to rate on screen
+- Line 3, one damper, whichever multiplier is smallest, always prefixed "Coming up less often
+  right now:" because a damper lowers a song's odds rather than blocking it (this song was still
+  picked):
+  - you rate it lower than most
+  - it has had a lot of play lately
+  - you heard it recently
+  - you skipped it recently
+  - another version of it played recently
+  - {group name} has played a lot recently
+- Fallback when nothing stands out: A balanced pick for variety
 
 ## "Why this song" maths labels (format.ts, only with "show the maths" on)
 
 Manual nudge · Your rating · Skip history · New-song boost · Played a lot lately · Dormant
-favourite · Has a video · Resting this song · Resting this version
+favourite · Has a video · Heard recently · Version heard recently
 
 ## Settings: leave with unapplied changes (App.tsx, NEW modal when navigating away from a dirty Settings page)
 
@@ -83,11 +98,12 @@ favourite · Has a video · Resting this song · Resting this version
 
 Setup notes: cookies, ads, and loudness
 
-## Settings: YouTube pointer (App.tsx, NEW, appears under the YouTube section while its switch is on; "Curate page" is a button that navigates there)
+## Settings: YouTube pointer (App.tsx, appears under the YouTube section while its switch is on; heading then body; "Curate page" is a button that navigates there)
 
-**YouTube playback is on** — Paste a list of YouTube links on the Curate page and each link
-becomes a song, or open one song in the library editor and paste its link there. [if unapplied:]
-Apply your changes first.
+- Heading: YouTube playback is on
+- Body: Paste a list of YouTube links on the Curate page and each link becomes a song, or open
+  one song in the library editor and paste its link there. [if unapplied:] Apply your changes
+  first.
 
 - **Importing reads each video's properties.** Harmonica reads the links' metadata on the server,
   the uploader and title by default and more with a Data API key, and organises them into tracks.
@@ -125,11 +141,14 @@ Apply your changes first.
   on the server and organises them into tracks for you to review. The video plays later through
   YouTube's official player. Nothing is downloaded.
 - Factor picker legend: Organise by
-- Factors (label — hint): Uploader — Group by who uploaded it. · Title — Split “Artist - Title”
-  and spot covers or live versions. · Duration — Flag videos too long to be a single song. ·
-  Description — Match the same song across differently titled videos. · Category — Flag videos
-  YouTube does not class as music. · Tags — Read the uploader's tags. · Publish date — Read when
-  each video went up.
+- Factors (label, then hint):
+  - Uploader: Group by who uploaded it.
+  - Title: Split “Artist - Title” and spot covers or live versions.
+  - Duration: Flag videos too long to be a single song.
+  - Description: Match the same song across differently titled videos.
+  - Category: Flag videos YouTube does not class as music.
+  - Tags: Read the uploader's tags.
+  - Publish date: Read when each video went up.
 - With a key set: Using your Data API key for the factors marked “key”.
 - Key help heading: Those factors need a YouTube Data API key
 - Key help body: The factors marked “key” read extra detail through YouTube's Data API, which
@@ -158,27 +177,40 @@ Apply your changes first.
 - Body: Paste a public playlist link to see which of its songs you already have. Track names
   only, read through Spotify's Web API. No audio is downloaded.
 - Read button: Read
-- Result line: {playlist name} — {N} track[s] · {N} in your library
+- Result line: **{playlist name}** then, beside it: {N} track[s] · {N} in your library
 - Truncation note: Only the first 500 tracks were read.
 - Owned tag (tooltip: Likely already in your library): in library
 - Error fallback: Could not read that playlist
 
-## Settings: Appearance section (App.tsx, NEW; visible by default but listed here as it is new this round)
+## Settings: Appearance section (App.tsx; visible by default but listed here as it changes often)
 
 - Note: Colours for this device. They apply immediately, with no need to press Apply changes.
   The choices are limited on purpose, so text stays readable on every combination.
 - Preset chips (each applies a full combination): Classic · Charcoal · Espresso · Midnight ·
-  Plum · Night
-- Rows: Background · Sidebar · Player bar · Dark mode
+  Plum · Night · Ember (Night is plain dark; Ember is warm dark with espresso bars)
+- Rows: Background · Sidebar · Player bar · Dark mode · Dark tone (the last only while dark)
 - Surface names: Mint · Paper · Sand · Sky · Blossom
 - Bar names: Deep green · Ink green · Charcoal · Midnight · Plum · Espresso
-- While dark: Dark mode sets its own background.
+- Dark tone names: Neutral · Warm · Green
+- While dark, under Background: Dark mode sets its own background.
+- While dark, under Dark tone: Neutral is a plain dark. Warm leans amber, which sits easier with
+  night-time viewing. Green matches the classic look.
 
-## Settings: complex tier (App.tsx, NEW; the toggle is visible by default in the right-hand panel, but the sections it reveals are hidden until it is on)
+## Settings: complex tier (App.tsx; the toggle is visible by default in the right-hand panel, but the sections it reveals are hidden until it is on)
 
 - Toggle label: Show complex settings
 - Toggle helper: Off keeps the list to the everyday controls. On reveals the fine-tuning knobs.
 - Sections hidden until on: Recommendation core · Anti-repetition & variety · History & feedback ·
   Rating normalisation · Repetition & rediscovery · Covers · More (their control copy is already
   in copy-app.md)
-- New simple section: Queue — How many songs a freshly generated queue holds.
+- Simple section: Queue, with the note: How many songs a freshly generated queue holds.
+
+## Settings: Device profiles section (App.tsx + settings_store.py, NEW; the section is visible by default, the behaviour it gates is in the profile panel)
+
+- Section note: What creating a new profile in the panel to the right may see. Off keeps the
+  song list hidden from whoever is creating a profile, which matters when this install is shared
+  over a network.
+- Control label: Let new profiles pick songs
+- Control description: When on, the create-profile form offers a picker that lists every song in
+  the library. Off hides that list, so creating a profile on a shared or networked install does
+  not reveal which songs exist. New profiles then start empty and import their own songs.

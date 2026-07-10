@@ -1268,3 +1268,32 @@ with what actually shipped. The reviewer also fact-checked the document against 
 found one genuinely outdated claim nothing had flagged: cooldown tags are stored and editable
 but not yet applied as a scoring penalty, which section 6.4 now says. Every value in the
 recommended defaults matches the shipped implementation.
+
+## 2026-07-10: Profile privacy, honest loudness, a simpler "why", and warmer dark modes
+
+A round of product judgement calls from the owner's read-through of the copy docs. Creating a
+device profile used to offer a picker listing every song in the library, which on a shared or
+networked install quietly tells whoever is creating a profile exactly what the household owns.
+That option is now behind a "Let new profiles pick songs" setting, off by default; with it off, a
+new profile starts with an empty library and imports its own songs. Fixing this surfaced stale
+copy from before per-user profiles landed: the panel still said "Include all songs" and labelled
+an empty profile "All songs", when an empty track list has meant an empty library since the
+tenancy work. The create form now says what actually happens.
+
+Loudness got a blanket rule: wherever the app shows or warns about a level it cannot measure
+exactly, it must say so. The warning banner's "(relative estimate)" aside became a full sentence,
+and the Insights empty state now carries the disclaimer too, not just the note under the bars.
+
+The "why this song" panel was rethought after the owner spotted a contradiction: a line reading
+"resting it so it doesn't wear out" on a song that is currently playing is false on its face,
+because dampers lower a song's odds rather than block it. The panel now shows at most three
+lines with no overlap: where the pick came from, the single strongest boost, and the single
+strongest damper, always phrased "Coming up less often right now:" with the cause, which stays
+true even though this occasion is one of the fewer. Em dashes left the UI copy and the copy docs
+in the same pass.
+
+Dark mode was a single green-tinted palette; the owner pointed out that people choose dark mode
+at night, when a cool-tinted screen is the wrong offer, and asked for a choice of dark modes.
+Dark mode now has three tones at the same lightness: Neutral (plain grey, the new default), Warm
+(amber-shifted), and Green (the original). A tone row appears under the dark switch, and an
+Ember preset (warm dark with espresso bars) joins Night (plain dark) in the chips.

@@ -112,6 +112,10 @@ How much detail the “why this song” panel shows while you listen. (followed 
 
 When a song has several renditions, let the queue pick which one to play. (Off by default, turn it on if your library has covers.)
 
+## App.tsx — settings section note: Device profiles
+
+What creating a new profile in the panel to the right may see. Off keeps the song list hidden from whoever is creating a profile, which matters when this install is shared over a network.
+
 ## App.tsx — presets intro
 
 A preset sets every control below. You can still fine-tune afterwards.

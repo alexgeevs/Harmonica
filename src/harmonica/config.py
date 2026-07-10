@@ -119,7 +119,7 @@ class Settings(BaseSettings):
     spotify_client_secret: str | None = None
     # Whether the create-profile form may list the library's songs for picking a subset. Off by
     # default so that, on a shared or networked install, creating a profile does not reveal which
-    # songs exist. With it off, new profiles simply include all songs.
+    # songs exist. With it off, new profiles start empty and import their own songs.
     profile_song_picker_enabled: bool = False
     # Hearing health & compression awareness.
     avoid_consecutive_compressed: bool = True
