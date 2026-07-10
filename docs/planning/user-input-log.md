@@ -1394,3 +1394,16 @@ only rebuild what changed. On wording, the owner settled it: the site's existing
 as they are, since the chosen analytics sets no cookies and identifies no one, so nothing on
 the page becomes untrue. Nothing is implemented until the owner and both agents agree on the
 plan.
+
+## 2026-07-10: The first human reader reviews the website
+
+The owner showed the site to a human reader and relayed the findings. Two were accepted and
+fixed the same day: the front page said "features such as song, artist and topic" where it
+meant "factors", and the copy leaned too hard on play, played and player, now mixed with
+listened, heard, on repeat and worn out. A third finding, that the vocabulary and paragraph
+length aim above a general audience, was acknowledged and deliberately deferred: version 1
+addresses self-hosting hobbyists, and a plainer register is a decision for when the audience
+widens. The reader also tried typing podcast titles into the demo instead of pasting links,
+which cannot work in a static page (searching YouTube needs an API key that a public page
+cannot carry), so the demo now says plainly that it cannot search by title. Podcasts
+themselves already work: the demo takes any YouTube link and the app plays any local file.

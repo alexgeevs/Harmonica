@@ -172,7 +172,7 @@ async function readAndOrganise() {
   if (!ids.length) {
     status.textContent = known
       ? "Those are already in your demo library."
-      : "No YouTube links found. Paste full video links, one per line.";
+      : "No YouTube links found. The demo cannot search by title, so paste full video links, one per line.";
     return;
   }
   const room = MAX_LIBRARY - data.tracks.length;
