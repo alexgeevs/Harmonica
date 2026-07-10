@@ -25,6 +25,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # The demo at /demo runs the repo's real algorithm files in the browser (Pyodide).
+      # They are copied in here rather than committed twice, so they can never drift.
+      - run: cp src/harmonica/algorithm.py src/harmonica/history.py src/harmonica/ratings.py site/demo/py/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -116,3 +116,10 @@ Harmonica does not host, provide, or source any music. It plays your own self-ho
 Now edited directly in `site/llms.txt` (restructured on 2026-07-09: real setup flow, source and
 run instructions, settings API line; reflowed on 2026-07-10: one line per paragraph, Legal moved
 between What it does and How it runs, Android no longer listed).
+
+## Demo page (/demo)
+
+Edited directly in `site/demo/index.html` (static copy: banner, import view, consent gate,
+cookie prompt, footer) and `site/demo/app.js` (strings built at runtime: statuses, buttons,
+why-lines). The why-line phrasing mirrors `web/src/format.ts` and `copy-app-hidden.md`; if the
+app's wording changes, change the demo's to match.

@@ -1298,3 +1298,30 @@ at night, when a cool-tinted screen is the wrong offer, and asked for a choice o
 Dark mode now has three tones at the same lightness: Neutral (plain grey, the new default), Warm
 (amber-shifted), and Green (the original). A tone row appears under the dark switch, and an
 Ember preset (warm dark with espresso bars) joins Night (plain dark) in the chips.
+
+## 2026-07-10: The in-browser demo gets its go-ahead and its shape
+
+The demo subdomain moved from the parked list to a build, with a clear brief from the owner. The
+page should open on an import view, not a dashboard, so the first thing a visitor does is build
+a small library by pasting a list of YouTube links. It should run the actual algorithm as Python
+in the visitor's browser rather than a JavaScript imitation. The API key steps that exist in the
+full app must not appear at all. The whole thing should be a more limited player than the app,
+with disclaimers in strategic locations making clear what it is and is not.
+
+Since the demo genuinely stores things (links, metadata, ratings, settings, listening history),
+the owner asked for a thematically accurate, genuinely functional cookie prompt: one that asks
+how long the visitor wants the data kept, rather than a banner that only says yes. The prompt
+also has to state plainly that YouTube's own cookies are set under YouTube's policies and are
+not covered by the choice. The implementation offers four honest terms: until the tab closes,
+thirty days, until removed, or store nothing at all, with the demo running in memory on the
+last one.
+
+Weight was the other constraint: the demo ships in the same repository and source archive as
+everything else, so it must stay light and must not interfere with the site or the app. It
+landed as three small static files under site/demo. The algorithm files themselves are not
+duplicated; the Pages workflow copies algorithm.py, history.py and ratings.py from src/harmonica
+at deploy, so the demo can never drift from the app it demonstrates. Pyodide arrives from a CDN
+only when a visitor actually uses the page.
+
+Also noted for later: the owner would like app.harmonica.org.uk to at least try resolving to a
+locally running Harmonica, which is DNS work rather than code and carries HTTPS caveats.

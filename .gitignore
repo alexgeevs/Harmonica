@@ -41,3 +41,8 @@ venv/
 # Local agent working guide (not published)
 /CLAUDE.md
 /Important_Before_Release.md
+
+# Demo: algorithm files are copied from src/harmonica at deploy (see site/demo/README.md)
+/site/demo/py/algorithm.py
+/site/demo/py/history.py
+/site/demo/py/ratings.py

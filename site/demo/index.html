@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<!-- Agents: this is the in-browser demo. The main site summary lives at /llms.txt. -->
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harmonica demo</title>
+<meta name="description" content="An in-browser demonstration of Harmonica's queueing algorithm. Build a small library from YouTube links and hear how it rests whatever you over-play.">
+<meta property="og:title" content="Harmonica demo: try the algorithm in your browser">
+<meta property="og:description" content="Paste a few YouTube links, rate and skip, and watch the queue rest what you over-play. The real algorithm, run in your browser.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --dark:#20302f; --mint:#eef3f1; --teal:#206a5d; --gold:#f1c84b;
+    --ink:#22312f; --muted:#54655f; --card:#ffffff; --line:#d8e3de;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--mint);color:var(--ink);
+    font:400 1rem/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif}
+  .wrap{max-width:62rem;margin:0 auto;padding:0 1.25rem}
+  a{color:var(--teal)}
+  h1,h2,h3{line-height:1.2;color:var(--dark)}
+  button{font:inherit;cursor:pointer}
+
+  header{background:var(--dark);color:#e8f0ec;padding:.9rem 0}
+  header .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  .brand{font-size:1.25rem;font-weight:700;color:#fff;text-decoration:none;letter-spacing:.01em}
+  .brand span.note{color:var(--gold)}
+  .brand .tag{font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--gold);margin-left:.45rem;vertical-align:.12em}
+  nav a{color:#cfe0d8;text-decoration:none;margin-left:1.1rem;font-size:.95rem}
+  nav a:hover{color:#fff;text-decoration:underline}
+
+  .banner{margin:1.4rem auto 0;max-width:62rem}
+  .banner .inner{border-left:3px solid var(--teal);background:#e3ece8;padding:.7rem 1.1rem;
+    font-size:.92rem;color:var(--muted);border-radius:0 .25rem .25rem 0}
+  .banner strong{color:var(--dark)}
+
+  main{padding:1.8rem 0 2.5rem}
+  .lede{max-width:62ch;color:var(--muted);margin:.8rem 0 1.4rem}
+  .hint{font-size:.85rem;color:var(--muted);margin:.5rem 0 1rem;max-width:62ch}
+  .status{font-size:.9rem;color:var(--teal);min-height:1.4rem;margin:.6rem 0}
+
+  textarea{width:100%;max-width:44rem;padding:.7rem .8rem;border:1px solid var(--line);
+    border-radius:.25rem;background:var(--card);color:var(--ink);font:inherit;resize:vertical}
+  textarea:focus{outline:2px solid var(--teal)}
+
+  .btn{display:inline-block;padding:.55rem 1.2rem;border-radius:.25rem;text-decoration:none;
+    font-weight:600;border:2px solid var(--teal);background:transparent;color:var(--teal)}
+  .btn:hover{background:#dfeae5}
+  .btn.primary{background:var(--teal);color:#fff}
+  .btn.primary:hover{background:#1a574c}
+  .btn.danger{border-color:#9a4a3a;color:#9a4a3a}
+  .btn.danger:hover{background:#f3e4e0}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn.small{padding:.3rem .8rem;font-size:.88rem;border-width:1px;font-weight:500}
+
+  .rows{list-style:none;max-width:44rem;margin:1rem 0;border-top:1px solid var(--line)}
+  .rows li{display:flex;align-items:center;gap:.8rem;padding:.55rem 0;
+    border-bottom:1px solid var(--line);font-size:.95rem}
+  .rows .title{flex:1;min-width:0}
+  .rows .who{color:var(--muted);font-size:.85rem}
+  .rows .bad{color:#9a4a3a}
+  .rows button.x{border:none;background:none;color:var(--muted);font-size:1rem;padding:.1rem .4rem}
+  .rows button.x:hover{color:#9a4a3a}
+
+  .player-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:1.5rem;align-items:start}
+  @media (max-width:52rem){.player-grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:.4rem;padding:1.1rem 1.2rem}
+
+  .video-box{position:relative;width:100%;aspect-ratio:16/9;background:#101b1a;border-radius:.3rem;overflow:hidden}
+  .video-box iframe{position:absolute;inset:0;width:100%;height:100%}
+  #consent-gate{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    align-items:flex-start;gap:.7rem;padding:1.2rem 1.4rem;color:#dfe9e4;background:var(--dark)}
+  #consent-gate[hidden]{display:none}
+  #consent-gate h3{color:#fff;font-size:1.05rem}
+  #consent-gate p{font-size:.86rem;line-height:1.5;max-width:46ch}
+  #consent-gate .fine{font-size:.78rem;color:#9db4ab}
+
+  .now-title{font-size:1.12rem;font-weight:700;color:var(--dark);margin-top:.9rem}
+  .now-artist{color:var(--muted);font-size:.92rem;margin-bottom:.5rem}
+  .stars{display:inline-flex;gap:.1rem;margin:.2rem 0 .6rem}
+  .stars button{border:none;background:none;font-size:1.35rem;line-height:1;color:#c9d6d0;padding:0 .08rem}
+  .stars button.on{color:var(--gold)}
+  .stars button:hover{transform:scale(1.12)}
+  .why{list-style:none;margin:.3rem 0 .9rem;font-size:.86rem;color:var(--muted)}
+  .why li{padding:.14rem 0}
+  .why li::before{content:"♪ ";color:var(--gold)}
+  .controls{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:.4rem}
+
+  .queue-card h2{font-size:1.05rem;margin-bottom:.6rem}
+  #queue-list{list-style:none;counter-reset:q}
+  #queue-list li{display:flex;gap:.6rem;align-items:baseline;padding:.42rem 0;font-size:.92rem;
+    border-bottom:1px solid var(--line);cursor:pointer}
+  #queue-list li:hover .t{text-decoration:underline}
+  #queue-list li.current{font-weight:700}
+  #queue-list .n{color:var(--muted);font-size:.8rem;min-width:1.4rem}
+  #queue-list .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #queue-list .u{color:var(--muted);font-size:.8rem;max-width:9rem;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+
+  details{margin-top:1.6rem;max-width:62rem}
+  details summary{cursor:pointer;font-weight:600;color:var(--dark);padding:.4rem 0}
+  .lib-actions{display:flex;gap:.7rem;margin:.9rem 0}
+  .statsline{font-size:.85rem;color:var(--muted);margin-top:1rem}
+
+  .modal-back{position:fixed;inset:0;background:rgba(24,34,33,.55);display:flex;
+    justify-content:center;align-items:flex-end;z-index:50;padding:1rem}
+  .modal-back[hidden]{display:none}
+  @media (min-width:40rem){.modal-back{align-items:center}}
+  .modal{background:var(--card);border-radius:.5rem;max-width:30rem;width:100%;
+    padding:1.4rem 1.5rem;border-top:4px solid var(--gold)}
+  .modal h2{font-size:1.15rem;margin-bottom:.6rem}
+  .modal p{font-size:.92rem;margin-bottom:.8rem;color:var(--ink)}
+  .modal .choices{display:flex;flex-direction:column;gap:.5rem;margin:.9rem 0}
+  .modal .fine{font-size:.8rem;color:var(--muted)}
+
+  footer{background:var(--dark);color:#b9ccc4;margin-top:3rem;padding:1.8rem 0;font-size:.85rem}
+  footer a{color:#e8f0ec}
+  footer p{margin-bottom:.5rem;max-width:70ch}
+  footer .links{margin-top:.7rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="https://harmonica.org.uk/">Harmonica<span class="note">&#9834;</span><span class="tag">demo</span></a>
+    <nav aria-label="Site">
+      <a href="https://harmonica.org.uk/">Main site</a>
+      <a href="https://github.com/alexgeevs/Harmonica">Source</a>
+    </nav>
+  </div>
+</header>
+
+<div class="banner wrap">
+  <div class="inner"><strong>This page is a demonstration</strong> that runs entirely in your
+    browser. The full Harmonica is a self-hosted player for your own music files. Nothing you do
+    here is uploaded anywhere.</div>
+</div>
+
+<main class="wrap">
+
+  <section id="view-import">
+    <h1>Build a demo library</h1>
+    <p class="lede">Paste links to YouTube videos and the demo organises them into a small
+      library. It then queues them with the same algorithm the full app uses, run in your
+      browser through Python.</p>
+    <textarea id="links" rows="8" spellcheck="false"
+      placeholder="https://www.youtube.com/watch?v=&hellip;&#10;https://youtu.be/&hellip;"></textarea>
+    <p class="hint">One link per line. Ten to thirty links give the algorithm enough variety to
+      be worth watching. Reading a link's title contacts YouTube from your browser. Nothing is
+      downloaded.</p>
+    <button id="read-btn" class="btn primary">Read and organise</button>
+    <div id="read-status" class="status" role="status"></div>
+    <div id="organised"></div>
+  </section>
+
+  <section id="view-player" hidden>
+    <div class="player-grid">
+      <div class="card">
+        <div class="video-box">
+          <div id="yt-player"></div>
+          <div id="consent-gate">
+            <h3>Play through YouTube?</h3>
+            <p>Songs in this demo play through YouTube's official embedded player. Loading it
+              contacts YouTube, which sets its own cookies and may show ads. The demo does not
+              remove either, and your storage choice here does not cover them. Nothing is
+              requested from YouTube until you accept.</p>
+            <button id="consent-btn" class="btn primary">Load the YouTube player</button>
+            <p class="fine">The full Harmonica plays your own files instead.</p>
+          </div>
+        </div>
+        <div class="now-title" id="now-title"></div>
+        <div class="now-artist" id="now-artist"></div>
+        <div class="stars" id="now-stars" aria-label="Rate this song"></div>
+        <ul class="why" id="now-why"></ul>
+        <div class="controls">
+          <button id="next-btn" class="btn primary">Play next</button>
+          <button id="requeue-btn" class="btn">New queue</button>
+        </div>
+        <div class="status" id="player-status" role="status"></div>
+      </div>
+      <div class="card queue-card">
+        <h2>Up next</h2>
+        <ol id="queue-list"></ol>
+        <p class="hint">The order comes from the real algorithm. Rate and skip and the next
+          queue shifts. Nothing is banned, an over-played song just comes up less often.</p>
+      </div>
+    </div>
+
+    <details>
+      <summary>Your demo library (<span id="lib-count">0</span> songs)</summary>
+      <ul class="rows" id="library-list"></ul>
+      <div class="lib-actions">
+        <button id="add-more" class="btn">Add more links</button>
+        <button id="reset-demo" class="btn danger">Reset the demo</button>
+      </div>
+    </details>
+    <p class="statsline" id="statsline"></p>
+  </section>
+
+</main>
+
+<div class="modal-back" id="storage-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="storage-title">
+    <h2 id="storage-title">A cookie question</h2>
+    <p>The demo keeps your links, ratings and listening history in this browser, on your device.
+      Nothing is sent to a server. Choose how long to keep them.</p>
+    <div class="choices">
+      <button class="btn" data-mode="session">Until this tab closes</button>
+      <button class="btn" data-mode="local30">For 30 days</button>
+      <button class="btn" data-mode="local">Until I remove them</button>
+      <button class="btn" data-mode="none">Store nothing</button>
+    </div>
+    <p class="fine">Strictly it is local storage rather than a cookie, but the idea is the same
+      and so is the choice. It covers only the demo's own data. YouTube's player sets its own
+      cookies under its own policies once you load it, which this page does not control. With
+      "store nothing" the demo still works but forgets everything when you leave.</p>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>This is a demonstration only. It keeps your links, ratings and listening history in this
+      browser's storage for as long as you chose, and sends them nowhere. YouTube's embedded
+      player sets its own cookies under its own policies once you load it. The Python runtime
+      (Pyodide) is fetched from the jsDelivr CDN on first use.</p>
+    <p>The full Harmonica is self-hosted and plays your own library. Your files, your server.
+      Open source under AGPL-3.0.</p>
+    <p class="links"><a href="https://harmonica.org.uk/">harmonica.org.uk</a> ·
+      <a href="https://github.com/alexgeevs/Harmonica">Source code</a> ·
+      <a href="mailto:contact@harmonica.org.uk">Contact</a> ·
+      <a href="#" id="storage-link">Storage choices</a></p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
