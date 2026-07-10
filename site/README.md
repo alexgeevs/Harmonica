@@ -1,9 +1,10 @@
 # site/ — the public website for harmonica.org.uk
 
-Static, no cookies of its own, and the main page makes no external requests. The demo under
-`demo/` is the one exception: it fetches Pyodide from the jsDelivr CDN and embeds YouTube's
-player. Everything here is reversible: delete this folder and `.github/workflows/pages.yml`
-and the website is gone from the repo.
+Static, and sets no cookies of its own. External requests: the demo under `demo/` fetches
+Pyodide from the jsDelivr CDN and embeds YouTube's player, and the host may inject a
+Cloudflare Web Analytics beacon at the edge (cookie-free, and never committed here).
+Everything here is reversible: delete this folder and `.github/workflows/pages.yml` and the
+website is gone from the repo.
 
 ## Layout
 
