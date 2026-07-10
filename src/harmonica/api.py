@@ -85,7 +85,11 @@ from harmonica.security import (
     verify_config_token,
     verify_passphrase,
 )
-from harmonica.serialization import export_library_payload, import_library_payload
+from harmonica.serialization import (
+    EXPORT_SCOPES,
+    export_library_payload,
+    import_library_payload,
+)
 from harmonica.settings_store import get_effective_settings, settings_payload, update_setting_values
 from harmonica.spotify import SpotifyError, fetch_playlist
 from harmonica.youtube_import import (
@@ -783,8 +787,20 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/library/export-json")
-    def export_library_json(session: SessionDep, owner: OwnerDep) -> dict[str, Any]:
-        return export_library_payload(session, owner_config_id=owner.id if owner else None)
+    def export_library_json(
+        session: SessionDep, owner: OwnerDep, scope: str = "all"
+    ) -> dict[str, Any]:
+        """One payload, four scopes: ``metadata`` (songs and groups), ``ratings`` (stars and
+        their history), ``settings`` (the adjustable controls), or ``all``. The client saves
+        it as a file; POST /library/import-json takes any of them back."""
+        if scope not in EXPORT_SCOPES:
+            raise HTTPException(
+                status_code=422,
+                detail="scope must be one of: " + ", ".join(EXPORT_SCOPES),
+            )
+        return export_library_payload(
+            session, owner_config_id=owner.id if owner else None, scope=scope
+        )
 
     @app.post("/library/import-json")
     def import_library_json(
@@ -793,10 +809,10 @@ def create_app() -> FastAPI:
         settings: SettingsDep,
         owner: OwnerDep,
     ) -> dict[str, Any]:
-        import_library_payload(
+        summary = import_library_payload(
             session, payload.payload, settings=settings, owner_config_id=owner.id if owner else None
         )
-        return {"ok": True}
+        return {"ok": True, **summary}
 
     # --- Device configs (multi-device profiles; see docs/planning/multi-device-architecture.md) ---
 

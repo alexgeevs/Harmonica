@@ -309,6 +309,21 @@ export type LibraryExport = {
   tracks: LibraryTrackPayload[];
 };
 
+// Scoped file export/import (Settings page). "metadata" = songs and groups, "ratings" =
+// stars plus their raw history, "settings" = the adjustable controls, "all" = everything.
+export type ExportScope = "all" | "metadata" | "ratings" | "settings";
+
+export type ImportSummary = {
+  ok: boolean;
+  tracks_created: number;
+  tracks_matched: number;
+  tracks_skipped: number;
+  rating_samples_added: number;
+  cover_comparisons_added: number;
+  track_ratings_applied: number;
+  settings_applied: number;
+};
+
 // Device profiles (optional, multi-device). A profile = which songs are included
 // + a settings snapshot, claimable on any device by name + passphrase. Local-only
 // use never needs one; activeConfig === null means "full library, global settings".

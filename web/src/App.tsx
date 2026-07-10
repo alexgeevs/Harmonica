@@ -23,6 +23,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  Upload,
   Video,
   Volume2,
   VolumeX,
@@ -60,6 +61,8 @@ import type {
   CoverSetRead,
   DeviceConfigDetail,
   Embed,
+  ExportScope,
+  ImportSummary,
   PlaybackEvent,
   QueueItem,
   RatingFactor,
@@ -516,6 +519,7 @@ export default function App() {
               onClaim={claimConfig}
               onCreate={createConfig}
               onSwitchLocal={switchToLocal}
+              onImported={refreshAll}
             />
           ) : null}
         </div>
@@ -2404,6 +2408,7 @@ function SettingsView(props: {
   onClaim: (name: string, passphrase: string) => Promise<DeviceConfigDetail>;
   onCreate: (name: string, passphrase: string, trackIds: number[]) => Promise<DeviceConfigDetail>;
   onSwitchLocal: () => void;
+  onImported: () => Promise<void> | void;
 }) {
   const [draft, setDraft] = useState<Record<string, number | boolean>>(() => settingsToDraft(props.settings));
   useEffect(() => setDraft(settingsToDraft(props.settings)), [props.settings]);
@@ -2630,6 +2635,7 @@ function SettingsView(props: {
             onSwitchLocal={props.onSwitchLocal}
           />
         ) : null}
+        <BackupPanel onImported={props.onImported} />
         <div className="settings-note">
           <h4>How settings apply</h4>
           <p>
@@ -2648,6 +2654,145 @@ function SettingsView(props: {
         </div>
       </div>
     </section>
+  );
+}
+
+function summariseImport(summary: ImportSummary): string {
+  const count = (n: number, single: string, plural: string) =>
+    `${n} ${n === 1 ? single : plural}`;
+  const parts: string[] = [];
+  const songs = summary.tracks_created + summary.tracks_matched;
+  if (songs) {
+    parts.push(`${count(songs, "song", "songs")} (${summary.tracks_created} new)`);
+  }
+  if (summary.track_ratings_applied) {
+    parts.push(count(summary.track_ratings_applied, "current star", "current stars"));
+  }
+  if (summary.rating_samples_added) {
+    parts.push(
+      count(summary.rating_samples_added, "rating history entry", "rating history entries")
+    );
+  }
+  if (summary.cover_comparisons_added) {
+    parts.push(count(summary.cover_comparisons_added, "cover verdict", "cover verdicts"));
+  }
+  if (summary.settings_applied) {
+    parts.push(count(summary.settings_applied, "setting", "settings"));
+  }
+  if (summary.tracks_skipped) {
+    parts.push(
+      count(summary.tracks_skipped, "unreadable entry skipped", "unreadable entries skipped")
+    );
+  }
+  if (!parts.length) {
+    return "Nothing in that file applied to this library.";
+  }
+  return "Imported: " + parts.join(", ") + ".";
+}
+
+function BackupPanel(props: { onImported: () => Promise<void> | void }) {
+  const [busyScope, setBusyScope] = useState<ExportScope | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function exportScope(scope: ExportScope) {
+    setBusyScope(scope);
+    setNote(null);
+    try {
+      const payload = await api.exportLibraryScoped(scope);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `harmonica-${scope}-${stamp}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setNote(message(err, "The export could not be prepared."));
+    } finally {
+      setBusyScope(null);
+    }
+  }
+
+  async function onFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setNote(null);
+    try {
+      // The backend enforces the same cap; checking here saves uploading a doomed file.
+      if (file.size > 64 * 1024 * 1024) {
+        throw new Error("That file is larger than any Harmonica export.");
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await file.text());
+      } catch {
+        throw new Error("That file is not a Harmonica export. It is not valid JSON.");
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("That file is not a Harmonica export.");
+      }
+      const summary = await api.importLibraryFile(parsed as Record<string, unknown>);
+      setNote(summariseImport(summary));
+      await props.onImported();
+    } catch (err) {
+      setNote(message(err, "The import failed."));
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  const scopes: { scope: ExportScope; label: string }[] = [
+    { scope: "metadata", label: "Metadata" },
+    { scope: "ratings", label: "Ratings" },
+    { scope: "settings", label: "Settings" },
+    { scope: "all", label: "Everything" }
+  ];
+
+  return (
+    <div className="backup-card">
+      <h5>Export and import</h5>
+      <p>
+        Download your data as a file: the metadata (songs and groups), your ratings (stars and
+        their history), your settings, or everything at once.
+      </p>
+      <div className="backup-buttons">
+        {scopes.map(({ scope, label }) => (
+          <button
+            key={scope}
+            type="button"
+            disabled={busyScope !== null}
+            onClick={() => void exportScope(scope)}
+          >
+            <Download size={13} /> {busyScope === scope ? "Preparing" : label}
+          </button>
+        ))}
+      </div>
+      <p>
+        Importing a file adds what it holds and never deletes. A file can only add songs,
+        ratings clamped to the star scale, and settings within each control's own range.
+      </p>
+      <label className={importing ? "backup-import busy" : "backup-import"}>
+        <Upload size={13} /> {importing ? "Importing" : "Import an export file"}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          disabled={importing}
+          onChange={(event) => void onFile(event.target.files)}
+        />
+      </label>
+      {note ? (
+        <p className="backup-note" role="status" aria-live="polite">
+          {note}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

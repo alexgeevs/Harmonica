@@ -5,6 +5,8 @@ import type {
   CoverVerdict,
   DeviceConfigDetail,
   DeviceConfigSummary,
+  ExportScope,
+  ImportSummary,
   LibraryExport,
   PlaybackEvent,
   PlaybackEventCreate,
@@ -184,8 +186,17 @@ export const api = {
       body: JSON.stringify({ ...fields, rating_session_id: ratingSessionId })
     }),
   exportLibrary: () => request<LibraryExport>("/library/export-json"),
+  // Scoped file export: metadata (songs and groups), ratings (stars and history),
+  // settings (the adjustable controls), or all. The caller saves the JSON as a file.
+  exportLibraryScoped: (scope: ExportScope) =>
+    request<Record<string, unknown>>(`/library/export-json?scope=${scope}`),
   importLibrary: (payload: LibraryExport) =>
     request<{ ok: boolean }>("/library/import-json", {
+      method: "POST",
+      body: JSON.stringify({ payload })
+    }),
+  importLibraryFile: (payload: Record<string, unknown>) =>
+    request<ImportSummary>("/library/import-json", {
       method: "POST",
       body: JSON.stringify({ payload })
     }),

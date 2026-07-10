@@ -646,6 +646,7 @@ p {
 .setting-control,
 .settings-note,
 .complex-toggle,
+.backup-card,
 .factor-card {
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -2643,6 +2644,61 @@ input:focus {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.backup-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.backup-card h5 {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.backup-card p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.backup-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.backup-buttons button,
+.backup-import {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.backup-buttons button:hover,
+.backup-import:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.backup-buttons button:disabled,
+.backup-import.busy {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.backup-note {
+  color: var(--accent);
 }
 
 .factor-card {

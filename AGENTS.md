@@ -41,6 +41,9 @@ file is never stored twice.
 
 - Library round-trip: `GET /library/export-json` → edit → the user reviews the proposal in the
   app's Curate view and applies each change. Nothing in the library changes until they apply.
+- Scoped backups: `GET /library/export-json?scope=metadata|ratings|settings|all` narrows the
+  payload; `POST /library/import-json` takes any of them back. Imports are additive and strictly
+  sanitised (values clamped to their normal ranges), and they never carry or set credentials.
 - Settings: `GET /settings` returns real controls with explanations. `PATCH /settings` writes
   values. You can compose a preset for the user from what you know about them.
 - Until most songs are rated the algorithm runs sub-optimally. Advise the Discovery preset first.

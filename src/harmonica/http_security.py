@@ -47,6 +47,12 @@ _PUBLIC_GET_PREFIXES = ("/media/",)
 # Onboarding/auth POSTs that must work before a token exists (they are how you get one).
 _AUTH_EXEMPT_POSTS = {"/configs", "/configs/claim"}
 
+# One write body may be large (a full library export posted to /library/import-json), but never
+# unbounded: a request declaring more than this is refused before FastAPI buffers it in memory.
+# The app's own clients always send a Content-Length; a chunked body without one is not our
+# traffic, and in exposed mode it is token-gated anyway.
+_MAX_BODY_BYTES = 64 * 1024 * 1024
+
 _CSP = (
     "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; "
     "script-src 'self' https://www.youtube.com https://s.ytimg.com; "
@@ -131,6 +137,11 @@ class SecurityMiddleware:
         if _needs_csrf(request) and not _csrf_ok(request, allowed):
             await self._reject(scope, receive, send, 403, "Cross-site request refused")
             return
+        if request.method in _UNSAFE_METHODS and _is_api_path(request.url.path):
+            length = request.headers.get("content-length", "")
+            if length.isdigit() and int(length) > _MAX_BODY_BYTES:
+                await self._reject(scope, receive, send, 413, "Request body too large")
+                return
         if (
             getattr(state, "auth_required", False)
             and _requires_token(request)
