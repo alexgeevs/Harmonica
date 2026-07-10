@@ -9,7 +9,9 @@ in their own browser storage, behind a working cookie-style prompt that asks how
 
 ## Layout
 
-- `index.html`, `app.js` — the whole page. Plain JS, no framework, no build step.
+- `index.html`, `app.js` — the page. Plain JS, no framework, no build step.
+- `worker.js` — the Python side. Pyodide boots in a web worker, on its own thread, so loading
+  the runtime and generating a queue never freeze the page.
 - `py/driver.py` — stubs `sqlalchemy` and the `harmonica.config`/`harmonica.models` imports so
   the real algorithm files load unchanged, rebuilds the inputs `playlist.py` would read from the
   database, and returns the generated queue as JSON.

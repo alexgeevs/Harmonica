@@ -1,14 +1,13 @@
 "use strict";
 
-/* Harmonica demo. Plain JS on purpose: no framework, no build step, three static files.
-   The queue itself comes from the repo's real algorithm files, run through Pyodide. */
+/* Harmonica demo. Plain JS on purpose: no framework, no build step, a handful of static
+   files. The queue itself comes from the repo's real algorithm files, run through Pyodide
+   in a web worker (worker.js) so booting Python never freezes the page. */
 
 const META_KEY = "harmonica.demo.meta";
 const DATA_KEY = "harmonica.demo.data";
 const QUEUE_LEN = 12;
-const MAX_LINKS = 100;
-const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js";
-const PY_FILES = ["algorithm.py", "history.py", "ratings.py"];
+const READ_CONCURRENCY = 8;
 
 const $ = (id) => document.getElementById(id);
 
@@ -146,6 +145,24 @@ async function fetchMeta(videoId) {
   return { title: json.title || videoId, uploader: json.author_name || "Unknown uploader" };
 }
 
+async function fetchMetas(ids, status) {
+  const metas = new Array(ids.length).fill(null);
+  let next = 0;
+  let done = 0;
+  const lane = async () => {
+    while (next < ids.length) {
+      const i = next;
+      next += 1;
+      metas[i] = await fetchMeta(ids[i]).catch(() => null);
+      done += 1;
+      status.textContent = "Reading link " + done + " of " + ids.length +
+        " through YouTube's oEmbed service";
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, ids.length) }, lane));
+  return metas;
+}
+
 async function readAndOrganise() {
   const status = $("read-status");
   const all = extractIds($("links").value);
@@ -158,12 +175,16 @@ async function readAndOrganise() {
       : "No YouTube links found. Paste full video links, one per line.";
     return;
   }
-  const truncated = ids.length > MAX_LINKS;
-  ids = ids.slice(0, MAX_LINKS);
+  const room = MAX_LIBRARY - data.tracks.length;
+  if (room <= 0) {
+    status.textContent = "The demo library holds " + MAX_LIBRARY +
+      " songs at most. Remove some before adding more.";
+    return;
+  }
+  const truncated = ids.length > room;
+  ids = ids.slice(0, room);
   $("read-btn").disabled = true;
-  status.textContent = "Reading " + ids.length + " link" + (ids.length === 1 ? "" : "s") +
-    " through YouTube's oEmbed service";
-  const metas = await Promise.all(ids.map((id) => fetchMeta(id).catch(() => null)));
+  const metas = await fetchMetas(ids, status);
   pending = ids.map((videoId, i) => {
     const meta = metas[i];
     if (!meta) {
@@ -181,12 +202,13 @@ async function readAndOrganise() {
     bits.push(known + " already in your library");
   }
   if (truncated) {
-    bits.push("only the first " + MAX_LINKS + " links were read, import these then paste the rest");
+    bits.push("the demo holds " + MAX_LIBRARY + " songs at most, so only the first " +
+      ids.length + " links were read");
   }
   status.textContent = bits.join(" · ");
   renderOrganised();
   if (okCount) {
-    ensurePython().catch(() => {});
+    ensureWorker();
   }
 }
 
@@ -244,6 +266,9 @@ async function createLibrary() {
     await showStoragePrompt();
   }
   for (const row of pending) {
+    if (data.tracks.length >= MAX_LIBRARY) {
+      break;
+    }
     if (!row.ok || data.tracks.some((t) => t.videoId === row.videoId)) {
       continue;
     }
@@ -418,9 +443,16 @@ async function importFromFile(file) {
   }
 }
 
-/* ------------------------------------------------------------------ python */
+/* ------------------------------------------------------------------ python
+   Pyodide lives in worker.js, on its own thread. Booting Python takes seconds and the page
+   has only one thread of its own, so running it here froze scrolling; instead the page posts
+   a message and stays responsive while the worker does the heavy lifting. */
 
-let pyPromise = null;
+let worker = null;
+let workerReady = false;
+let workerStatusEl = null;
+let nextCallId = 1;
+const workerCalls = new Map();
 
 function injectScript(src) {
   return new Promise((resolve, reject) => {
@@ -432,28 +464,50 @@ function injectScript(src) {
   });
 }
 
-function ensurePython() {
-  if (!pyPromise) {
-    pyPromise = (async () => {
-      await injectScript(PYODIDE_URL);
-      const py = await loadPyodide();
-      py.FS.mkdirTree("/harmonica_src");
-      for (const name of PY_FILES) {
-        const res = await fetch("py/" + name);
-        if (!res.ok) {
-          throw new Error("missing py/" + name);
+function ensureWorker() {
+  if (!worker) {
+    worker = new Worker("worker.js");
+    worker.onmessage = (event) => {
+      const msg = event.data || {};
+      if (msg.ready) {
+        workerReady = true;
+        if (workerStatusEl && workerCalls.size) {
+          workerStatusEl.textContent = "Generating a queue with the real algorithm";
         }
-        py.FS.writeFile("/harmonica_src/" + name, await res.text());
+        return;
       }
-      const driver = await (await fetch("py/driver.py")).text();
-      py.runPython(driver);
-      return py.globals.get("generate_queue");
-    })();
-    pyPromise.catch(() => {
-      pyPromise = null;
-    });
+      const call = workerCalls.get(msg.id);
+      if (!call) {
+        return;
+      }
+      workerCalls.delete(msg.id);
+      if (msg.ok) {
+        workerReady = true;
+        call.resolve(msg.queue);
+      } else {
+        call.reject(new Error(msg.error));
+      }
+    };
+    worker.onerror = () => {
+      const waiting = [...workerCalls.values()];
+      workerCalls.clear();
+      worker.terminate();
+      worker = null;
+      workerReady = false;
+      waiting.forEach((call) => call.reject(new Error("the queue worker could not run")));
+    };
+    worker.postMessage({ warm: true });
   }
-  return pyPromise;
+  return worker;
+}
+
+function generateInWorker(payloadJson) {
+  return new Promise((resolve, reject) => {
+    const id = nextCallId;
+    nextCallId += 1;
+    workerCalls.set(id, { resolve, reject });
+    ensureWorker().postMessage({ id, payload: payloadJson });
+  });
 }
 
 async function regenerateQueue(statusEl) {
@@ -464,12 +518,11 @@ async function regenerateQueue(statusEl) {
     return;
   }
   const el = statusEl || $("player-status");
+  workerStatusEl = el;
   try {
-    if (!pyPromise) {
-      el.textContent = "Loading the Python runtime, about 10 MB on the first visit, cached after that";
-    }
-    const generate = await ensurePython();
-    el.textContent = "Generating a queue with the real algorithm";
+    el.textContent = workerReady
+      ? "Generating a queue with the real algorithm"
+      : "Loading the Python runtime, about 10 MB on the first visit, cached after that";
     const payload = {
       tracks: data.tracks.map((t) => ({
         id: t.id, videoId: t.videoId, title: t.title, artist: t.artist,
@@ -480,13 +533,14 @@ async function regenerateQueue(statusEl) {
       length: QUEUE_LEN,
       seed: Math.floor(Math.random() * 2147483647),
     };
-    data.queue = JSON.parse(generate(JSON.stringify(payload)));
+    data.queue = JSON.parse(await generateInWorker(JSON.stringify(payload)));
     data.queueIndex = 0;
     el.textContent = "";
   } catch (err) {
     el.textContent = "The Python runtime could not be loaded. Check your connection and try again.";
     console.error(err);
   }
+  workerStatusEl = null;
   persist();
 }
 
