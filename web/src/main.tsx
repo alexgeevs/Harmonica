@@ -1,7 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { applyTheme, loadTheme } from "./theme";
 import "./styles.css";
+
+// Apply the remembered appearance before the first paint so there is no colour flash.
+applyTheme(loadTheme());
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

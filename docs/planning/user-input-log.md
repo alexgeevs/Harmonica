@@ -1152,3 +1152,28 @@ Three installers in `install/` (Windows local, Linux/macOS local, NAS), each of 
 tagged source into the home folder and hands over to the start scripts, with the NAS one binding
 `HARMONICA_HOST=0.0.0.0` and printing the LAN address. The README's "Running it" now leads with the
 releases page. Tag `v1.0.0` marks the release, with the installers attached as release assets.
+
+## 2026-07-10 (later): Polish round — WHO link, YouTube discoverability, settings guard, themes
+
+While testing the fresh-machine flow, the owner sent a polish list. Link the WHO from the
+listening-health insight. Drop "and takes no position on it" from the YouTube settings copy.
+Make switching YouTube on actually surface where the links are pasted, since the feature was so
+hidden you could not tell what the setting did or that the feature existed. Ask before leaving
+Settings with unapplied changes, whichever way you leave. Give the bottom bar a slightly
+different colour from the sidebar, growing into a sketch of theme customisation: three colour
+slots (main, sidebar, player bar) from a limited range plus a dark mode. Limited deliberately,
+in the owner's words, because with unlimited colours "you make the background black, you can't
+read black text on it, and we don't have anything that would fix that". The owner also asked
+for every UI line that does not appear by default to be collected for manual text review.
+
+### Outcome
+
+An Appearance section in Settings: swatch pickers for background (5 light options), sidebar and
+player bar (6 dark options each), plus a dark mode switch. Device-side (localStorage), applied
+instantly as CSS variables, with the player bar now defaulting to a deeper "Ink green" than the
+sidebar. Dark mode flips the surface variables and overrides the audited set of hardcoded light
+tints, so every combination keeps text readable. Leaving Settings with unapplied changes now
+raises an apply / discard / keep-editing prompt (with the browser's own warning on tab close).
+Turning the YouTube switch on reveals a pointer with a button to the Curate page. All verified
+in a scripted headless-browser pass. The not-visible-by-default strings now live in
+`docs/planning/copy-app-hidden.md` for the owner's review.

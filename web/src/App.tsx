@@ -28,8 +28,16 @@ import {
   VolumeX,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { api, configsSupported, savedQueuesSupported } from "./api";
+import {
+  applyTheme,
+  BAR_OPTIONS,
+  loadTheme,
+  saveTheme,
+  SURFACE_OPTIONS,
+  type ThemeSelection
+} from "./theme";
 import { displayArtist, formatTime, pct, whyMath, whyReasons } from "./format";
 import CurateView from "./CurateView";
 import { matchPreset, PRESETS, type Preset } from "./presets";
@@ -72,6 +80,14 @@ function loadStoredConfig(): DeviceConfigDetail | null {
 
 type View = "queue" | "library" | "curate" | "stats" | "settings";
 
+// Registered by SettingsView so the app shell can ask about unapplied changes before
+// navigating away from Settings.
+type SettingsGuard = {
+  dirty: boolean;
+  apply: () => Promise<void>;
+  discard: () => void;
+};
+
 const VIEW_TITLES: Record<View, string> = {
   queue: "Listen",
   library: "Library",
@@ -88,6 +104,10 @@ export default function App() {
     (item) => embedStateRef.current.enabled && Boolean(youtubeEmbedFor(item.track))
   );
   const [view, setView] = useState<View>("queue");
+  // Leaving Settings with unapplied changes goes through a confirmation instead of silently
+  // dropping the draft; SettingsView registers its state here while mounted.
+  const settingsGuardRef = useRef<SettingsGuard | null>(null);
+  const [pendingView, setPendingView] = useState<View | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [ratingFactors, setRatingFactors] = useState<RatingFactor[]>([]);
   const [stats, setStats] = useState<StatsSummary | null>(null);
@@ -374,9 +394,17 @@ export default function App() {
     }
   }
 
+  function navigateTo(next: View) {
+    if (view === "settings" && next !== "settings" && settingsGuardRef.current?.dirty) {
+      setPendingView(next);
+      return;
+    }
+    setView(next);
+  }
+
   return (
     <div className="app-shell">
-      <Sidebar view={view} onView={setView} trackCount={tracks.length} />
+      <Sidebar view={view} onView={navigateTo} trackCount={tracks.length} />
 
       <main className="workspace">
         <header className="topbar">
@@ -475,6 +503,8 @@ export default function App() {
               ratingFactors={ratingFactors}
               busy={busy}
               onSave={saveSettings}
+              guardRef={settingsGuardRef}
+              onOpenCurate={() => navigateTo("curate")}
               configsEnabled={configsOk}
               activeConfig={activeConfig}
               allTracks={tracks}
@@ -498,6 +528,50 @@ export default function App() {
           }}
         />
       ) : null}
+
+      {pendingView ? (
+        <SettingsLeaveModal
+          busy={busy}
+          onApply={async () => {
+            await settingsGuardRef.current?.apply();
+            setView(pendingView);
+            setPendingView(null);
+          }}
+          onDiscard={() => {
+            settingsGuardRef.current?.discard();
+            setView(pendingView);
+            setPendingView(null);
+          }}
+          onStay={() => setPendingView(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function SettingsLeaveModal(props: {
+  busy: boolean;
+  onApply: () => void;
+  onDiscard: () => void;
+  onStay: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="confirm-modal">
+        <h3>Apply your changes?</h3>
+        <p>You have changed settings but not applied them yet.</p>
+        <div className="confirm-actions">
+          <button className="primary" disabled={props.busy} onClick={props.onApply}>
+            Apply and continue
+          </button>
+          <button className="primary ghost-primary" onClick={props.onDiscard}>
+            Discard changes
+          </button>
+          <button className="link-button" onClick={props.onStay}>
+            Keep editing
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1904,9 +1978,12 @@ function StatsView(props: { stats: StatsSummary; tracks: Track[]; events: Playba
               <CoverageBar label="Peak loudness" value={Math.round(health.peak * 100)} total={100} tone={health.peak > 0.92 ? "suppress" : "neutral"} />
               <CoverageBar label="Weekly exposure" value={Math.min(health.dosePct, 100)} total={100} tone={health.dosePct > 100 ? "suppress" : "boost"} />
               <p className="stat-note">
-                Relative estimates, not calibrated dB — browsers can't read true sound pressure. WHO suggests
-                ~80&nbsp;dB for 40&nbsp;h/week as a safe ceiling; each +3&nbsp;dB halves the safe time. Treat
-                these as a nudge, not a measurement.
+                Relative estimates, not calibrated dB — browsers can't read true sound pressure. The{" "}
+                <a href="https://www.who.int/activities/making-listening-safe" target="_blank" rel="noreferrer">
+                  WHO
+                </a>{" "}
+                suggests ~80&nbsp;dB for 40&nbsp;h/week as a safe ceiling; each +3&nbsp;dB halves the safe
+                time. Treat these as a nudge, not a measurement.
               </p>
             </>
           )}
@@ -2088,7 +2165,7 @@ const SETTING_SECTIONS: {
             not remove either, take the audio out, hide the video, or strip anything, as YouTube's
             terms require. Whether you block that tracking is your own choice in your own browser,
             for example with a content blocker such as uBlock Origin. Harmonica does not do it for
-            you and takes no position on it.
+            you.
           </li>
           <li>
             <b>Loudness is levelled by YouTube.</b> YouTube evens out loudness across videos, a
@@ -2100,9 +2177,10 @@ const SETTING_SECTIONS: {
           </li>
         </ul>
         <p className="setup-how">
-          To use it, open a song in the library editor and paste its YouTube link. The optional Data
-          API key, for metadata lookups only, is set on the server and never in the browser, and is
-          not needed just to play a linked video.
+          To use it, paste a list of YouTube links on the Curate page to bring in many songs at
+          once, or open one song in the library editor and paste its link. The optional Data API
+          key, for metadata lookups only, is set on the server and never in the browser, and is not
+          needed just to play a linked video.
         </p>
       </div>
     )
@@ -2121,11 +2199,106 @@ const SETTING_SECTIONS: {
   }
 ];
 
+// Appearance is a device-side preference (localStorage + CSS variables), not a server
+// setting: it applies immediately and is not part of the Apply-changes draft.
+function AppearanceSection() {
+  const [theme, setTheme] = useState<ThemeSelection>(loadTheme);
+
+  function update(patch: Partial<ThemeSelection>) {
+    setTheme((current) => {
+      const next = { ...current, ...patch };
+      applyTheme(next);
+      saveTheme(next);
+      return next;
+    });
+  }
+
+  return (
+    <div className="settings-section">
+      <div className="section-head">
+        <h4>Appearance</h4>
+        <p>
+          Colours for this device. They apply immediately, with no need to press Apply changes.
+          The choices are limited on purpose, so text stays readable on every combination.
+          <em className="cosmetic-tag">cosmetic</em>
+        </p>
+      </div>
+      <div className="appearance-rows">
+        <SwatchRow
+          label="Background"
+          options={SURFACE_OPTIONS.map((option) => ({ key: option.key, name: option.name, colour: option.bg }))}
+          value={theme.surface}
+          disabled={theme.dark}
+          onPick={(key) => update({ surface: key })}
+        />
+        {theme.dark ? <p className="swatch-hint">Dark mode sets its own background.</p> : null}
+        <SwatchRow
+          label="Sidebar"
+          options={BAR_OPTIONS.map((option) => ({ key: option.key, name: option.name, colour: option.base }))}
+          value={theme.sidebar}
+          onPick={(key) => update({ sidebar: key })}
+        />
+        <SwatchRow
+          label="Player bar"
+          options={BAR_OPTIONS.map((option) => ({ key: option.key, name: option.name, colour: option.base }))}
+          value={theme.playerbar}
+          onPick={(key) => update({ playerbar: key })}
+        />
+        <div className="swatch-row">
+          <span className="swatch-label">Dark mode</span>
+          <button
+            className={theme.dark ? "switch-control on" : "switch-control"}
+            onClick={() => update({ dark: !theme.dark })}
+            role="switch"
+            aria-checked={theme.dark}
+            type="button"
+          >
+            <span className="switch-label">{theme.dark ? "On" : "Off"}</span>
+            <span className="switch-track">
+              <span className="switch-knob" />
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SwatchRow(props: {
+  label: string;
+  options: { key: string; name: string; colour: string }[];
+  value: string;
+  disabled?: boolean;
+  onPick: (key: string) => void;
+}) {
+  const active = props.options.find((option) => option.key === props.value);
+  return (
+    <div className={props.disabled ? "swatch-row disabled" : "swatch-row"}>
+      <span className="swatch-label">{props.label}</span>
+      {props.options.map((option) => (
+        <button
+          key={option.key}
+          className={option.key === props.value ? "swatch active" : "swatch"}
+          style={{ background: option.colour }}
+          title={option.name}
+          aria-label={`${props.label}: ${option.name}`}
+          aria-pressed={option.key === props.value}
+          onClick={() => props.onPick(option.key)}
+          type="button"
+        />
+      ))}
+      <span className="swatch-name">{active?.name}</span>
+    </div>
+  );
+}
+
 function SettingsView(props: {
   settings: AppSettings;
   ratingFactors: RatingFactor[];
   busy: boolean;
-  onSave: (values: Record<string, number | boolean>) => void;
+  onSave: (values: Record<string, number | boolean>) => Promise<void>;
+  guardRef: MutableRefObject<SettingsGuard | null>;
+  onOpenCurate: () => void;
   configsEnabled: boolean;
   activeConfig: DeviceConfigDetail | null;
   allTracks: Track[];
@@ -2141,6 +2314,31 @@ function SettingsView(props: {
     [draft, props.settings]
   );
   const activePreset = useMemo(() => matchPreset(draft), [draft]);
+
+  // Register the draft state with the app shell so leaving Settings can ask about it.
+  useEffect(() => {
+    props.guardRef.current = {
+      dirty,
+      apply: () => props.onSave(draft),
+      discard: () => setDraft(settingsToDraft(props.settings))
+    };
+    return () => {
+      props.guardRef.current = null;
+    };
+  });
+
+  // Closing or reloading the tab with unapplied changes gets the browser's own confirmation.
+  useEffect(() => {
+    if (!dirty) {
+      return;
+    }
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const controlsByKey = useMemo(
     () => new Map(props.settings.controls.map((control) => [control.key as string, control])),
@@ -2209,8 +2407,23 @@ function SettingsView(props: {
             </div>
             <div className="settings-controls">{renderControls(section.keys)}</div>
             {section.extra}
+            {section.title === "YouTube playback" && draft.youtube_embed_enabled ? (
+              <div className="setup-guidance">
+                <h5>YouTube playback is on</h5>
+                <p>
+                  Paste a list of YouTube links on the{" "}
+                  <button className="link-button" onClick={props.onOpenCurate}>
+                    Curate page
+                  </button>{" "}
+                  and each link becomes a song, or open one song in the library editor and paste
+                  its link there.{dirty ? " Apply your changes first." : ""}
+                </p>
+              </div>
+            ) : null}
           </div>
         ))}
+
+        <AppearanceSection />
 
         {extraKeys.length ? (
           <div className="settings-section">
