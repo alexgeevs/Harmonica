@@ -210,6 +210,7 @@ class SettingsRead(BaseModel):
     favourite_pacing_strength: float
     youtube_embed_enabled: bool
     spotify_enabled: bool
+    profile_song_picker_enabled: bool
     why_show_math: bool
     cover_two_level_enabled: bool
     cover_count_log_base: float

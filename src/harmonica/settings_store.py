@@ -245,7 +245,7 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         label="Loudness warning sensitivity",
         description=(
             "How loud (relative, 0–1) sustained playback may get before Harmonica nudges you. "
-            "Lower is more cautious — the default errs toward warning early."
+            "Lower is more cautious. The default errs toward warning early."
         ),
         value_type="number",
         control="slider",
@@ -438,7 +438,7 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         key="why_show_math",
         label="Show the maths in “why this song”",
         description=(
-            "Add the full calculation — every multiplier and the final score — beneath the plain "
+            "Add the full calculation, every multiplier and the final score, beneath the plain "
             "explanation. The plain reasons are always shown; this just reveals the numbers."
         ),
         value_type="boolean",
@@ -492,6 +492,18 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
             "For songs that have a YouTube link, play them through YouTube's own embedded player "
             "rather than a local file. Off by default. Turning it on loads YouTube's player, which "
             "sets its own cookies, so you are asked to accept that first."
+        ),
+        value_type="boolean",
+        control="switch",
+        default=False,
+    ),
+    SettingDefinition(
+        key="profile_song_picker_enabled",
+        label="Let new profiles pick songs",
+        description=(
+            "When on, the create-profile form offers a picker that lists every song in the "
+            "library. Off hides that list, so creating a profile on a shared or networked "
+            "install does not reveal which songs exist. New profiles then include all songs."
         ),
         value_type="boolean",
         control="switch",
