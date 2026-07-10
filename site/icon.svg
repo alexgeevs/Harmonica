@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Harmonica">
-  <rect width="512" height="512" fill="#20302f"/>
+  <rect width="512" height="512" rx="56" fill="#20302f"/>
   <g>
     <rect x="40"  y="294" width="62" height="138" rx="22" fill="#2c8473"/>
     <rect x="133" y="196" width="62" height="236" rx="22" fill="#206a5d"/>
