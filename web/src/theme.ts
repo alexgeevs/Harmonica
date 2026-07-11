@@ -56,7 +56,7 @@ export const SURFACE_OPTIONS: SurfaceOption[] = [
 ];
 
 export const BAR_OPTIONS: BarOption[] = [
-  { key: "deep-green", name: "Deep green", base: "#1a382f", raised: "#21433a" },
+  { key: "deep-green", name: "Deep green", base: "#1b362e", raised: "#234139" },
   { key: "ink-green", name: "Ink green", base: "#1a2827", raised: "#223432" },
   { key: "charcoal", name: "Charcoal", base: "#24282a", raised: "#2e3437" },
   { key: "midnight", name: "Midnight", base: "#1e2836", raised: "#273548" },
