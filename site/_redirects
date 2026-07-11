@@ -1,0 +1,2 @@
+/demo https://demo.harmonica.org.uk/ 301
+/demo/* https://demo.harmonica.org.uk/:splat 301
