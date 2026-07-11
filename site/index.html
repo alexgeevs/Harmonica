@@ -65,13 +65,10 @@
     color:var(--teal);text-transform:uppercase}
   .rel{flex:none;margin-left:auto;font-size:.85rem;font-weight:700;color:var(--teal)}
 
-  .note,.legal{max-width:44rem}
-  .note{border-left:3px solid var(--teal);padding-left:1.1rem}
+  .tagline{font-size:1.12rem;font-weight:600;color:var(--teal);margin-bottom:.5rem}
+  .note{max-width:44rem;background:var(--card);border:1px solid var(--line);
+    border-radius:.4rem;padding:1rem 1.2rem}
   .note p+p{margin-top:.7rem}
-  #legal h2{font-size:1.02rem;color:var(--muted)}
-  .legal{font-size:.8rem;color:#7f918a}
-  .legal ul{margin:.4rem 0 0 1.2rem}
-  .legal li{margin-bottom:.3rem}
 
   footer{background:var(--dark);color:#b9ccc4;margin-top:3rem;padding:2rem 0;font-size:.92rem}
   footer a{color:#e8f0ec}
@@ -93,7 +90,7 @@
 
 <main>
   <div class="wrap hero">
-    <h1>A music player built around diminishing <em>diminishing returns</em>.</h1>
+    <h1>A music player that maximises your long-run utility.</h1>
     <p>Harmonica is a self-hosted home for your own library. Rather than shuffling, it keeps
        track of what you have listened to lately, by factors such as song, artist and topic, and
        queues what is worth hearing next.</p>
@@ -116,8 +113,9 @@
          tonight can come at the cost of long-term utility. Harmonica does not maximise watch
          time. It is built for the long term instead. Your listening history exists only on your
          own device, where the algorithm uses it to rest whatever you have been over-playing.</p>
-      <p>For the curious: the full mechanics, with the maths, are on
-         <a href="algorithm.html">the algorithm page</a>.</p>
+      <p>In short, the whole player is built around diminishing <em>diminishing returns</em>.
+         If you are intrigued, the algorithm and the maths behind it,
+         can be found <a href="algorithm.html">here</a>.</p>
     </section>
   </div>
 
@@ -138,6 +136,7 @@
   <div class="wrap" id="download">
     <section>
       <h2>Download</h2>
+      <p class="tagline">Rediscover what you own.</p>
       <p>Harmonica runs as one small daemon that serves both the player and its API. It is
          available from the <a href="https://github.com/alexgeevs/Harmonica/releases">releases page</a>:</p>
       <ul class="platforms">
@@ -159,24 +158,18 @@
     </section>
   </div>
 
-  <div class="wrap" id="legal">
-    <section>
-      <h2>The small print</h2>
-      <div class="legal">
-        <ul>
-          <li>Harmonica is provided <strong>as is</strong>, with no warranty of any kind, to the fullest extent permitted by law.</li>
-          <li>It is <strong>Open-Source</strong> under the <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a> licence: free to use, study, modify, and share. Forks and hosted derivatives must remain open-source.</li>
-          <li>Harmonica does not host, provide, or source any music. It plays your own self-hosted library: your files, your device.</li>
-        </ul>
-      </div>
-    </section>
-  </div>
 </main>
 
 <footer id="contact">
   <div class="wrap">
     <p class="contact-line">Contact: <a href="mailto:contact@harmonica.org.uk">contact@harmonica.org.uk</a></p>
     <p><a href="https://github.com/alexgeevs/Harmonica">Source code on GitHub</a> · <a href="/llms.txt">llms.txt</a></p>
+    <p class="fine">Harmonica is provided as is, with no warranty of any kind, to the fullest
+      extent permitted by law. It is open-source under the
+      <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a> licence: free to use,
+      study, modify, and share. Forks and hosted derivatives must remain open-source.</p>
+    <p class="fine">Harmonica does not host, provide, or source any music. It plays your own
+      self-hosted library: your files, your device.</p>
     <p class="fine">© 2026 harmonica.org.uk. This site does not track, shows no adverts, and sets no cookies of its own.</p>
   </div>
 </footer>

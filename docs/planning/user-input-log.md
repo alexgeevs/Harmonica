@@ -1420,3 +1420,15 @@ maths. A new algorithm page now derives every multiplier in the scoring chain fr
 code, cooldown recovery, partial-listen credits, skip penalties, rating curves, cold start,
 satiation, rediscovery and clustering, in plain HTML with no new dependencies, linked from the
 navigation and llms.txt.
+
+## 2026-07-11: A four-model panel writes the headline
+
+The wordplay headline was demoted to close the Why section as its punchline, and the replacement
+went to a panel: four models (Fable, Opus, Sonnet and Haiku), each given only the page text and
+the owner's register, wrote independent candidates. The owner steered the second round toward
+the utility-maximisation contrast with the engagement-driven incumbents, and two models then
+converged on the same sentence independently. The owner chose the understated variant and
+extended it for balance, landing on "A music player that maximises your long-run utility". A
+small-model line the owner liked, "Rediscover what you own", now opens the Download section.
+The same review moved the small print into the footer and replaced the setup aside's indent
+with a flush card.
