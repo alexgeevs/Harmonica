@@ -48,10 +48,10 @@
   .prose li{margin-bottom:.35rem}
 
   .math{background:var(--card);border:1px solid var(--line);border-radius:.4rem;
-    padding:.8rem 1.1rem;margin:.4rem 0 1rem;max-width:44rem;overflow-x:auto;
+    padding:.9rem 1.1rem;margin:.4rem 0 1rem;max-width:44rem;overflow-x:auto;
     white-space:nowrap;font-size:1.05rem;color:var(--dark)}
-  .math var{font-family:Georgia,"Times New Roman",serif;font-style:italic}
-  .math sub,.math sup{font-size:.72em}
+  math{font-family:"Cambria Math","STIX Two Math","Latin Modern Math","Noto Sans Math",math}
+  .math math{font-size:1.12em}
   .where{font-size:.9rem;color:var(--muted);max-width:65ch;margin:-.4rem 0 1rem}
 
   .defaults{font-size:.9rem;color:var(--muted);max-width:65ch;border-left:3px solid var(--gold);
@@ -89,26 +89,42 @@
       <h2>The base score</h2>
       <p>Every song belongs to one or more <strong>groups</strong>: an artist, a topic, a
          franchise, anything worth resting as a unit. Membership carries a share
-         <var>q</var><sub>s,g</sub>, split equally by default, so a song is not favoured merely
-         for carrying many labels. A group <var>g</var> holding <var>N</var><sub>g</sub> songs
+         <math><msub><mi>q</mi><mrow><mi>s</mi><mo>,</mo><mi>g</mi></mrow></msub></math>, split
+         equally by default, so a song is not favoured merely for carrying many labels. A group
+         <math><mi>g</mi></math> holding <math><msub><mi>N</mi><mi>g</mi></msub></math> songs
          contributes</p>
-      <div class="math"><var>B</var><sub>s,g</sub> = <var>q</var><sub>s,g</sub> &middot;
-        <var>m</var><sub>g</sub> (1 + <var>&beta;</var> ln <var>N</var><sub>g</sub>) /
-        <var>N</var><sub>g</sub> &middot; <var>C</var><sub>g</sub></div>
-      <p class="where">where <var>m</var><sub>g</sub> is the group's rating multiplier,
-        <var>C</var><sub>g</sub> its cooldown, and <var>&beta;</var> a global constant
-        (default 1.25).</p>
-      <p>The division by <var>N</var><sub>g</sub> makes each group compete as a unit rather than
-         by headcount, and the logarithmic term hands a larger group a measured advantage rather
-         than a proportional one. Double a group's size and its total draw grows by a constant
-         increment, not by a factor. A song's base score is the sum over its groups, and its
-         final score is that base under a chain of multipliers, each of which defaults to
-         exactly 1 and moves only on evidence.</p>
-      <div class="math"><var>S</var><sub>s</sub> = <var>B</var><sub>s</sub> &middot;
-        <var>m</var><sub>rating</sub> &middot; <var>m</var><sub>skips</sub> &middot;
-        <var>m</var><sub>cold</sub> &middot; <var>m</var><sub>satiation</sub> &middot;
-        <var>m</var><sub>rediscovery</sub> &middot; <var>C</var><sub>song</sub> &middot;
-        <var>C</var><sub>sub</sub></div>
+      <div class="math"><math displaystyle="true"><mrow>
+        <msub><mi>B</mi><mrow><mi>s</mi><mo>,</mo><mi>g</mi></mrow></msub>
+        <mo>=</mo>
+        <msub><mi>q</mi><mrow><mi>s</mi><mo>,</mo><mi>g</mi></mrow></msub>
+        <mo>&#183;</mo>
+        <mfrac>
+          <mrow><msub><mi>m</mi><mi>g</mi></msub><mspace width="0.1667em"></mspace>
+            <mo>(</mo><mn>1</mn><mo>+</mo><mi>&#946;</mi><mspace width="0.1667em"></mspace><mi>ln</mi><mo>&#8289;</mo><mspace width="0.1667em"></mspace><msub><mi>N</mi><mi>g</mi></msub><mo>)</mo></mrow>
+          <msub><mi>N</mi><mi>g</mi></msub>
+        </mfrac>
+        <mo>&#183;</mo>
+        <msub><mi>C</mi><mi>g</mi></msub>
+      </mrow></math></div>
+      <p class="where">where <math><msub><mi>m</mi><mi>g</mi></msub></math> is the group's rating
+        multiplier, <math><msub><mi>C</mi><mi>g</mi></msub></math> its cooldown, and
+        <math><mi>&#946;</mi></math> a global constant (default 1.25).</p>
+      <p>The division by <math><msub><mi>N</mi><mi>g</mi></msub></math> makes each group compete
+         as a unit rather than by headcount, and the logarithmic term hands a larger group a
+         measured advantage rather than a proportional one. Double a group's size and its total
+         draw grows by a constant increment, not by a factor. A song's base score is the sum over
+         its groups, and its final score is that base under a chain of multipliers, each of which
+         defaults to exactly 1 and moves only on evidence.</p>
+      <div class="math"><math displaystyle="true"><mrow>
+        <msub><mi>S</mi><mi>s</mi></msub><mo>=</mo><msub><mi>B</mi><mi>s</mi></msub>
+        <mo>&#183;</mo><msub><mi>m</mi><mi>rating</mi></msub>
+        <mo>&#183;</mo><msub><mi>m</mi><mi>skips</mi></msub>
+        <mo>&#183;</mo><msub><mi>m</mi><mi>cold</mi></msub>
+        <mo>&#183;</mo><msub><mi>m</mi><mi>satiation</mi></msub>
+        <mo>&#183;</mo><msub><mi>m</mi><mi>rediscovery</mi></msub>
+        <mo>&#183;</mo><msub><mi>C</mi><mi>song</mi></msub>
+        <mo>&#183;</mo><msub><mi>C</mi><mi>sub</mi></msub>
+      </mrow></math></div>
       <p class="where">Two further multipliers sit in the chain at 1 unless you use them: a manual
         per-song weight, and a video-priority boost for when the player is visible on screen.</p>
     </section>
@@ -116,11 +132,16 @@
     <section>
       <h2>Cooldowns</h2>
       <p>A cooldown is a price on recency. After a play it drops to a floor and recovers linearly
-         over a horizon of <var>H</var> subsequent plays.</p>
-      <div class="math"><var>C</var>(<var>d</var>) = floor + (1 &minus; floor) &middot;
-        min(<var>d</var> / <var>H</var>, 1)</div>
-      <p class="where">where <var>d</var> is the number of songs played since the last hearing.
-        A song never played at all sits at 1.</p>
+         over a horizon of <math><mi>H</mi></math> subsequent plays.</p>
+      <div class="math"><math displaystyle="true"><mrow>
+        <mi>C</mi><mo>&#8289;</mo><mo stretchy="false">(</mo><mi>d</mi><mo stretchy="false">)</mo>
+        <mo>=</mo><mi>floor</mi><mo>+</mo>
+        <mo stretchy="false">(</mo><mn>1</mn><mo>&#8722;</mo><mi>floor</mi><mo stretchy="false">)</mo>
+        <mo>&#183;</mo><mi>min</mi><mo>&#8289;</mo>
+        <mrow><mo>(</mo><mspace width="0.08em"></mspace><mfrac><mi>d</mi><mi>H</mi></mfrac><mspace width="0.08em"></mspace><mo>,</mo><mspace width="0.1667em"></mspace><mn>1</mn><mo>)</mo></mrow>
+      </mrow></math></div>
+      <p class="where">where <math><mi>d</mi></math> is the number of songs played since the last
+        hearing. A song never played at all sits at 1.</p>
       <p>It runs at three levels. The <strong>song</strong> itself has a floor of zero and a
          horizon of the whole library, so an immediate repeat is impossible and full recovery
          takes a library's worth of listening. The song's <strong>groups</strong> have a floor of
@@ -129,28 +150,37 @@
          as covers, has a floor of 0.01 and a horizon of up to 30, because two versions of one
          song in close succession is the most conspicuous repetition of all.</p>
       <p>Listening is not binary, so neither are cooldowns. Each play carries a
-         <strong>repeat credit</strong> <var>r</var> between 0 and 1 (defined below), and a
-         partial listen only partially resets the clock, in two ways: the observed distance is
-         stretched to <var>d</var> / <var>r</var>, and the cooldown is blended toward neutral as
-         <var>C</var>&prime; = 1 &minus; <var>r</var> (1 &minus; <var>C</var>). A song you
-         abandoned in the first seconds barely counts as played at all.</p>
+         <strong>repeat credit</strong> <math><mi>r</mi></math> between 0 and 1 (defined below),
+         and a partial listen only partially resets the clock, in two ways: the observed distance
+         is stretched to <math><mi>d</mi><mo>/</mo><mi>r</mi></math>, and the cooldown is blended
+         toward neutral as
+         <math><msup><mi>C</mi><mo>&#8242;</mo></msup><mo>=</mo><mn>1</mn><mo>&#8722;</mo><mi>r</mi><mspace width="0.1667em"></mspace><mo stretchy="false">(</mo><mn>1</mn><mo>&#8722;</mo><mi>C</mi><mo stretchy="false">)</mo></math>.
+         A song you abandoned in the first seconds barely counts as played at all.</p>
     </section>
 
     <section>
       <h2>What one listen teaches it</h2>
-      <p>Every play ends at some fraction <var>f</var> of the song's duration, and that position
-         is read as two smooth signals rather than a verdict.</p>
-      <div class="math"><var>r</var> = clamp((<var>f</var> &minus; 0.10) / 0.80, 0, 1)
-        &emsp;&emsp; <var>p</var> = clamp((0.50 &minus; <var>f</var>) / 0.40, 0, 1)</div>
-      <p class="where"><var>r</var> is the repeat credit above, <var>p</var> the skip penalty. A
-        completion is <var>r</var> = 1, <var>p</var> = 0.</p>
+      <p>Every play ends at some fraction <math><mi>f</mi></math> of the song's duration, and that
+         position is read as two smooth signals rather than a verdict.</p>
+      <div class="math"><math displaystyle="true"><mrow>
+        <mi>r</mi><mo>=</mo><mi>clamp</mi><mo>&#8289;</mo>
+        <mrow><mo>(</mo><mspace width="0.08em"></mspace><mfrac><mrow><mi>f</mi><mo>&#8722;</mo><mn>0.10</mn></mrow><mn>0.80</mn></mfrac><mspace width="0.08em"></mspace><mo>,</mo><mspace width="0.1667em"></mspace><mn>0</mn><mo>,</mo><mspace width="0.1667em"></mspace><mn>1</mn><mo>)</mo></mrow>
+      </mrow></math>&emsp;&emsp;<math displaystyle="true"><mrow>
+        <mi>p</mi><mo>=</mo><mi>clamp</mi><mo>&#8289;</mo>
+        <mrow><mo>(</mo><mspace width="0.08em"></mspace><mfrac><mrow><mn>0.50</mn><mo>&#8722;</mo><mi>f</mi></mrow><mn>0.40</mn></mfrac><mspace width="0.08em"></mspace><mo>,</mo><mspace width="0.1667em"></mspace><mn>0</mn><mo>,</mo><mspace width="0.1667em"></mspace><mn>1</mn><mo>)</mo></mrow>
+      </mrow></math></div>
+      <p class="where"><math><mi>r</mi></math> is the repeat credit above,
+        <math><mi>p</mi></math> the skip penalty. A completion is
+        <math><mi>r</mi><mo>=</mo><mn>1</mn></math>, <math><mi>p</mi><mo>=</mo><mn>0</mn></math>.</p>
       <p>Bailing out inside the first tenth is a full-strength dislike. Skipping past the halfway
          mark costs nothing, since you gave the song a fair hearing and simply moved on. The
          penalties are aggregated as a recency-weighted mean with a half-life of 30 events, in
          which completions count as zeros, so one bad first impression depreciates and later full
          listens forgive it. The result scales a multiplier</p>
-      <div class="math"><var>m</var><sub>skips</sub> = max(0.2, 1 &minus; 0.25
-        <var>p&#772;</var>)</div>
+      <div class="math"><math displaystyle="true"><mrow>
+        <msub><mi>m</mi><mi>skips</mi></msub><mo>=</mo><mi>max</mi><mo>&#8289;</mo>
+        <mrow><mo>(</mo><mn>0.2</mn><mo>,</mo><mspace width="0.1667em"></mspace><mn>1</mn><mo>&#8722;</mo><mn>0.25</mn><mspace width="0.1667em"></mspace><mover accent="true"><mi>p</mi><mo>&#175;</mo></mover><mo>)</mo></mrow>
+      </mrow></math></div>
       <div class="defaults">The strength 0.25 is a setting. The floor of 0.2 is fixed, so even a
         song you always skip is dampened rather than deleted.</div>
     </section>
@@ -159,8 +189,13 @@
       <h2>Ratings</h2>
       <p>Stars map to a multiplier through a piecewise linear curve around a neutral midpoint of
          2.5.</p>
-      <div class="math">below: <var>m</var> = 0.5 + 0.5 &middot; rating / 2.5
-        &emsp;&emsp; above: <var>m</var> = 1 + (rating &minus; 2.5) / 2.5</div>
+      <div class="math">below: <math displaystyle="true"><mrow>
+        <mi>m</mi><mo>=</mo><mn>0.5</mn><mo>+</mo><mn>0.5</mn><mo>&#183;</mo>
+        <mfrac><mi>rating</mi><mn>2.5</mn></mfrac>
+      </mrow></math>&emsp;&emsp;above: <math displaystyle="true"><mrow>
+        <mi>m</mi><mo>=</mo><mn>1</mn><mo>+</mo>
+        <mfrac><mrow><mi>rating</mi><mo>&#8722;</mo><mn>2.5</mn></mrow><mn>2.5</mn></mfrac>
+      </mrow></math></div>
       <p>So five stars doubles a song's weight and the bottom of the scale halves it, with both
          ends adjustable in Settings. An unrated song sits at exactly 1, since the absence of a
          rating is not evidence against a song. Groups receive the same treatment from the mean
@@ -183,9 +218,15 @@
       <p>Repetition depreciates a song faster than anything else, so recent listening is metered
          directly. Each play adds its repeat credit to a running weight that decays with a
          two-week half-life</p>
-      <div class="math"><var>w</var> = &Sigma; <var>r</var><sub>e</sub> &middot;
-        0.5<sup>age<sub>e</sub> / 14 days</sup>
-        &emsp;&emsp; <var>m</var><sub>satiation</sub> = max(0.3, 1 / (1 + 0.5 <var>w</var>))</div>
+      <div class="math"><math displaystyle="true"><mrow>
+        <mi>w</mi><mo>=</mo>
+        <munder><mo>&#8721;</mo><mi>e</mi></munder>
+        <msub><mi>r</mi><mi>e</mi></msub><mo>&#183;</mo>
+        <msup><mn>0.5</mn><mrow><msub><mi>age</mi><mi>e</mi></msub><mo>/</mo><mn>14</mn><mspace width="0.1667em"></mspace><mi>days</mi></mrow></msup>
+      </mrow></math>&emsp;&emsp;<math displaystyle="true"><mrow>
+        <msub><mi>m</mi><mi>satiation</mi></msub><mo>=</mo><mi>max</mi><mo>&#8289;</mo>
+        <mrow><mo>(</mo><mn>0.3</mn><mo>,</mo><mspace width="0.1667em"></mspace><mfrac><mn>1</mn><mrow><mn>1</mn><mo>+</mo><mn>0.5</mn><mspace width="0.1667em"></mspace><mi>w</mi></mrow></mfrac><mspace width="0.08em"></mspace><mo>)</mo></mrow>
+      </mrow></math></div>
       <p>A binge therefore suppresses its own object, smoothly and temporarily. The suppression
          deepens with each recent play, recovers on its own as those plays age out, and is
          floored so a favourite is rested, never exiled. The strength and window are settings.</p>
@@ -195,8 +236,13 @@
       <h2>Rediscovery</h2>
       <p>The mirror image. A song rated above the library's mean that has gone quiet accrues a
          bonus the longer it stays dormant.</p>
-      <div class="math"><var>m</var><sub>rediscovery</sub> = 1 + 0.4 &middot;
-        min(rating &minus; mean, 1) &middot; (1 &minus; 0.5<sup>days / 60</sup>)</div>
+      <div class="math"><math displaystyle="true"><mrow>
+        <msub><mi>m</mi><mi>rediscovery</mi></msub><mo>=</mo><mn>1</mn><mo>+</mo><mn>0.4</mn><mo>&#183;</mo>
+        <mi>min</mi><mo>&#8289;</mo>
+        <mrow><mo>(</mo><mi>rating</mi><mo>&#8722;</mo><mi>mean</mi><mo>,</mo><mspace width="0.1667em"></mspace><mn>1</mn><mo>)</mo></mrow>
+        <mo>&#183;</mo>
+        <mrow><mo>(</mo><mn>1</mn><mo>&#8722;</mo><msup><mn>0.5</mn><mrow><mi>days</mi><mo>/</mo><mn>60</mn></mrow></msup><mo>)</mo></mrow>
+      </mrow></math></div>
       <p>The bonus grows with a 60-day half-life, collapses back to 1 the moment the song plays,
          and never fires for songs below the mean or never played, since unheard songs are cold
          start's business. Neglected favourites recover their value instead of being forgotten.</p>
@@ -205,11 +251,13 @@
     <section>
       <h2>Clustering</h2>
       <p>Some listeners want an artist's songs spread apart, others enjoy a run of them. A bias
-         <var>b</var> between &minus;1 and +1 (default 0) tilts the group cooldown by proximity
-         <var>&rho;</var> = 1 &minus; <var>d</var> / <var>H</var>. A positive bias adds
-         <var>b&rho;</var> to the cooldown so a just-played group returns sooner, and a negative
-         bias multiplies it by (1 + 0.5 <var>b&rho;</var>), pushing the group's songs further
-         apart.</p>
+         <math><mi>b</mi></math> between &minus;1 and +1 (default 0) tilts the group cooldown by
+         proximity
+         <math><mi>&#961;</mi><mo>=</mo><mn>1</mn><mo>&#8722;</mo><mi>d</mi><mo>/</mo><mi>H</mi></math>.
+         A positive bias adds <math><mi>b</mi><mi>&#961;</mi></math> to the cooldown so a
+         just-played group returns sooner, and a negative bias multiplies it by
+         <math><mo stretchy="false">(</mo><mn>1</mn><mo>+</mo><mn>0.5</mn><mspace width="0.1667em"></mspace><mi>b</mi><mi>&#961;</mi><mo stretchy="false">)</mo></math>,
+         pushing the group's songs further apart.</p>
     </section>
 
     <section>
