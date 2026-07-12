@@ -71,14 +71,15 @@ in sync on every Favourite tag change, so exports and existing code paths stay c
 `TrackInput` gains the track's algorithm-active tag names. One new setting, `tag_clustering_bias`
 in [-1, 1] with default 0, exposed as a real control through `GET /settings` `controls[]`.
 
-Per selection step each algorithm-active tag contributes a pacing factor shaped like the
-variant-family cooldown but with a high floor, so the effect stays marginal. Negative bias spaces
-same-tag tracks apart. Positive bias lets them run consecutively.
+Per selection step each algorithm-active tag contributes a small pacing factor based on how
+recently that tag last played, over the same horizon the variant-family cooldown uses. Negative
+bias suppresses same-tag tracks shortly after a play and compensates with a matching boost later
+in the horizon (spacing). Positive bias is the mirror image (clustering).
 
-Aggregate neutrality: after raw factors are computed, weights are renormalised within each
-algorithm-active tag cohort so the cohort's total selection weight equals its no-factor value.
-This is exact when a track carries one algorithm-active tag and approximately neutral when
-algorithm-active tags overlap on a track. At bias 0 every factor is exactly 1.0 and queue output
+Aggregate neutrality: the factor is zero-mean across its horizon by construction, so the
+suppression and the boost cancel over time and a tagged track's overall appearance rate stays
+approximately unchanged relative to an untagged one. The factor is bounded within [0.5, 1.5] even
+at full bias, keeping the effect marginal. At bias 0 every factor is exactly 1.0 and queue output
 is byte-identical to today, guarded by a fixed-seed parity test.
 
 Favourite pacing is untouched and stays favourite-only. It reads the same boolean input as today,
@@ -117,7 +118,7 @@ exactly as before through the retained favourite field.
 New `tests/test_tags.py` covering: tag CRUD and system-tag protection, favourite backfill from
 both columns, assignment toggle and idempotent upsert, union queue restriction, ignored exclusion
 alone and combined with a profile scope, fixed-seed parity at bias 0, bias in both directions
-moving same-tag spacing, an aggregate-neutrality check for a non-overlapping cohort, owner
+moving same-tag spacing, a zero-mean check on the pacing factor across its horizon, owner
 isolation for per-profile tags, shared-tag visibility across profiles, and an export and import
 round trip. The full existing suite, ruff and the web build stay green.
 
