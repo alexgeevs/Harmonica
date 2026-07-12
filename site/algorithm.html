@@ -17,17 +17,25 @@
 <meta name="twitter:card" content="summary">
 <link rel="canonical" href="https://harmonica.org.uk/algorithm">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary">
+<meta name="theme-color" content="#1b362e">
 <style>
   :root{
     --dark:#1b362e; --mint:#eef3f1; --teal:#206a5d; --gold:#f1c84b;
     --ink:#22312f; --muted:#54655f; --card:#ffffff; --line:#d8e3de;
+    --head:#1b362e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --mint:#11201b; --ink:#dce8e2; --muted:#93a89f; --card:#1e3a30;
+      --line:#2c4a40; --head:#eaf3ee; --teal:#5cbfa6;
+    }
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--mint);color:var(--ink);
     font:400 1.0625rem/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif}
   .wrap{max-width:56rem;margin:0 auto;padding:0 1.25rem}
   a{color:var(--teal)}
-  h1,h2,h3{line-height:1.2;color:var(--dark)}
+  h1,h2,h3{line-height:1.2;color:var(--head)}
 
   header{background:var(--dark);color:#e8f0ec;padding:.9rem 0}
   header .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
@@ -43,13 +51,13 @@
   section{padding:1.6rem 0}
   section h2{font-size:1.35rem;margin-bottom:.8rem}
   .prose p{max-width:65ch;margin-bottom:1rem}
-  .prose strong{color:var(--dark)}
+  .prose strong{color:var(--head)}
   .prose ul{max-width:65ch;margin:0 0 1rem 1.2rem}
   .prose li{margin-bottom:.35rem}
 
   .math{background:var(--card);border:1px solid var(--line);border-radius:.4rem;
     padding:.9rem 1.1rem;margin:.4rem 0 1rem;max-width:44rem;overflow-x:auto;
-    white-space:nowrap;font-size:1.05rem;color:var(--dark)}
+    white-space:nowrap;font-size:1.05rem;color:var(--head)}
   math{font-family:"Cambria Math","STIX Two Math","Latin Modern Math","Noto Sans Math",math}
   .math math{font-size:1.12em}
   .where{font-size:.9rem;color:var(--muted);max-width:65ch;margin:-.4rem 0 1rem}
