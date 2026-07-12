@@ -1,6 +1,6 @@
 # Custom Tags Design
 
-Date: 2026-07-12. Status: approved by the owner with amendments, recorded here.
+Date: 2026-07-12. Status: implemented 2026-07-12 (branch custom-tags).
 
 ## Purpose
 

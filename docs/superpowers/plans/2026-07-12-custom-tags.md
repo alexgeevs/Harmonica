@@ -36,7 +36,7 @@
 - Produces: constants `FAVOURITE_TAG_NAME = "Favourite"`, `IGNORED_TAG_NAME = "Ignored"`, `SYSTEM_TAG_NAMES`, `DEFAULT_CUSTOM_TAG_NAMES`.
 - Produces: functions `seed_and_backfill_tags(engine) -> None`, `visible_tag_rows(session, owner_config_id) -> list[tuple[int, Tag]]`, `visible_tags_by_track(session, owner_config_id) -> dict[int, list[str]]`, `tag_track_ids(session, tag_names, owner_config_id) -> set[int]`, `algorithm_tag_inputs(session, owner_config_id) -> tuple[set[int], dict[int, frozenset[str]]]`, `set_favourite_tag(session, track_id, value, owner_config_id) -> None`. All in `harmonica.models`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_tags.py`:
 
@@ -114,12 +114,12 @@ def test_backfill_copies_both_favourite_columns() -> None:
     assert FAVOURITE_TAG_NAME in owned_tags.get(track_id, [])
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: FAIL with `ImportError` (cannot import `Tag` etc. from `harmonica.models`).
 
-- [ ] **Step 3: Add the models and constants**
+- [x] **Step 3: Add the models and constants**
 
 In `src/harmonica/models.py`, directly after the `TrackCooldownTag` class (line 166), insert:
 
@@ -167,7 +167,7 @@ class TrackTag(Base):
     tag: Mapped[Tag] = relationship()
 ```
 
-- [ ] **Step 4: Add the seeding/backfill and visibility helpers**
+- [x] **Step 4: Add the seeding/backfill and visibility helpers**
 
 At the end of `src/harmonica/models.py` (after `ensure_additive_owner_columns`), add:
 
@@ -284,7 +284,7 @@ def set_favourite_tag(
         session.delete(row)
 ```
 
-- [ ] **Step 5: Wire seeding into init_db**
+- [x] **Step 5: Wire seeding into init_db**
 
 In `src/harmonica/db.py`, after `models.backfill_rating_samples(engine)` (line 36), add:
 
@@ -292,17 +292,17 @@ In `src/harmonica/db.py`, after `models.backfill_rating_samples(engine)` (line 3
     models.seed_and_backfill_tags(engine)
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: 3 passed.
 
-- [ ] **Step 7: Run the full suite and ruff (parity guard)**
+- [x] **Step 7: Run the full suite and ruff (parity guard)**
 
 Run: `~/.local/bin/uv run pytest -q && ~/.local/bin/uv run ruff check src/harmonica tests`
 Expected: all pass, no lint errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/harmonica/models.py src/harmonica/db.py tests/test_tags.py
@@ -322,7 +322,7 @@ git commit -m "Add unified tags data model with seeding and favourite backfill"
 - Consumes: `Tag`, `TrackTag`, `SYSTEM_TAG_NAMES`, `visible_tag_rows` from Task 1.
 - Produces: schemas `TagRead` (`id`, `name`, `kind`, `shared`, `affects_algorithm`, `track_count`), `TagCreate` (`name`, `shared=False`, `affects_algorithm=False`), `TagUpdate` (all optional). Endpoints `GET /tags`, `POST /tags`, `PATCH /tags/{tag_id}`, `DELETE /tags/{tag_id}`. Helper `tag_to_schema(tag, track_count) -> TagRead`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_tags.py`:
 
@@ -375,12 +375,12 @@ def test_deleting_a_tag_removes_its_assignments() -> None:
         assert remaining == []
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: the two new tests FAIL with 404s (`/tags` does not exist).
 
-- [ ] **Step 3: Add the schemas**
+- [x] **Step 3: Add the schemas**
 
 In `src/harmonica/schemas.py`, after `TrackUpdate` (line 108), add:
 
@@ -406,7 +406,7 @@ class TagUpdate(BaseModel):
     affects_algorithm: bool | None = None
 ```
 
-- [ ] **Step 4: Add the endpoints**
+- [x] **Step 4: Add the endpoints**
 
 In `src/harmonica/api.py`:
 
@@ -505,12 +505,12 @@ def tag_to_schema(tag: Tag, track_count: int) -> TagRead:
     )
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/harmonica/schemas.py src/harmonica/api.py tests/test_tags.py
@@ -531,7 +531,7 @@ git commit -m "Add tag CRUD endpoints with system-tag protection"
 - Produces: `TrackRead.tags: list[str]`; `TrackUpdate.tags: list[str] | None`; `track_to_schema(track, ratings_average, favourite, tags)` (new keyword `tags: list[str] | None = None`); `replace_track_tags(session, track, tag_names, owner_config_id)`.
 - Write semantics: the `tags` list REPLACES the assignments this scope may touch. A shared tag's rows are stored unowned (any profile may add or remove them — household-editable); a per-profile tag's rows are stamped with the requester and never touch another profile's rows. Unknown names are auto-created as cosmetic per-profile custom tags (the same forgiving idiom as `replace_groups`). If both `favourite` and `tags` appear in one PATCH, the `tags` list wins (it is applied last and syncs the boolean).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_tags.py`:
 
@@ -613,18 +613,18 @@ def test_per_profile_tags_are_private_and_shared_tags_are_household() -> None:
         ]
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: the two new tests FAIL (`tags` key missing / ignored by PATCH).
 
-- [ ] **Step 3: Extend the schemas**
+- [x] **Step 3: Extend the schemas**
 
 In `src/harmonica/schemas.py`:
 - `TrackRead`: after `cooldown_tags` (line 80), add `tags: list[str] = Field(default_factory=list)`.
 - `TrackUpdate`: after `cooldown_tags` (line 104), add `tags: list[str] | None = Field(default=None, max_length=100)`.
 
-- [ ] **Step 4: Thread tags through the API**
+- [x] **Step 4: Thread tags through the API**
 
 In `src/harmonica/api.py`:
 
@@ -695,12 +695,12 @@ def replace_track_tags(
         set_owner_favourite(session, owner_config_id, track.id, favourite)
 ```
 
-- [ ] **Step 5: Run the tests, full suite, ruff**
+- [x] **Step 5: Run the tests, full suite, ruff**
 
 Run: `~/.local/bin/uv run pytest -q && ~/.local/bin/uv run ruff check src/harmonica tests`
 Expected: all pass (existing suites confirm parity).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/harmonica/schemas.py src/harmonica/api.py tests/test_tags.py
@@ -722,7 +722,7 @@ git commit -m "Thread tags through track read and update with favourite sync"
 - Produces: `QueueGenerateRequest.tags: list[str] | None`; `generate_and_persist_playlist(..., queue_tags: list[str] | None = None)` which stamps `{"queue_tags": [...]}` into the run's `settings_json` when set.
 - Semantics: ignored tracks never enter the candidate pool (any scope, any request). A `tags` list restricts the pool to the union of the named tags' tracks, intersected with the profile scope; `"Ignored"` in the list is dropped server-side; unknown names contribute nothing (an all-unknown list yields an empty run, not an error).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_tags.py`:
 
@@ -811,12 +811,12 @@ def test_unknown_tag_restriction_yields_empty_run() -> None:
 
 Note: these tests share one suite-wide DB, so restriction assertions use subset checks against the tracks they created, never exact library counts.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: all four new tests FAIL — the unknown `tags` body key is ignored by the current schema, so runs draw from the whole library, and ignored tracks still appear.
 
-- [ ] **Step 3: Exclude ignored tracks at pool assembly**
+- [x] **Step 3: Exclude ignored tracks at pool assembly**
 
 In `src/harmonica/playlist.py`:
 1. Extend the models import (line 27) with `algorithm_tag_inputs`.
@@ -833,7 +833,7 @@ In `src/harmonica/playlist.py`:
 
 (`active_tag_names` is consumed in Task 5; keeping the single call here avoids a second table scan.)
 
-- [ ] **Step 4: Accept a tags restriction on generation**
+- [x] **Step 4: Accept a tags restriction on generation**
 
 1. `src/harmonica/schemas.py`, `QueueGenerateRequest` (line 122): add field
 
@@ -874,12 +874,12 @@ and pass `queue_tags=requested_tags or None` into the `generate_and_persist_play
     )
 ```
 
-- [ ] **Step 5: Run the tests, full suite, ruff**
+- [x] **Step 5: Run the tests, full suite, ruff**
 
 Run: `~/.local/bin/uv run pytest -q && ~/.local/bin/uv run ruff check src/harmonica tests`
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/harmonica/playlist.py src/harmonica/schemas.py src/harmonica/api.py tests/test_tags.py
@@ -905,7 +905,7 @@ git commit -m "Exclude ignored tracks from queues and add tag-restricted generat
 - The factor: for a tag last played `d` steps ago with horizon `h = min(30, max(len(tracks), 1))`, `factor = 1 + bias * (0.5 - d / h)` for `1 <= d <= h - 1`, else `1.0`. Mean proximity over `d = 1..h-1` is exactly 0.5, so the factor is zero-mean across the horizon — the aggregate appearance rate of tagged tracks is preserved while their timing shifts. Bounded in (0.5, 1.5) at full bias. Positive bias boosts near a recent same-tag play (clustering); negative suppresses near and compensates later (spacing).
 - At bias 0 `apply_tag_pacing` returns the input list unchanged — byte parity. The experimental two-level cover path (`cover_two_level_enabled`, off by default) returns before this layer and deliberately ignores tag pacing for now.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_tags.py`:
 
@@ -995,12 +995,12 @@ def test_negative_bias_spaces_same_tag_songs_apart() -> None:
     assert adjacency(-1.0) < adjacency(0.0) < adjacency(1.0)
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: FAIL with `ImportError` (`apply_tag_pacing`, `tag_pacing_factor` not defined) and `TypeError` for the unknown `tags` field.
 
-- [ ] **Step 3: Add the setting**
+- [x] **Step 3: Add the setting**
 
 1. `src/harmonica/config.py`, after `group_clustering_bias: float = 0.0` (line 87):
 
@@ -1034,7 +1034,7 @@ Expected: FAIL with `ImportError` (`apply_tag_pacing`, `tag_pacing_factor` not d
 4. `src/harmonica/playlist.py`, `settings_snapshot` (line 333): after the `"group_clustering_bias"` entry add `"tag_clustering_bias": settings.tag_clustering_bias,`.
 5. `site/demo/py/driver.py`, Settings stub, after `group_clustering_bias: float = 0.0` (line 72): add `tag_clustering_bias: float = 0.0`. (The demo copies `algorithm.py` verbatim at deploy time; the stub must know the new field so the next sync keeps working. The demo library has no tags, so behaviour is unchanged.)
 
-- [ ] **Step 4: Add the algorithm layer**
+- [x] **Step 4: Add the algorithm layer**
 
 In `src/harmonica/algorithm.py`:
 
@@ -1110,7 +1110,7 @@ def apply_tag_pacing(
             tag_last_played[tag] = position
 ```
 
-- [ ] **Step 5: Thread tags into the loaded tracks**
+- [x] **Step 5: Thread tags into the loaded tracks**
 
 In `src/harmonica/playlist.py`, in the `AlgorithmTrack(...)` construction inside `load_algorithm_inputs` (line 154), after `favourite=(...)`, add:
 
@@ -1120,12 +1120,12 @@ In `src/harmonica/playlist.py`, in the `AlgorithmTrack(...)` construction inside
 
 (`active_tag_names` already exists from Task 4's `algorithm_tag_inputs` call.)
 
-- [ ] **Step 6: Run the tests, full suite, ruff**
+- [x] **Step 6: Run the tests, full suite, ruff**
 
 Run: `~/.local/bin/uv run pytest -q && ~/.local/bin/uv run ruff check src/harmonica tests`
 Expected: all pass. `test_settings_coupling` and `test_api` confirm the new setting rides through `GET/PATCH /settings` as a real control.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/harmonica/config.py src/harmonica/settings_store.py src/harmonica/schemas.py src/harmonica/algorithm.py src/harmonica/playlist.py site/demo/py/driver.py tests/test_tags.py
@@ -1144,7 +1144,7 @@ git commit -m "Add zero-mean tag pacing layer with tag pacing bias setting"
 - Consumes: `Tag`, `TrackTag`, `visible_tag_rows`, `set_favourite_tag`, `FAVOURITE_TAG_NAME` from Task 1.
 - Produces: export payload key `"tags"`: `{"definitions": [{name, kind, shared, affects_algorithm}], "assignments": [{song_id, tag}]}` (metadata scope); `import_tags(session, raw, owner_config_id) -> int`; import summary key `"tags_applied"`. Legacy exports (favourite booleans, no tags block) keep importing through the existing favourite field, which now also syncs the Favourite tag row.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_tags.py`:
 
@@ -1182,12 +1182,12 @@ def test_legacy_favourite_import_syncs_the_tag() -> None:
         assert FAVOURITE_TAG_NAME in tags
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `~/.local/bin/uv run pytest tests/test_tags.py -q`
 Expected: FAIL with `KeyError: 'tags'` and a missing Favourite tag row.
 
-- [ ] **Step 3: Implement export**
+- [x] **Step 3: Implement export**
 
 In `src/harmonica/serialization.py`:
 1. Extend the models import (line 15) with `Tag`, `TrackTag`, `visible_tag_rows`, `set_favourite_tag`, `FAVOURITE_TAG_NAME`.
@@ -1222,7 +1222,7 @@ def tags_export(session: Session, owner_config_id: int | None) -> dict[str, Any]
     return {"definitions": definitions, "assignments": assignments}
 ```
 
-- [ ] **Step 4: Implement import**
+- [x] **Step 4: Implement import**
 
 1. In `import_library_payload`, the summary dict (line 361) gains `"tags_applied": 0,`.
 2. In the track loop, after the existing `_link_owner(...)` call (line 462), add:
@@ -1288,12 +1288,12 @@ def import_tags(session: Session, raw: Any, owner_config_id: int | None = None) 
     return applied
 ```
 
-- [ ] **Step 5: Run the tests, full suite, ruff**
+- [x] **Step 5: Run the tests, full suite, ruff**
 
 Run: `~/.local/bin/uv run pytest -q && ~/.local/bin/uv run ruff check src/harmonica tests`
 Expected: all pass (`test_export_import.py` confirms old payloads still import unchanged).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/harmonica/serialization.py tests/test_tags.py
@@ -1314,7 +1314,7 @@ git commit -m "Carry tags through library export and import"
 - Consumes: `GET/POST/PATCH/DELETE /tags`, `TrackRead.tags`, `QueueGenerateRequest.tags`, the `tag_clustering_bias` control.
 - Produces: `Tag` type `{ id, name, kind, shared, affects_algorithm, track_count }`; `api.listTags/createTag/updateTag/deleteTag`; `api.generateQueue(length, seed?, configId?, tags?)`.
 
-- [ ] **Step 1: Types**
+- [x] **Step 1: Types**
 
 In `web/src/types.ts`:
 1. After the `Embed` type (line 28), add:
@@ -1338,7 +1338,7 @@ export type Tag = {
 4. `AppSettings` (line 152): after `group_clustering_bias: number;` add `tag_clustering_bias: number;`.
 5. `ImportSummary` (line 316): add `tags_applied?: number;`.
 
-- [ ] **Step 2: API client**
+- [x] **Step 2: API client**
 
 In `web/src/api.ts`:
 1. Add `Tag` to the type import from `./types`.
@@ -1378,7 +1378,7 @@ In `web/src/api.ts`:
     })
 ```
 
-- [ ] **Step 3: App state and generation**
+- [x] **Step 3: App state and generation**
 
 In `web/src/App.tsx`:
 1. Add `Tag` to the types import and `const [tags, setTags] = useState<Tag[]>([]);` beside the other state.
@@ -1421,7 +1421,7 @@ In `web/src/App.tsx`:
 
 5. Pass `tags={tags}` to `QueueView` (call site near line 475) and `tags={tags}` plus `onTagsChanged={refreshTags}` to `LibraryView`. After a track save (`onSave` path), also call `refreshTags()` so new tag names appear in the chip lists.
 
-- [ ] **Step 4: Queue tag picker**
+- [x] **Step 4: Queue tag picker**
 
 In `QueueView` (line 777):
 1. Add props `tags: Tag[];` and change `onGenerate: (length: number, seed: string, tags: string[]) => void;`.
@@ -1457,7 +1457,7 @@ In `QueueView` (line 777):
 
 3. The Generate button becomes `onClick={() => props.onGenerate(length, seed, queueTags)}`.
 
-- [ ] **Step 5: Library facets, search, muting, manager**
+- [x] **Step 5: Library facets, search, muting, manager**
 
 In `App.tsx`:
 1. `buildFacets` (line 3057): add a `tag: new Map()` counter, count `for (const name of track.tags ?? [])`, and return `tag: toFacets("tag", counters.tag)` (extend the return type accordingly).
@@ -1583,7 +1583,7 @@ function TagManager(props: { tags: Tag[]; onChanged: () => void }) {
 }
 ```
 
-- [ ] **Step 6: Track editor Tags section and star sync**
+- [x] **Step 6: Track editor Tags section and star sync**
 
 In `TrackEditor` (line 1631):
 1. Add prop `tags: Tag[];` and state `const [newTag, setNewTag] = useState("");` plus:
@@ -1658,7 +1658,7 @@ In `TrackEditor` (line 1631):
       </div>
 ```
 
-- [ ] **Step 7: Settings section and styles**
+- [x] **Step 7: Settings section and styles**
 
 1. In `SETTING_SECTIONS`, the "Anti-repetition & variety" entry (line 2099): keys become `["group_cooldown_floor", "sub_group_cooldown_floor", "group_clustering_bias", "tag_clustering_bias"]`.
 2. In `web/src/styles.css`, append:
@@ -1723,12 +1723,12 @@ In `TrackEditor` (line 1631):
 
 (If `styles.css` uses theme variables for the accent, use those instead of the raw hex — match the file's existing idiom.)
 
-- [ ] **Step 8: Build**
+- [x] **Step 8: Build**
 
 Run: `cd web && npm run build`
 Expected: build succeeds with no TypeScript errors. Fix any prop-threading errors the compiler reports (the call sites for `QueueView`, `LibraryView`, and `TrackEditor` all changed).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add web/src/types.ts web/src/api.ts web/src/App.tsx web/src/styles.css
@@ -1742,7 +1742,7 @@ git commit -m "Add tags UI: editor section, library facets, queue picker, manage
 **Files:**
 - Modify: `docs/superpowers/specs/2026-07-12-custom-tags-design.md` (status line only, if all green)
 
-- [ ] **Step 1: Full checks**
+- [x] **Step 1: Full checks**
 
 Run:
 ```bash
@@ -1752,11 +1752,11 @@ cd web && npm run build
 ```
 Expected: everything green.
 
-- [ ] **Step 2: Manual smoke (only if a daemon is NOT already on port 8765)**
+- [x] **Step 2: Manual smoke (only if a daemon is NOT already on port 8765)**
 
 Optionally start `~/.local/bin/uv run harmonica serve` against a scratch `HARMONICA_HOME`, and exercise: create a tag, tag a track, filter by it, ignore a track, generate a queue restricted to a tag. Never kill an existing daemon on 8765.
 
-- [ ] **Step 3: Update the spec status and commit**
+- [x] **Step 3: Update the spec status and commit**
 
 Change the spec's status line to `Status: implemented 2026-07-12.` Then:
 
@@ -1765,6 +1765,6 @@ git add docs/superpowers/specs/2026-07-12-custom-tags-design.md
 git commit -m "Mark custom tags spec implemented"
 ```
 
-- [ ] **Step 4: Report**
+- [x] **Step 4: Report**
 
 Summarise for the owner: what shipped, test counts, and the follow-up note that a website paragraph about organising with tags is pending their word (task #67). Do NOT push anything.
