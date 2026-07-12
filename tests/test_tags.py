@@ -198,8 +198,21 @@ def test_per_profile_tags_are_private_and_shared_tags_are_household() -> None:
         assert set(seen_by_a) == {"Fun", "No Lyrics"}
         assert seen_by_b == ["No Lyrics"]  # A's per-profile Fun is private; shared is not
 
-        # B removes the shared assignment for the whole household, never A's private one.
+        # B clearing his tags touches only his own rows: A's shared assignment survives for
+        # the whole household, B included (shared shows everyone's rows to everyone).
         client.patch(f"/tracks/{track_id}", json={"tags": []}, headers=_auth(token_b))
+        assert "No Lyrics" in client.get(
+            f"/tracks/{track_id}", headers=_auth(token_a)
+        ).json()["tags"]
+        assert "No Lyrics" in client.get(
+            f"/tracks/{track_id}", headers=_auth(token_b)
+        ).json()["tags"]
+        # Only when everyone who added it has removed it does it go: A was the sole
+        # contributor, so A dropping it takes it away for all.
+        client.patch(f"/tracks/{track_id}", json={"tags": ["Fun"]}, headers=_auth(token_a))
+        assert "No Lyrics" not in client.get(
+            f"/tracks/{track_id}", headers=_auth(token_b)
+        ).json()["tags"]
         assert client.get(f"/tracks/{track_id}", headers=_auth(token_a)).json()["tags"] == [
             "Fun"
         ]
@@ -418,12 +431,17 @@ def test_unsharing_keeps_the_tag_in_every_account() -> None:
         ]
 
 
-def test_profile_cannot_delete_shared_tag() -> None:
+def test_profile_delete_of_shared_tag_spares_other_contributions() -> None:
     with TestClient(create_app()) as client:
+        track_id = _seed_track("tags_shared_del_1", "Shared delete")
         _, token_a = _make_profile(client, "tags-shared-del")
         created = client.post("/tags", json={"name": "House Rules", "shared": True}).json()
-        assert client.delete(f"/tags/{created['id']}", headers=_auth(token_a)).status_code == 403
+        # Local mode contributes the assignment; the profile then deletes the tag.
+        client.patch(f"/tracks/{track_id}", json={"tags": ["House Rules"]})
+        assert client.delete(f"/tags/{created['id']}", headers=_auth(token_a)).status_code == 204
+        # Only the profile's own rows went: the definition and local mode's assignment survive.
         assert any(t["name"] == "House Rules" for t in client.get("/tags").json())
+        assert "House Rules" in client.get(f"/tracks/{track_id}").json()["tags"]
 
 
 def test_export_import_roundtrip_carries_tags() -> None:

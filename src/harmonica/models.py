@@ -174,10 +174,11 @@ DEFAULT_CUSTOM_TAG_NAMES = ("Fun", "Focused")
 
 class Tag(Base):
     """A user-facing organisational label on tracks. ``kind`` separates the fixed system tags
-    (Favourite, Ignored) from user-managed custom tags. ``shared`` makes ASSIGNMENTS
-    household-wide (stored unowned) instead of per-profile. ``affects_algorithm`` opts a tag into
-    the light pacing layer (cosmetic otherwise). Distinct from ``CooldownTag``, which is the
-    scanner's grouping shorthand, not a user tag."""
+    (Favourite, Ignored) from user-managed custom tags. ``shared`` shows every scope's
+    assignments to everyone (each scope still owns its own rows, so one profile's removals
+    never touch another's). ``affects_algorithm`` opts a tag into the light pacing layer
+    (cosmetic otherwise). Distinct from ``CooldownTag``, which is the scanner's grouping
+    shorthand, not a user tag."""
 
     __tablename__ = "tags"
 

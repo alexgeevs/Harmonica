@@ -699,12 +699,14 @@ def import_tags(session: Session, raw: Any, owner_config_id: int | None = None) 
         tag = tags_by_name.get(name) if name else None
         if track is None or tag is None:
             continue
-        row_owner = None if tag.shared else owner_config_id
-        key = (track.id, tag.id, row_owner)
+        # Every scope owns its own rows, shared tags included (shared only widens visibility).
+        key = (track.id, tag.id, owner_config_id)
         if key in existing:
             continue
         existing.add(key)
-        session.add(TrackTag(track_id=track.id, tag_id=tag.id, owner_config_id=row_owner))
+        session.add(
+            TrackTag(track_id=track.id, tag_id=tag.id, owner_config_id=owner_config_id)
+        )
         applied += 1
     session.flush()
     return applied

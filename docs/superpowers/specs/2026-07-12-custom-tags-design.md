@@ -57,10 +57,10 @@ in sync on every Favourite tag change, so exports and existing code paths stay c
 - `POST /tags` creates a custom tag (name, shared, affects_algorithm).
 - `PATCH /tags/{id}` renames a tag or toggles shared and affects_algorithm. System tags refuse
   all edits.
-- `DELETE /tags/{id}` is scoped to the caller (owner amendment: one user deleting a tag must not
-  take it away from another). A profile's delete removes only that profile's assignments, and the
-  definition itself only once no scope uses it. A profile cannot delete a shared tag (unshare
-  first). Local mode deletes tag and assignments outright. System tags always refuse.
+- `DELETE /tags/{id}` is scoped to the caller (owner amendment: one user's destructive actions
+  must not affect shared things unless everyone does it). A profile's delete removes only that
+  profile's own assignments, shared tags included, and the definition itself goes only once no
+  scope uses it. Local mode deletes tag and assignments outright. System tags always refuse.
 - `TrackRead` gains a `tags` list. `PATCH /tracks/{id}` accepts it. The existing `favourite`
   boolean keeps working and maps onto the Favourite tag.
 - `POST /queue/generate` gains an optional `tags` list. The candidate pool becomes tracks carrying
@@ -104,11 +104,13 @@ The owner asked for flexibility here and may request changes once it exists.
 
 ## Multi-user
 
-Tag definitions are global vocabulary. Assignment visibility follows one rule: for a shared tag
-every assignment row counts for everyone. For a per-profile tag only rows whose owner matches the
-requesting profile count, with NULL owner in local mode. Unsharing a tag never takes it away from
-anyone: every profile and local mode keep their own copy of the assignments the household had.
-Counts, filters and tag-restricted queues all flow through this rule. With
+Tag definitions are global vocabulary. Every assignment row is stamped with the scope that made
+it (a profile, or NULL for local mode), shared tags included. For a shared tag everyone sees the
+union of everyone's rows. For a per-profile tag only rows whose owner matches the requesting
+profile count. One scope's removals only ever touch its own rows, so a shared assignment
+disappears only once every scope that added it has removed its own. Unsharing a tag never takes
+it away from anyone: every profile and local mode keep their own copy of the assignments the
+household had. Counts, filters and tag-restricted queues all flow through this rule. With
 no profile header and the bias slider at 0, behaviour is byte-identical to current.
 
 ## Export and import

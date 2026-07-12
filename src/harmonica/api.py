@@ -919,16 +919,8 @@ def create_app() -> FastAPI:
         if tag.kind == "system":
             raise HTTPException(status_code=403, detail="System tags cannot be deleted")
         if owner is not None:
-            if tag.shared:
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        "This tag is shared across the household, so one profile cannot "
-                        "delete it for everyone. Unshare it first."
-                    ),
-                )
-            # A profile deletes only its own assignments. The definition survives while any
-            # other scope still uses the tag, and goes once nobody does.
+            # A profile deletes only its own assignments, shared tag or not. The definition
+            # survives while any other scope still uses the tag, and goes once nobody does.
             session.execute(
                 delete(TrackTag).where(
                     TrackTag.tag_id == tag.id, TrackTag.owner_config_id == owner.id
@@ -1382,11 +1374,12 @@ def replace_tags(session: Session, track: Track, tag_names: list[str]) -> None:
 def replace_track_tags(
     session: Session, track: Track, tag_names: list[str], owner_config_id: int | None
 ) -> None:
-    """Replace the track's tag assignments this scope may touch. A shared tag's rows are stored
-    unowned (household-editable by any profile); a per-profile tag's rows are stamped with the
-    requester and never touch another profile's rows. Unknown names become cosmetic per-profile
-    custom tags. The favourite boolean columns are kept in step so the algorithm and exports
-    keep working unchanged."""
+    """Replace the track's tag assignments in the requesting scope. Every scope owns its own
+    rows: a profile's removals never touch another profile's rows or local mode's (a shared tag
+    just makes everyone's rows visible to all, so a shared assignment only disappears once every
+    scope that added it has removed its own). Unknown names become cosmetic custom tags. The
+    favourite boolean columns are kept in step so the algorithm and exports keep working
+    unchanged."""
     wanted: list[str] = []
     seen: set[str] = set()
     for name in tag_names:
@@ -1403,24 +1396,22 @@ def replace_track_tags(
             tags_by_name[name] = tag
     tag_by_id = {tag.id: tag for tag in tags_by_name.values()}
     rows = session.scalars(select(TrackTag).where(TrackTag.track_id == track.id)).all()
-    existing: set[tuple[int, int | None]] = set()
+    existing: set[int] = set()
     for row in rows:
         tag = tag_by_id.get(row.tag_id)
         if tag is None:
             continue
-        expected_owner = None if tag.shared else owner_config_id
-        if row.owner_config_id != expected_owner:
-            continue  # another scope's row — never touched
+        if row.owner_config_id != owner_config_id:
+            continue  # another scope's contribution — never touched
         if tag.name in seen:
-            existing.add((row.tag_id, row.owner_config_id))
+            existing.add(row.tag_id)
         else:
             session.delete(row)
     for name in wanted:
         tag = tags_by_name[name]
-        row_owner = None if tag.shared else owner_config_id
-        if (tag.id, row_owner) not in existing:
+        if tag.id not in existing:
             session.add(
-                TrackTag(track_id=track.id, tag_id=tag.id, owner_config_id=row_owner)
+                TrackTag(track_id=track.id, tag_id=tag.id, owner_config_id=owner_config_id)
             )
     favourite = FAVOURITE_TAG_NAME in seen
     if owner_config_id is None:
