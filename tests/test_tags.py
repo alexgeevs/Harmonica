@@ -194,3 +194,87 @@ def test_per_profile_tags_are_private_and_shared_tags_are_household() -> None:
         assert client.get(f"/tracks/{track_id}", headers=_auth(token_a)).json()["tags"] == [
             "Fun"
         ]
+
+
+def _run_track_ids(client: TestClient, seed: str, tags: list[str] | None = None) -> list[int]:
+    body: dict = {"length": 12, "seed": seed, "explain": False, "ui_active": False}
+    if tags is not None:
+        body["tags"] = tags
+    run = client.post("/queue/generate", json=body)
+    assert run.status_code == 200
+    return [item["track"]["id"] for item in run.json()["items"]]
+
+
+def test_ignored_tracks_never_enter_generated_queues() -> None:
+    # Deterministic pool: restrict generation to one unique tag carried by kept + dropped,
+    # so the assertion cannot flake against tracks other test files seeded into the shared DB.
+    # This also proves ignored wins over an explicit tag restriction.
+    with TestClient(create_app()) as client:
+        kept = [_seed_track(f"tags_ign_keep_{i}", f"Keep {i}") for i in range(3)]
+        dropped = _seed_track("tags_ign_drop", "Dropped")
+        for track_id in kept:
+            client.patch(f"/tracks/{track_id}", json={"tags": ["Ignore Pool"]})
+        client.patch(f"/tracks/{dropped}", json={"tags": ["Ignore Pool", IGNORED_TAG_NAME]})
+        played = set(_run_track_ids(client, seed="ignored-seed", tags=["Ignore Pool"]))
+        assert dropped not in played
+        assert played and played <= set(kept)
+
+
+def test_ignored_is_profile_scoped_and_excluded_for_that_profile() -> None:
+    # Bob ignores a shared song: it vanishes from HIS generated queues only. Alice's view and
+    # queues are untouched, because Ignored assignments are per-profile like favourites.
+    with TestClient(create_app()) as client:
+        _, token_a = _make_profile(client, "tags-ign-alice")
+        _, token_b = _make_profile(client, "tags-ign-bob")
+        payload = {
+            "tracks": [
+                {"song_id": f"tags_pign_{i}", "title": f"Shared {i}"} for i in range(3)
+            ]
+        }
+        for token in (token_a, token_b):
+            client.post("/library/import-json", json={"payload": payload}, headers=_auth(token))
+        with SessionLocal() as session:
+            target = session.scalar(
+                select(Track.id).where(Track.song_id == "tags_pign_0")
+            )
+        client.patch(
+            f"/tracks/{target}", json={"tags": [IGNORED_TAG_NAME]}, headers=_auth(token_b)
+        )
+
+        def owned_run(token: str) -> set[int]:
+            run = client.post(
+                "/queue/generate",
+                json={"length": 30, "seed": "pign", "explain": False, "ui_active": False},
+                headers=_auth(token),
+            )
+            assert run.status_code == 200
+            return {item["track"]["id"] for item in run.json()["items"]}
+
+        assert target not in owned_run(token_b)
+        assert target in owned_run(token_a)
+        assert IGNORED_TAG_NAME not in client.get(
+            f"/tracks/{target}", headers=_auth(token_a)
+        ).json()["tags"]
+
+
+def test_queue_restricted_to_tag_union() -> None:
+    with TestClient(create_app()) as client:
+        fun = [_seed_track(f"tags_union_fun_{i}", f"Fun {i}") for i in range(2)]
+        calm = _seed_track("tags_union_calm", "Calm one")
+        other = _seed_track("tags_union_other", "Untagged")
+        # Unique tag names: the suite shares one DB, so reusing seeded names like "Fun" would
+        # legitimately pull in other tests' tracks.
+        for track_id in fun:
+            client.patch(f"/tracks/{track_id}", json={"tags": ["Union Fun"]})
+        client.patch(f"/tracks/{calm}", json={"tags": ["Union Calm"]})
+        played = set(_run_track_ids(client, seed="union-seed", tags=["Union Fun", "Union Calm"]))
+        assert played <= set(fun) | {calm}
+        assert other not in played
+        only_fun = set(_run_track_ids(client, seed="union-seed", tags=["Union Fun"]))
+        assert only_fun <= set(fun)
+
+
+def test_unknown_tag_restriction_yields_empty_run() -> None:
+    with TestClient(create_app()) as client:
+        _seed_track("tags_unknown_1", "Present")
+        assert _run_track_ids(client, seed="s", tags=["No Such Tag"]) == []

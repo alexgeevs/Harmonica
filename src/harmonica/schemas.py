@@ -148,6 +148,9 @@ class QueueGenerateRequest(BaseModel):
     explain: bool = True
     ui_active: bool = False
     config_id: int | None = None
+    # Restrict the candidate pool to tracks carrying ANY of these tags (union). Ignored is
+    # dropped server-side, so the exclusion has no override.
+    tags: list[str] | None = Field(default=None, max_length=50)
 
 
 class QueueItemRead(BaseModel):

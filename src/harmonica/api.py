@@ -22,6 +22,7 @@ from harmonica.history import playback_event_signal
 from harmonica.http_security import install_security
 from harmonica.models import (
     FAVOURITE_TAG_NAME,
+    IGNORED_TAG_NAME,
     CooldownTag,
     CoverSetState,
     DeviceConfig,
@@ -43,6 +44,7 @@ from harmonica.models import (
     favourite_track_ids,
     now_utc,
     set_favourite_tag,
+    tag_track_ids,
     visible_tag_rows,
     visible_tags_by_track,
 )
@@ -617,6 +619,18 @@ def create_app() -> FastAPI:
                 owner_config_id = owner.id
             else:
                 included_track_ids = set(ids) if ids else None  # legacy: empty selection = all
+        requested_tags = [
+            name.strip()
+            for name in (payload.tags or [])
+            if name.strip() and name.strip() != IGNORED_TAG_NAME
+        ]
+        if requested_tags:
+            # Union: a track carrying ANY requested tag qualifies; intersected with the
+            # profile's library. Unknown names contribute nothing (an empty pool = empty run).
+            tag_pool = tag_track_ids(session, requested_tags, owner.id if owner else None)
+            included_track_ids = (
+                tag_pool if included_track_ids is None else included_track_ids & tag_pool
+            )
         run, _items = generate_and_persist_playlist(
             session,
             effective_settings,
@@ -626,6 +640,7 @@ def create_app() -> FastAPI:
             ui_active=payload.ui_active,
             included_track_ids=included_track_ids,
             owner_config_id=owner_config_id,
+            queue_tags=requested_tags or None,
         )
         return load_run_response(session, run.id)
 
