@@ -3544,3 +3544,77 @@ input:focus {
 :root[data-dark] .switch-track {
   background: var(--dark-switch);
 }
+
+/* Tags */
+.chip.toggle {
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.chip.toggle.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.tag-chips,
+.queue-tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.track-card.ignored {
+  opacity: 0.55;
+}
+.tag-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(32, 106, 93, 0.08);
+  font-size: 0.85em;
+}
+.tag-manager .tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.tag-manager .tag-ops {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tag-manager .tag-ops label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.new-tag-row {
+  display: flex;
+  gap: 6px;
+}
+.new-tag-row input {
+  flex: 1;
+  min-width: 0;
+}
+.queue-tag-note {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--accent);
+}
+
+:root[data-dark] .chip.toggle {
+  border-color: var(--accent-soft);
+  color: var(--accent-soft);
+}
+:root[data-dark] .chip.toggle.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: #10231e;
+}
+:root[data-dark] .tag-manager {
+  background: rgba(44, 132, 115, 0.14);
+}
