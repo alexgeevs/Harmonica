@@ -21,6 +21,7 @@ from harmonica.embeds import is_valid_external_id, known_providers, parse_embed_
 from harmonica.history import playback_event_signal
 from harmonica.http_security import install_security
 from harmonica.models import (
+    FAVOURITE_TAG_NAME,
     CooldownTag,
     CoverSetState,
     DeviceConfig,
@@ -41,7 +42,9 @@ from harmonica.models import (
     WeightGroup,
     favourite_track_ids,
     now_utc,
+    set_favourite_tag,
     visible_tag_rows,
+    visible_tags_by_track,
 )
 from harmonica.normalization import plain_rating_averages
 from harmonica.playlist import generate_and_persist_playlist, preferred_asset
@@ -511,9 +514,13 @@ def create_app() -> FastAPI:
         tracks = session.scalars(query).all()
         averages = plain_rating_averages(session, owner_config_id=owner.id if owner else None)
         favourites = owner_favourite_lookup(session, owner)
+        tags_map = visible_tags_by_track(session, owner.id if owner else None)
         return [
             track_to_schema(
-                track, averages.get(track.id) or {}, favourite=resolve_favourite(track, favourites)
+                track,
+                averages.get(track.id) or {},
+                favourite=resolve_favourite(track, favourites),
+                tags=tags_map.get(track.id),
             )
             for track in tracks
         ]
@@ -530,7 +537,8 @@ def create_app() -> FastAPI:
             session, [track_id], owner_config_id=owner.id if owner else None
         )
         favourite = resolve_favourite(track, owner_favourite_lookup(session, owner))
-        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite)
+        tags = visible_tags_by_track(session, owner.id if owner else None).get(track_id)
+        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite, tags=tags)
 
     @app.patch("/tracks/{track_id}", response_model=TrackRead)
     def update_track(
@@ -555,7 +563,8 @@ def create_app() -> FastAPI:
             session, [track_id], owner_config_id=owner.id if owner else None
         )
         favourite = resolve_favourite(track, owner_favourite_lookup(session, owner))
-        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite)
+        tags = visible_tags_by_track(session, owner.id if owner else None).get(track_id)
+        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite, tags=tags)
 
     @app.post("/scan", response_model=ScanResponse)
     def scan(
@@ -1092,6 +1101,7 @@ def track_to_schema(
     track: Track,
     ratings_average: dict[str, float] | None = None,
     favourite: bool = False,
+    tags: list[str] | None = None,
 ) -> TrackRead:
     return TrackRead(
         id=track.id,
@@ -1143,6 +1153,7 @@ def track_to_schema(
             if membership.group is not None
         ],
         cooldown_tags=[link.tag.name for link in track.cooldown_tags if link.tag is not None],
+        tags=tags or [],
         # The displayed rating is the plain AVERAGE of the user's past ratings (computed from
         # history); fall back to the raw latest star only when history hasn't been computed.
         ratings=(
@@ -1243,6 +1254,11 @@ def apply_track_update(
         # Favourite is a per-user opinion: an owned profile writes it to its own link, never onto
         # the shared Track (which would leak its taste to everyone sharing the song).
         set_owner_favourite(session, owner_config_id, track.id, bool(fields["favourite"]))
+    if payload.tags is None and "favourite" in fields:
+        # A favourite-only write (older clients, curation flows) still keeps the tag in step.
+        set_favourite_tag(session, track.id, bool(fields["favourite"]), owner_config_id)
+    if payload.tags is not None:
+        replace_track_tags(session, track, payload.tags, owner_config_id)
     if payload.ratings is not None:
         upsert_ratings(
             session,
@@ -1317,6 +1333,56 @@ def replace_tags(session: Session, track: Track, tag_names: list[str]) -> None:
             session.add(tag)
             session.flush()
         session.add(TrackCooldownTag(track=track, tag=tag))
+
+
+def replace_track_tags(
+    session: Session, track: Track, tag_names: list[str], owner_config_id: int | None
+) -> None:
+    """Replace the track's tag assignments this scope may touch. A shared tag's rows are stored
+    unowned (household-editable by any profile); a per-profile tag's rows are stamped with the
+    requester and never touch another profile's rows. Unknown names become cosmetic per-profile
+    custom tags. The favourite boolean columns are kept in step so the algorithm and exports
+    keep working unchanged."""
+    wanted: list[str] = []
+    seen: set[str] = set()
+    for name in tag_names:
+        cleaned = name.strip()[:120]
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            wanted.append(cleaned)
+    tags_by_name = {tag.name: tag for tag in session.scalars(select(Tag))}
+    for name in wanted:
+        if name not in tags_by_name:
+            tag = Tag(name=name, kind="custom")
+            session.add(tag)
+            session.flush()
+            tags_by_name[name] = tag
+    tag_by_id = {tag.id: tag for tag in tags_by_name.values()}
+    rows = session.scalars(select(TrackTag).where(TrackTag.track_id == track.id)).all()
+    existing: set[tuple[int, int | None]] = set()
+    for row in rows:
+        tag = tag_by_id.get(row.tag_id)
+        if tag is None:
+            continue
+        expected_owner = None if tag.shared else owner_config_id
+        if row.owner_config_id != expected_owner:
+            continue  # another scope's row — never touched
+        if tag.name in seen:
+            existing.add((row.tag_id, row.owner_config_id))
+        else:
+            session.delete(row)
+    for name in wanted:
+        tag = tags_by_name[name]
+        row_owner = None if tag.shared else owner_config_id
+        if (tag.id, row_owner) not in existing:
+            session.add(
+                TrackTag(track_id=track.id, tag_id=tag.id, owner_config_id=row_owner)
+            )
+    favourite = FAVOURITE_TAG_NAME in seen
+    if owner_config_id is None:
+        track.favourite = favourite
+    else:
+        set_owner_favourite(session, owner_config_id, track.id, favourite)
 
 
 # One listen must never be double-counted: a re-rate within this window is treated as a

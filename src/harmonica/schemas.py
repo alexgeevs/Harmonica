@@ -78,6 +78,7 @@ class TrackRead(BaseModel):
     embeds: list[EmbedRead] = Field(default_factory=list)
     groups: list[TrackGroupRead] = Field(default_factory=list)
     cooldown_tags: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     ratings: dict[str, float | None] = Field(default_factory=dict)
 
 
@@ -102,6 +103,7 @@ class TrackUpdate(BaseModel):
     embeds: list[EmbedWrite] | None = Field(default=None, max_length=20)
     groups: list[TrackGroupWrite] | None = None
     cooldown_tags: list[str] | None = None
+    tags: list[str] | None = Field(default=None, max_length=100)
     ratings: dict[str, float | None] | None = None
     # Optional client "sitting" id, threaded onto rating samples for session-mood (Phase B).
     rating_session_id: str | None = None
