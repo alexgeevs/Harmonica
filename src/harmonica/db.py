@@ -34,6 +34,7 @@ def init_db() -> None:
     models.ensure_additive_owner_columns(engine)
     models.ensure_additive_device_config_track_columns(engine)
     models.backfill_rating_samples(engine)
+    models.seed_and_backfill_tags(engine)
 
 
 def get_session() -> Generator[Session, None, None]:
