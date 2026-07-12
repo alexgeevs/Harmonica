@@ -3,8 +3,10 @@ assignments, tag-restricted queues, and the light zero-mean pacing layer."""
 
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
+from harmonica.api import create_app
 from harmonica.db import SessionLocal, engine, init_db
 from harmonica.models import (
     DEFAULT_CUSTOM_TAG_NAMES,
@@ -67,3 +69,51 @@ def test_backfill_copies_both_favourite_columns() -> None:
         owned_tags = visible_tags_by_track(session, config_id)
     assert FAVOURITE_TAG_NAME in local_tags.get(track_id, [])
     assert FAVOURITE_TAG_NAME in owned_tags.get(track_id, [])
+
+
+def test_tag_crud_and_system_protection() -> None:
+    with TestClient(create_app()) as client:
+        listed = client.get("/tags").json()
+        names = {entry["name"] for entry in listed}
+        assert {FAVOURITE_TAG_NAME, IGNORED_TAG_NAME, "Fun", "Focused"} <= names
+
+        created = client.post(
+            "/tags", json={"name": "Workout", "shared": False, "affects_algorithm": True}
+        )
+        assert created.status_code == 200
+        tag = created.json()
+        assert tag["kind"] == "custom" and tag["affects_algorithm"] is True
+
+        assert client.post("/tags", json={"name": "Workout"}).status_code == 409
+
+        renamed = client.patch(f"/tags/{tag['id']}", json={"name": "Gym", "shared": True})
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Gym" and renamed.json()["shared"] is True
+
+        assert client.delete(f"/tags/{tag['id']}").status_code == 204
+        assert "Gym" not in {entry["name"] for entry in client.get("/tags").json()}
+
+        system_id = next(
+            entry["id"] for entry in listed if entry["name"] == FAVOURITE_TAG_NAME
+        )
+        assert client.patch(f"/tags/{system_id}", json={"name": "X"}).status_code == 403
+        assert client.delete(f"/tags/{system_id}").status_code == 403
+
+
+def test_deleting_a_tag_removes_its_assignments() -> None:
+    with TestClient(create_app()) as client:
+        client.post("/tags", json={"name": "Doomed"})
+        with SessionLocal() as session:
+            track = Track(song_id="tags_doomed_1", title="Doomed carrier")
+            session.add(track)
+            doomed = session.scalar(select(Tag).where(Tag.name == "Doomed"))
+            session.flush()
+            session.add(TrackTag(track_id=track.id, tag_id=doomed.id, owner_config_id=None))
+            session.commit()
+            tag_id, track_id = doomed.id, track.id
+        assert client.delete(f"/tags/{tag_id}").status_code == 204
+        with SessionLocal() as session:
+            remaining = session.scalars(
+                select(TrackTag).where(TrackTag.track_id == track_id)
+            ).all()
+        assert remaining == []

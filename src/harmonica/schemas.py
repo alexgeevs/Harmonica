@@ -107,6 +107,27 @@ class TrackUpdate(BaseModel):
     rating_session_id: str | None = None
 
 
+class TagRead(BaseModel):
+    id: int
+    name: str
+    kind: str
+    shared: bool
+    affects_algorithm: bool
+    track_count: int = 0
+
+
+class TagCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    shared: bool = False
+    affects_algorithm: bool = False
+
+
+class TagUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    shared: bool | None = None
+    affects_algorithm: bool | None = None
+
+
 class ScanRequest(BaseModel):
     library: str
     create_tag_groups: bool = True

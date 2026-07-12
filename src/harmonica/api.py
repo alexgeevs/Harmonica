@@ -33,12 +33,15 @@ from harmonica.models import (
     PlaylistRun,
     RatingFactor,
     RatingSample,
+    Tag,
     Track,
     TrackCooldownTag,
     TrackRating,
+    TrackTag,
     WeightGroup,
     favourite_track_ids,
     now_utc,
+    visible_tag_rows,
 )
 from harmonica.normalization import plain_rating_averages
 from harmonica.playlist import generate_and_persist_playlist, preferred_asset
@@ -71,6 +74,9 @@ from harmonica.schemas import (
     SpotifyPlaylistRead,
     SpotifyTrackRead,
     StatsSummaryRead,
+    TagCreate,
+    TagRead,
+    TagUpdate,
     TrackGroupWrite,
     TrackRead,
     TrackUpdate,
@@ -814,6 +820,82 @@ def create_app() -> FastAPI:
         )
         return {"ok": True, **summary}
 
+    # --- Tags (organisational labels; system tags Favourite/Ignored are fixed) ---
+
+    @app.get("/tags", response_model=list[TagRead])
+    def list_tags(session: SessionDep, owner: OwnerDep) -> list[TagRead]:
+        counts: dict[int, set[int]] = {}
+        for track_id, tag in visible_tag_rows(session, owner.id if owner else None):
+            counts.setdefault(tag.id, set()).add(track_id)
+        tags = session.scalars(select(Tag).order_by(Tag.kind.desc(), Tag.name)).all()
+        return [tag_to_schema(tag, len(counts.get(tag.id, ()))) for tag in tags]
+
+    @app.post("/tags", response_model=TagRead)
+    def create_tag(payload: TagCreate, session: SessionDep) -> TagRead:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="Tag name cannot be empty")
+        if session.scalar(select(Tag).where(Tag.name == name)):
+            raise HTTPException(status_code=409, detail="A tag with that name already exists")
+        tag = Tag(
+            name=name,
+            kind="custom",
+            shared=payload.shared,
+            affects_algorithm=payload.affects_algorithm,
+        )
+        session.add(tag)
+        session.commit()
+        return tag_to_schema(tag, 0)
+
+    @app.patch("/tags/{tag_id}", response_model=TagRead)
+    def update_tag(
+        tag_id: int, payload: TagUpdate, session: SessionDep, owner: OwnerDep
+    ) -> TagRead:
+        tag = session.get(Tag, tag_id)
+        if tag is None:
+            raise HTTPException(status_code=404, detail="Tag not found")
+        if tag.kind == "system":
+            raise HTTPException(status_code=403, detail="System tags cannot be edited")
+        if payload.name is not None:
+            name = payload.name.strip()
+            if not name:
+                raise HTTPException(status_code=422, detail="Tag name cannot be empty")
+            clash = session.scalar(select(Tag).where(Tag.name == name, Tag.id != tag.id))
+            if clash is not None:
+                raise HTTPException(
+                    status_code=409, detail="A tag with that name already exists"
+                )
+            tag.name = name
+        if payload.shared is not None:
+            # Visibility flips only; existing assignment rows are never rewritten.
+            tag.shared = payload.shared
+        if payload.affects_algorithm is not None:
+            tag.affects_algorithm = payload.affects_algorithm
+        session.commit()
+        count = len(
+            {
+                track_id
+                for track_id, visible in visible_tag_rows(
+                    session, owner.id if owner else None
+                )
+                if visible.id == tag.id
+            }
+        )
+        return tag_to_schema(tag, count)
+
+    @app.delete("/tags/{tag_id}", status_code=204)
+    def delete_tag(tag_id: int, session: SessionDep) -> Response:
+        tag = session.get(Tag, tag_id)
+        if tag is None:
+            raise HTTPException(status_code=404, detail="Tag not found")
+        if tag.kind == "system":
+            raise HTTPException(status_code=403, detail="System tags cannot be deleted")
+        # Explicit: SQLite FK cascades are not enforced through this connection.
+        session.execute(delete(TrackTag).where(TrackTag.tag_id == tag.id))
+        session.delete(tag)
+        session.commit()
+        return Response(status_code=204)
+
     # --- Device configs (multi-device profiles; see docs/planning/multi-device-architecture.md) ---
 
     @app.get("/configs", response_model=list[DeviceConfigSummary])
@@ -1095,6 +1177,17 @@ def rating_factor_to_schema(factor: RatingFactor) -> RatingFactorRead:
         applies_to_instrumental=factor.applies_to_instrumental,
         applies_to_variants_only=factor.applies_to_variants_only,
         enabled=factor.enabled,
+    )
+
+
+def tag_to_schema(tag: Tag, track_count: int) -> TagRead:
+    return TagRead(
+        id=tag.id,
+        name=tag.name,
+        kind=tag.kind,
+        shared=tag.shared,
+        affects_algorithm=tag.affects_algorithm,
+        track_count=track_count,
     )
 
 
