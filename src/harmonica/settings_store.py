@@ -208,6 +208,21 @@ SETTING_DEFINITIONS: tuple[SettingDefinition, ...] = (
         step=0.05,
     ),
     SettingDefinition(
+        key="tag_clustering_bias",
+        label="Tag pacing bias",
+        description=(
+            "For tags marked as algorithm-active in Manage tags. Negative values space "
+            "same-tag songs apart; positive values let them run together. On aggregate a tag "
+            "never changes how often its songs appear, only when."
+        ),
+        value_type="number",
+        control="slider",
+        default=0.0,
+        minimum=-1.0,
+        maximum=1.0,
+        step=0.05,
+    ),
+    SettingDefinition(
         key="avoid_consecutive_compressed",
         label="Spread out compressed songs",
         description=(

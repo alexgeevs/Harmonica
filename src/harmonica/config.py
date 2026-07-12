@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     visual_priority_enabled: bool = True
     visual_priority_multiplier: float = 1.35
     group_clustering_bias: float = 0.0
+    # Pacing bias for algorithm-active user tags. Zero-mean over its horizon by construction, so
+    # on aggregate a tag never changes how often its songs appear — only when. 0 = off.
+    tag_clustering_bias: float = 0.0
     # Satiation: pace a recently over-played song so a binge doesn't burn it out (recovers over
     # weeks). Rediscovery: resurface a dormant favourite the longer it's gone unheard.
     satiation_enabled: bool = True

@@ -3,10 +3,19 @@ assignments, tag-restricted queues, and the light zero-mean pacing layer."""
 
 from __future__ import annotations
 
+import math
+
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
+from harmonica.algorithm import (
+    AlgorithmTrack,
+    apply_tag_pacing,
+    generate_playlist,
+    tag_pacing_factor,
+)
 from harmonica.api import create_app
+from harmonica.config import Settings
 from harmonica.db import SessionLocal, engine, init_db
 from harmonica.models import (
     DEFAULT_CUSTOM_TAG_NAMES,
@@ -278,3 +287,77 @@ def test_unknown_tag_restriction_yields_empty_run() -> None:
     with TestClient(create_app()) as client:
         _seed_track("tags_unknown_1", "Present")
         assert _run_track_ids(client, seed="s", tags=["No Such Tag"]) == []
+
+
+def _algo_track(track_id: int, tags: frozenset[str] = frozenset()) -> AlgorithmTrack:
+    return AlgorithmTrack(
+        id=track_id,
+        song_id=f"algo_{track_id}",
+        title=f"Algo {track_id}",
+        artist=None,
+        album=None,
+        media_asset_id=None,
+        file_path=None,
+        tags=tags,
+    )
+
+
+def test_tag_pacing_factor_is_zero_mean_and_directional() -> None:
+    horizon = 12
+    for bias in (-1.0, -0.4, 0.6, 1.0):
+        total = sum(
+            tag_pacing_factor(d, horizon, bias) - 1.0 for d in range(1, horizon)
+        )
+        assert math.isclose(total, 0.0, abs_tol=1e-9)
+    # Negative bias: suppressed just after a play, compensated later in the horizon.
+    assert tag_pacing_factor(1, horizon, -1.0) < 1.0
+    assert tag_pacing_factor(horizon - 1, horizon, -1.0) > 1.0
+    # Positive bias mirrors it; inert cases are exactly 1.0.
+    assert tag_pacing_factor(1, horizon, 1.0) > 1.0
+    assert tag_pacing_factor(None, horizon, 1.0) == 1.0
+    assert tag_pacing_factor(horizon, horizon, 1.0) == 1.0
+    assert tag_pacing_factor(3, horizon, 0.0) == 1.0
+
+
+def test_apply_tag_pacing_moves_only_tagged_tracks() -> None:
+    tracks = [
+        _algo_track(1, frozenset({"Fun"})),
+        _algo_track(2, frozenset({"Fun"})),
+        _algo_track(3),
+    ]
+    scores = [1.0, 1.0, 1.0]
+    settings = Settings(tag_clustering_bias=-1.0)
+    adjusted = apply_tag_pacing(tracks, scores, 1, {"Fun": 0}, settings)
+    assert adjusted[0] < 1.0 and adjusted[1] < 1.0  # same-tag, just played: suppressed
+    assert adjusted[2] == 1.0  # untagged: untouched
+    # Bias 0 short-circuits to the same list object (byte parity).
+    neutral = Settings(tag_clustering_bias=0.0)
+    assert apply_tag_pacing(tracks, scores, 1, {"Fun": 0}, neutral) is scores
+
+
+def test_bias_zero_is_byte_identical_with_tags_present() -> None:
+    tagged = [_algo_track(i, frozenset({"Fun"}) if i % 2 else frozenset()) for i in range(8)]
+    bare = [_algo_track(i) for i in range(8)]
+    settings = Settings(tag_clustering_bias=0.0)
+    run_tagged = generate_playlist(tagged, {}, 30, settings, seed="parity")
+    run_bare = generate_playlist(bare, {}, 30, settings, seed="parity")
+    assert [item.track.id for item in run_tagged] == [item.track.id for item in run_bare]
+
+
+def test_negative_bias_spaces_same_tag_songs_apart() -> None:
+    # Half the pool shares one algorithm-active tag; count adjacent same-tag pairs, summed over
+    # a few fixed seeds so the deterministic comparison is not hostage to one lucky draw.
+    def adjacency(bias: float) -> int:
+        total = 0
+        for seed in ("spacing-a", "spacing-b", "spacing-c"):
+            tracks = [
+                _algo_track(i, frozenset({"Fun"}) if i < 10 else frozenset())
+                for i in range(20)
+            ]
+            settings = Settings(tag_clustering_bias=bias)
+            items = generate_playlist(tracks, {}, 120, settings, seed=seed)
+            flags = [item.track.id < 10 for item in items]
+            total += sum(1 for a, b in zip(flags, flags[1:], strict=False) if a and b)
+        return total
+
+    assert adjacency(-1.0) < adjacency(0.0) < adjacency(1.0)

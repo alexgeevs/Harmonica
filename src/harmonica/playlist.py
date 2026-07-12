@@ -75,7 +75,7 @@ def load_algorithm_inputs(
     # Ignored is a hard exclusion from every generated queue (manual playback and the library
     # view are untouched). Applied before normalisation so the owner's calibration pool matches
     # what can actually play.
-    ignored_ids = algorithm_tag_inputs(session, owner_config_id)[0]
+    ignored_ids, active_tag_names = algorithm_tag_inputs(session, owner_config_id)
     if ignored_ids:
         tracks = [track for track in tracks if track.id not in ignored_ids]
     # Per-user normalisation is calibrated to the owner's own library; legacy stays whole-library.
@@ -174,6 +174,7 @@ def load_algorithm_inputs(
                     if owner_favourites is not None
                     else bool(getattr(track, "favourite", False))
                 ),
+                tags=active_tag_names.get(track.id, frozenset()),
                 rating_multiplier=song_mult,
                 song_rating_multiplier=song_mult,
                 is_original_rendition=bool(getattr(track, "is_original_rendition", False)),
@@ -357,6 +358,7 @@ def settings_snapshot(settings: Settings) -> dict[str, object]:
         "visual_priority_enabled": settings.visual_priority_enabled,
         "visual_priority_multiplier": settings.visual_priority_multiplier,
         "group_clustering_bias": settings.group_clustering_bias,
+        "tag_clustering_bias": settings.tag_clustering_bias,
         "skip_penalty_halflife": settings.skip_penalty_halflife,
         "rating_normalization_enabled": settings.rating_normalization_enabled,
         "rating_calibration_enabled": settings.rating_calibration_enabled,

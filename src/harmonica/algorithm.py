@@ -50,6 +50,9 @@ class AlgorithmTrack:
     is_original_rendition: bool = False
     original_prior_mult: float = 1.0
     favourite: bool = False
+    # Algorithm-active user tags (cosmetic tags never reach the algorithm). Feeds the light
+    # zero-mean pacing layer in apply_tag_pacing; empty = inert.
+    tags: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -175,6 +178,46 @@ def apply_clustering_bias(
     if bias > 0:
         return min(2.0, cooldown + (bias * proximity))
     return max(0.0, cooldown * (1.0 + (bias * 0.5 * proximity)))
+
+
+def tag_pacing_factor(distance: int | None, horizon: int, bias: float) -> float:
+    """The light per-tag pacing factor: 1 + bias * (0.5 - distance/horizon) while the tag is
+    inside its horizon, 1.0 otherwise. Mean proximity over distances 1..horizon-1 is exactly
+    0.5, so the factor is zero-mean across the horizon — it shifts WHEN same-tag songs play,
+    never how often on aggregate. Bounded in (0.5, 1.5) even at full bias."""
+    if bias == 0.0 or distance is None or horizon <= 1 or distance >= horizon:
+        return 1.0
+    if distance <= 0:
+        distance = 1
+    return 1.0 + bias * (0.5 - distance / horizon)
+
+
+def apply_tag_pacing(
+    tracks: list[AlgorithmTrack],
+    scores: list[float],
+    current_index: int,
+    tag_last_played: dict[str, int],
+    settings: Settings,
+) -> list[float]:
+    """Selection-weight adjustment for algorithm-active tags. Applied to the selection weights
+    only (like the compressed-audio bias), never the stored scores. Returns ``scores`` itself
+    when the bias is 0 or nothing applies, keeping the default path byte-identical."""
+    bias = min(max(settings.tag_clustering_bias, -1.0), 1.0)
+    if bias == 0 or not tag_last_played:
+        return scores
+    horizon = min(30, max(len(tracks), 1))
+    out: list[float] | None = None
+    for index, track in enumerate(tracks):
+        factor = 1.0
+        for tag in track.tags:
+            last = tag_last_played.get(tag)
+            distance = None if last is None else current_index - last
+            factor *= tag_pacing_factor(distance, horizon, bias)
+        if factor != 1.0:
+            if out is None:
+                out = list(scores)
+            out[index] = scores[index] * factor
+    return out if out is not None else scores
 
 
 def score_track(
@@ -375,6 +418,7 @@ def generate_playlist(
     track_repeat_credits = dict(initial_track_repeat_credits or {})
     group_repeat_credits = dict(initial_group_repeat_credits or {})
     sub_group_repeat_credits = dict(initial_sub_group_repeat_credits or {})
+    tag_last_played: dict[str, int] = {}
     track_repeat_counts = {
         track.id: max(track.repeat_count, 0.0)
         for track in tracks
@@ -465,6 +509,10 @@ def generate_playlist(
                 for i, score in enumerate(scores)
             ]
 
+        selection_scores = apply_tag_pacing(
+            tracks, selection_scores, position, tag_last_played, settings
+        )
+
         chosen, chosen_index = weighted_choice_from_indices(
             rng,
             tracks,
@@ -495,6 +543,8 @@ def generate_playlist(
         if chosen.sub_group:
             sub_group_last_played[chosen.sub_group] = position
             sub_group_repeat_credits[chosen.sub_group] = 1.0
+        for tag in chosen.tags:
+            tag_last_played[tag] = position
         prev_compressed = chosen.is_compressed
 
     return output

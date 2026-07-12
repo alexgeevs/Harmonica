@@ -216,6 +216,7 @@ class SettingsRead(BaseModel):
     visual_priority_enabled: bool
     visual_priority_multiplier: float
     group_clustering_bias: float
+    tag_clustering_bias: float
     avoid_consecutive_compressed: bool
     compressed_break_reminder: bool
     loudness_warning_enabled: bool

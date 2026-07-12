@@ -70,6 +70,7 @@ class Settings:
     visual_priority_enabled: bool = False
     visual_priority_multiplier: float = 1.35
     group_clustering_bias: float = 0.0
+    tag_clustering_bias: float = 0.0
     satiation_enabled: bool = True
     satiation_strength: float = 0.5
     satiation_window_days: float = 14.0
