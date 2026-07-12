@@ -1595,6 +1595,9 @@ function TagManager(props: { tags: Tag[]; onChanged: () => void }) {
   async function run(action: Promise<unknown>) {
     try {
       await action;
+    } catch (err) {
+      // e.g. a profile trying to delete a household-shared tag; the backend explains why.
+      window.alert(err instanceof Error ? err.message : String(err));
     } finally {
       props.onChanged();
     }

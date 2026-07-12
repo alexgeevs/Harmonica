@@ -42,9 +42,10 @@ affects_algorithm (bool, default false), created_at.
 created_at. Uniqueness of (track_id, tag_id, owner_config_id) is enforced in application code
 because SQLite treats NULLs as distinct inside unique constraints.
 
-Seeding runs only when the tags table is empty: system tags Favourite and Ignored, plus default
-custom tags Fun, Focused, Calm, Energetic, Nostalgic and Party. Defaults are ordinary custom tags,
-renamable and deletable, and deleted defaults do not come back on restart.
+Seeding runs only when the tags table is empty: system tags Favourite and Ignored, plus starter
+custom tags Fun and Focused. The starter set is deliberately small so every default is distinct
+(owner amendment: overlapping starter moods would just be noise to delete). Defaults are ordinary
+custom tags, renamable and deletable, and deleted defaults do not come back on restart.
 
 Backfill runs once at startup: `Track.favourite` becomes a Favourite assignment with NULL owner,
 `DeviceConfigTrack.favourite` becomes a Favourite assignment owned by that config. After backfill
@@ -57,7 +58,10 @@ in sync on every Favourite tag change, so exports and existing code paths stay c
 - `POST /tags` creates a custom tag (name, shared, affects_algorithm).
 - `PATCH /tags/{id}` renames a tag or toggles shared and affects_algorithm. System tags refuse
   all edits.
-- `DELETE /tags/{id}` removes the tag and its assignments. System tags refuse.
+- `DELETE /tags/{id}` is scoped to the caller (owner amendment: one user deleting a tag must not
+  take it away from another). A profile's delete removes only that profile's assignments, and the
+  definition itself only once no scope uses it. A profile cannot delete a shared tag (unshare
+  first). Local mode deletes tag and assignments outright. System tags always refuse.
 - `TrackRead` gains a `tags` list. `PATCH /tracks/{id}` accepts it. The existing `favourite`
   boolean keeps working and maps onto the Favourite tag.
 - `POST /queue/generate` gains an optional `tags` list. The candidate pool becomes tracks carrying

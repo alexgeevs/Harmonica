@@ -908,12 +908,37 @@ def create_app() -> FastAPI:
         return tag_to_schema(tag, count)
 
     @app.delete("/tags/{tag_id}", status_code=204)
-    def delete_tag(tag_id: int, session: SessionDep) -> Response:
+    def delete_tag(tag_id: int, session: SessionDep, owner: OwnerDep) -> Response:
         tag = session.get(Tag, tag_id)
         if tag is None:
             raise HTTPException(status_code=404, detail="Tag not found")
         if tag.kind == "system":
             raise HTTPException(status_code=403, detail="System tags cannot be deleted")
+        if owner is not None:
+            if tag.shared:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "This tag is shared across the household, so one profile cannot "
+                        "delete it for everyone. Unshare it first."
+                    ),
+                )
+            # A profile deletes only its own assignments. The definition survives while any
+            # other scope still uses the tag, and goes once nobody does.
+            session.execute(
+                delete(TrackTag).where(
+                    TrackTag.tag_id == tag.id, TrackTag.owner_config_id == owner.id
+                )
+            )
+            session.flush()
+            still_used = session.scalar(
+                select(TrackTag.id).where(TrackTag.tag_id == tag.id).limit(1)
+            )
+            if still_used is None:
+                session.delete(tag)
+            session.commit()
+            return Response(status_code=204)
+        # Local mode is single-user administration: the tag and every assignment go together.
         # Explicit: SQLite FK cascades are not enforced through this connection.
         session.execute(delete(TrackTag).where(TrackTag.tag_id == tag.id))
         session.delete(tag)

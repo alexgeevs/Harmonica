@@ -16,7 +16,7 @@
 - Persistence is `Base.metadata.create_all` — **no migrations**. New tables only; never alter existing columns.
 - Settings must be **real controls** generated from `SETTING_DEFINITIONS` (`settings_store.py`), never a read-only recap.
 - Preserve the colour scheme: deep green `#1b362e`, mint `#eef3f1`, teal `#206a5d`, gold `#f1c84b`.
-- System tag names are exactly `"Favourite"` and `"Ignored"`. Default custom tags: `"Fun"`, `"Focused"`, `"Calm"`, `"Energetic"`, `"Nostalgic"`, `"Party"`.
+- System tag names are exactly `"Favourite"` and `"Ignored"`. Default custom tags: `"Fun"`, `"Focused"` (owner amendment 2026-07-12: defaults must be distinct, so the starter set was cut from six to two; profile-scoped tag deletion was also added post-plan).
 - Commits: short imperative messages, committed as the configured git user (`alexgeevs`), **no Co-Authored-By/agent trailer**, never `git add -A` (stage named files only; leave `uv.lock` and `$HOME` dotfiles alone). **Never push.**
 - Test/lint commands: `~/.local/bin/uv run pytest -q`, `~/.local/bin/uv run ruff check src/harmonica tests`, `cd web && npm run build`. If the uv cache is read-only in a sandbox, use `.venv/bin/python -m pytest -q` and `.venv/bin/python -m ruff check src/harmonica tests`.
 - Do not kill any daemon already running on port 8765.

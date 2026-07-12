@@ -169,7 +169,9 @@ class TrackCooldownTag(Base):
 FAVOURITE_TAG_NAME = "Favourite"
 IGNORED_TAG_NAME = "Ignored"
 SYSTEM_TAG_NAMES = (FAVOURITE_TAG_NAME, IGNORED_TAG_NAME)
-DEFAULT_CUSTOM_TAG_NAMES = ("Fun", "Focused", "Calm", "Energetic", "Nostalgic", "Party")
+# Deliberately few and distinct. Users add their own vocabulary; overlapping starter moods
+# (Party next to Fun, Calm next to Focused) would just be noise to delete.
+DEFAULT_CUSTOM_TAG_NAMES = ("Fun", "Focused")
 
 
 class Tag(Base):

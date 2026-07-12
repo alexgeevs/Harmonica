@@ -47,13 +47,13 @@ def test_seed_creates_system_and_starter_tags() -> None:
 def test_seed_is_idempotent_and_does_not_resurrect_deleted_defaults() -> None:
     init_db()
     with SessionLocal() as session:
-        tag = session.scalar(select(Tag).where(Tag.name == "Party"))
-        if tag is not None:
-            session.delete(tag)
-            session.commit()
+        tag = session.scalar(select(Tag).where(Tag.name == "Focused"))
+        assert tag is not None  # a real default, so the reseed check below means something
+        session.delete(tag)
+        session.commit()
     seed_and_backfill_tags(engine)
     with SessionLocal() as session:
-        assert session.scalar(select(Tag).where(Tag.name == "Party")) is None
+        assert session.scalar(select(Tag).where(Tag.name == "Focused")) is None
 
 
 def test_backfill_copies_both_favourite_columns() -> None:
@@ -361,6 +361,40 @@ def test_negative_bias_spaces_same_tag_songs_apart() -> None:
         return total
 
     assert adjacency(-1.0) < adjacency(0.0) < adjacency(1.0)
+
+
+def test_profile_delete_keeps_other_profiles_tag() -> None:
+    # Deleting a tag as a profile removes it for that profile only. The definition survives
+    # while anyone else still uses it, and finally goes once nobody does.
+    with TestClient(create_app()) as client:
+        track_id = _seed_track("tags_del_scope_1", "Delete scoped")
+        _, token_a = _make_profile(client, "tags-del-alice")
+        _, token_b = _make_profile(client, "tags-del-bob")
+        payload = {"tracks": [{"song_id": "tags_del_scope_1", "title": "Delete scoped"}]}
+        for token in (token_a, token_b):
+            client.post("/library/import-json", json={"payload": payload}, headers=_auth(token))
+            client.patch(
+                f"/tracks/{track_id}", json={"tags": ["Household Fav"]}, headers=_auth(token)
+            )
+        tag_id = next(
+            t["id"] for t in client.get("/tags").json() if t["name"] == "Household Fav"
+        )
+        assert client.delete(f"/tags/{tag_id}", headers=_auth(token_a)).status_code == 204
+        seen_by_a = client.get(f"/tracks/{track_id}", headers=_auth(token_a)).json()["tags"]
+        seen_by_b = client.get(f"/tracks/{track_id}", headers=_auth(token_b)).json()["tags"]
+        assert "Household Fav" not in seen_by_a
+        assert "Household Fav" in seen_by_b
+        assert any(t["name"] == "Household Fav" for t in client.get("/tags").json())
+        assert client.delete(f"/tags/{tag_id}", headers=_auth(token_b)).status_code == 204
+        assert not any(t["name"] == "Household Fav" for t in client.get("/tags").json())
+
+
+def test_profile_cannot_delete_shared_tag() -> None:
+    with TestClient(create_app()) as client:
+        _, token_a = _make_profile(client, "tags-shared-del")
+        created = client.post("/tags", json={"name": "House Rules", "shared": True}).json()
+        assert client.delete(f"/tags/{created['id']}", headers=_auth(token_a)).status_code == 403
+        assert any(t["name"] == "House Rules" for t in client.get("/tags").json())
 
 
 def test_export_import_roundtrip_carries_tags() -> None:
