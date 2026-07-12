@@ -169,8 +169,6 @@ class TrackCooldownTag(Base):
 FAVOURITE_TAG_NAME = "Favourite"
 IGNORED_TAG_NAME = "Ignored"
 SYSTEM_TAG_NAMES = (FAVOURITE_TAG_NAME, IGNORED_TAG_NAME)
-# Deliberately few and distinct. Users add their own vocabulary; overlapping starter moods
-# (Party next to Fun, Calm next to Focused) would just be noise to delete.
 DEFAULT_CUSTOM_TAG_NAMES = ("Fun", "Focused")
 
 
@@ -607,7 +605,7 @@ def seed_and_backfill_tags(engine: Engine) -> None:
     """One-time, idempotent: create the system tags (Favourite, Ignored) and the starter custom
     tags, then copy the existing favourite booleans into tag assignments (``Track.favourite`` →
     an unowned row; ``DeviceConfigTrack.favourite`` → a row owned by that profile). No-op once
-    any tag exists, so renamed or deleted starter tags never come back."""
+    any tag exists."""
     with Session(engine) as session:
         if session.scalar(select(func.count()).select_from(Tag)):
             return
@@ -689,6 +687,24 @@ def algorithm_tag_inputs(
         elif tag.affects_algorithm:
             active.setdefault(track_id, set()).add(tag.name)
     return ignored, {track_id: frozenset(names) for track_id, names in active.items()}
+
+
+def materialise_shared_assignments(session: Session, tag_id: int) -> None:
+    """When a household-shared tag becomes per-profile, nobody may lose it: every song the
+    household saw tagged stays tagged in each existing profile and in local mode. Each scope
+    then owns its copy independently."""
+    rows = session.scalars(select(TrackTag).where(TrackTag.tag_id == tag_id)).all()
+    if not rows:
+        return
+    track_ids = {row.track_id for row in rows}
+    existing = {(row.track_id, row.owner_config_id) for row in rows}
+    scopes: list[int | None] = [None, *session.scalars(select(DeviceConfig.id))]
+    for track_id in track_ids:
+        for scope in scopes:
+            if (track_id, scope) not in existing:
+                session.add(
+                    TrackTag(track_id=track_id, tag_id=tag_id, owner_config_id=scope)
+                )
 
 
 def set_favourite_tag(

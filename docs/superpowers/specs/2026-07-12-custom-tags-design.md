@@ -43,9 +43,8 @@ created_at. Uniqueness of (track_id, tag_id, owner_config_id) is enforced in app
 because SQLite treats NULLs as distinct inside unique constraints.
 
 Seeding runs only when the tags table is empty: system tags Favourite and Ignored, plus starter
-custom tags Fun and Focused. The starter set is deliberately small so every default is distinct
-(owner amendment: overlapping starter moods would just be noise to delete). Defaults are ordinary
-custom tags, renamable and deletable, and deleted defaults do not come back on restart.
+custom tags Fun and Focused. The starter set is deliberately small so every default is distinct.
+Defaults are ordinary custom tags, renamable and deletable.
 
 Backfill runs once at startup: `Track.favourite` becomes a Favourite assignment with NULL owner,
 `DeviceConfigTrack.favourite` becomes a Favourite assignment owned by that config. After backfill
@@ -107,8 +106,9 @@ The owner asked for flexibility here and may request changes once it exists.
 
 Tag definitions are global vocabulary. Assignment visibility follows one rule: for a shared tag
 every assignment row counts for everyone. For a per-profile tag only rows whose owner matches the
-requesting profile count, with NULL owner in local mode. Toggling shared changes visibility only,
-no rows are rewritten. Counts, filters and tag-restricted queues all flow through this rule. With
+requesting profile count, with NULL owner in local mode. Unsharing a tag never takes it away from
+anyone: every profile and local mode keep their own copy of the assignments the household had.
+Counts, filters and tag-restricted queues all flow through this rule. With
 no profile header and the bias slider at 0, behaviour is byte-identical to current.
 
 ## Export and import

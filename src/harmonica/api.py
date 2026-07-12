@@ -42,6 +42,7 @@ from harmonica.models import (
     TrackTag,
     WeightGroup,
     favourite_track_ids,
+    materialise_shared_assignments,
     now_utc,
     set_favourite_tag,
     tag_track_ids,
@@ -891,7 +892,10 @@ def create_app() -> FastAPI:
                 )
             tag.name = name
         if payload.shared is not None:
-            # Visibility flips only; existing assignment rows are never rewritten.
+            if tag.shared and not payload.shared:
+                # Unsharing must not take the tag away from anyone: every scope keeps its
+                # own copy of what the household had.
+                materialise_shared_assignments(session, tag.id)
             tag.shared = payload.shared
         if payload.affects_algorithm is not None:
             tag.affects_algorithm = payload.affects_algorithm

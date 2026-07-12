@@ -389,6 +389,35 @@ def test_profile_delete_keeps_other_profiles_tag() -> None:
         assert not any(t["name"] == "Household Fav" for t in client.get("/tags").json())
 
 
+def test_unsharing_keeps_the_tag_in_every_account() -> None:
+    # Alice tags a song under a shared tag, then unshares it. Bob, Alice and local mode all
+    # keep their own copy, and Alice deleting hers afterwards leaves Bob's alone.
+    with TestClient(create_app()) as client:
+        track_id = _seed_track("tags_unshare_1", "Unshared")
+        _, token_a = _make_profile(client, "tags-unshare-alice")
+        _, token_b = _make_profile(client, "tags-unshare-bob")
+        payload = {"tracks": [{"song_id": "tags_unshare_1", "title": "Unshared"}]}
+        for token in (token_a, token_b):
+            client.post("/library/import-json", json={"payload": payload}, headers=_auth(token))
+        shared = client.post("/tags", json={"name": "Karaoke", "shared": True}).json()
+        client.patch(f"/tracks/{track_id}", json={"tags": ["Karaoke"]}, headers=_auth(token_a))
+
+        client.patch(f"/tags/{shared['id']}", json={"shared": False})
+        for token in (token_a, token_b):
+            assert "Karaoke" in client.get(
+                f"/tracks/{track_id}", headers=_auth(token)
+            ).json()["tags"]
+        assert "Karaoke" in client.get(f"/tracks/{track_id}").json()["tags"]  # local mode
+
+        assert client.delete(f"/tags/{shared['id']}", headers=_auth(token_a)).status_code == 204
+        assert "Karaoke" not in client.get(
+            f"/tracks/{track_id}", headers=_auth(token_a)
+        ).json()["tags"]
+        assert "Karaoke" in client.get(f"/tracks/{track_id}", headers=_auth(token_b)).json()[
+            "tags"
+        ]
+
+
 def test_profile_cannot_delete_shared_tag() -> None:
     with TestClient(create_app()) as client:
         _, token_a = _make_profile(client, "tags-shared-del")
