@@ -361,3 +361,36 @@ def test_negative_bias_spaces_same_tag_songs_apart() -> None:
         return total
 
     assert adjacency(-1.0) < adjacency(0.0) < adjacency(1.0)
+
+
+def test_export_import_roundtrip_carries_tags() -> None:
+    with TestClient(create_app()) as client:
+        track_id = _seed_track("tags_exp_1", "Exported")
+        client.post("/tags", json={"name": "Sing Along", "affects_algorithm": True})
+        client.patch(f"/tracks/{track_id}", json={"tags": ["Sing Along", IGNORED_TAG_NAME]})
+        payload = client.get("/library/export-json?scope=metadata").json()
+        tag_block = payload["tags"]
+        assert {"song_id": "tags_exp_1", "tag": "Sing Along"} in tag_block["assignments"]
+        sing = next(d for d in tag_block["definitions"] if d["name"] == "Sing Along")
+        assert sing["affects_algorithm"] is True
+
+        # Re-importing the same payload is idempotent.
+        first = client.post("/library/import-json", json={"payload": payload}).json()
+        assert first["tags_applied"] == 0
+        with SessionLocal() as session:
+            rows = session.scalars(
+                select(TrackTag).where(TrackTag.track_id == track_id)
+            ).all()
+        assert len(rows) == 2
+
+
+def test_legacy_favourite_import_syncs_the_tag() -> None:
+    with TestClient(create_app()) as client:
+        payload = {
+            "tracks": [{"song_id": "tags_legacy_1", "title": "Legacy", "favourite": True}]
+        }
+        client.post("/library/import-json", json={"payload": payload})
+        with SessionLocal() as session:
+            track = session.scalar(select(Track).where(Track.song_id == "tags_legacy_1"))
+            tags = visible_tags_by_track(session, None).get(track.id, [])
+        assert FAVOURITE_TAG_NAME in tags
