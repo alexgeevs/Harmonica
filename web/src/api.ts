@@ -14,6 +14,7 @@ import type {
   RatingFactor,
   RunSummary,
   StatsSummary,
+  Tag,
   Track
 } from "./types";
 import type { YouTubeConfig } from "./youtube";
@@ -109,6 +110,7 @@ export const api = {
           share: group.share ?? null
         })),
         cooldown_tags: track.cooldown_tags,
+        tags: track.tags ?? [],
         // A known video id round-trips as provider+id; a raw pasted URL is sent alone for the
         // backend to parse. An empty list clears the embed.
         embeds: (track.embeds ?? []).map((embed) =>
@@ -133,7 +135,7 @@ export const api = {
         body: JSON.stringify({ library })
       }
     ),
-  generateQueue: (length: number, seed?: string, configId?: number | null) =>
+  generateQueue: (length: number, seed?: string, configId?: number | null, tags?: string[]) =>
     request<QueueRun>("/queue/generate", {
       method: "POST",
       body: JSON.stringify({
@@ -141,7 +143,8 @@ export const api = {
         seed: seed || null,
         explain: true,
         ui_active: true,
-        config_id: configId ?? null
+        config_id: configId ?? null,
+        tags: tags && tags.length ? tags : null
       })
     }),
   recordPlaybackEvent: (event: PlaybackEventCreate) =>
@@ -221,6 +224,18 @@ export const api = {
     request<DeviceConfigDetail>("/configs/claim", {
       method: "POST",
       body: JSON.stringify({ name, passphrase })
+    }),
+  // --- Tags (system tags Favourite/Ignored are fixed; custom tags are user-managed) ---
+  listTags: () => request<Tag[]>("/tags"),
+  createTag: (body: { name: string; shared?: boolean; affects_algorithm?: boolean }) =>
+    request<Tag>("/tags", { method: "POST", body: JSON.stringify(body) }),
+  updateTag: (id: number, body: { name?: string; shared?: boolean; affects_algorithm?: boolean }) =>
+    request<Tag>(`/tags/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteTag: (id: number) =>
+    fetch(`/tags/${id}`, { method: "DELETE", headers: authHeaders() }).then((response) => {
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`Delete failed: ${response.status}`);
+      }
     })
 };
 

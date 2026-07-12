@@ -12,7 +12,8 @@ This file is the agent-readable summary of https://harmonica.org.uk. To be more 
 - Cold start: unheard and unrated songs are boosted until the library is covered.
 - Star ratings with normalisation: ratings from an unusually harsh or generous session are reverted towards the mean.
 - Cover/rendition families: alternate versions (e.g. covers, reprise) of one song compete as a family, not as duplicates.
-- Per-user profiles: one shared media pool on a household NAS, private libraries, ratings and listening history per person, bearer-token auth.
+- Custom tags: songs carry whatever labels fit, yours to create and customise. The library filters by tag, queues can be generated from chosen tags alone, and a built-in Ignored tag keeps a song in the library but out of generated queues.
+- Per-user profiles: one shared media pool on a household NAS, private libraries, ratings and listening history per person, bearer-token auth. Tags are per profile, shareable household-wide.
 - Listening stats. Settings are real controls (switches/sliders) for people and a JSON API (`GET`/`PATCH /settings`) for agents. All state lives in one SQLite file under `.harmonica/`.
 - No engagement incentive: Harmonica does not maximise listening time. It is built for long-term enjoyment. Listening history exists only on the user's device, where the algorithm uses it.
 

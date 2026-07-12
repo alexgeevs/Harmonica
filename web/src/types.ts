@@ -27,6 +27,18 @@ export type Embed = {
   start_seconds?: number | null;
 };
 
+// A user tag. System tags (Favourite, Ignored) are fixed; custom tags are user-managed.
+// `shared` = assignments are household-wide instead of per-profile; `affects_algorithm`
+// = the tag feeds the light pacing layer (cosmetic otherwise).
+export type Tag = {
+  id: number;
+  name: string;
+  kind: "system" | "custom" | string;
+  shared: boolean;
+  affects_algorithm: boolean;
+  track_count: number;
+};
+
 export type Track = {
   id: number;
   song_id: string;
@@ -45,6 +57,7 @@ export type Track = {
   assets: MediaAsset[];
   groups: TrackGroup[];
   cooldown_tags: string[];
+  tags?: string[];
   ratings: Record<string, number | null>;
   // Normalised effective rating per factor (algorithm view); raw stars stay in `ratings`.
   ratings_effective?: Record<string, number | null>;
@@ -94,6 +107,7 @@ export type SettingControl = {
     | "visual_priority_enabled"
     | "visual_priority_multiplier"
     | "group_clustering_bias"
+    | "tag_clustering_bias"
     | "avoid_consecutive_compressed"
     | "compressed_break_reminder"
     | "loudness_warning_enabled"
@@ -150,6 +164,7 @@ export type AppSettings = {
   visual_priority_enabled: boolean;
   visual_priority_multiplier: number;
   group_clustering_bias: number;
+  tag_clustering_bias: number;
   avoid_consecutive_compressed: boolean;
   compressed_break_reminder: boolean;
   loudness_warning_enabled: boolean;
@@ -321,6 +336,7 @@ export type ImportSummary = {
   rating_samples_added: number;
   cover_comparisons_added: number;
   track_ratings_applied: number;
+  tags_applied?: number;
   settings_applied: number;
 };
 

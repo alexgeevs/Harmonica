@@ -33,6 +33,7 @@ from harmonica.models import (
     Track,
     TrackRating,
     WeightGroup,
+    algorithm_tag_inputs,
     ensure_additive_playlist_run_columns,
     favourite_track_ids,
     now_utc,
@@ -71,6 +72,12 @@ def load_algorithm_inputs(
         if included_track_ids is not None
         else all_tracks
     )
+    # Ignored is a hard exclusion from every generated queue (manual playback and the library
+    # view are untouched). Applied before normalisation so the owner's calibration pool matches
+    # what can actually play.
+    ignored_ids, active_tag_names = algorithm_tag_inputs(session, owner_config_id)
+    if ignored_ids:
+        tracks = [track for track in tracks if track.id not in ignored_ids]
     # Per-user normalisation is calibrated to the owner's own library; legacy stays whole-library.
     ratings_tracks = tracks if owner_config_id is not None else all_tracks
     # Favourites are per-profile: an owned run reads the owner's own tags; legacy reads the shared
@@ -167,6 +174,7 @@ def load_algorithm_inputs(
                     if owner_favourites is not None
                     else bool(getattr(track, "favourite", False))
                 ),
+                tags=active_tag_names.get(track.id, frozenset()),
                 rating_multiplier=song_mult,
                 song_rating_multiplier=song_mult,
                 is_original_rendition=bool(getattr(track, "is_original_rendition", False)),
@@ -249,6 +257,7 @@ def generate_and_persist_playlist(
     ui_active: bool = False,
     included_track_ids: set[int] | None = None,
     owner_config_id: int | None = None,
+    queue_tags: list[str] | None = None,
 ) -> tuple[PlaylistRun, list[GeneratedItem]]:
     ensure_additive_playlist_run_columns(engine)
     tracks, groups, history_summary = load_algorithm_inputs(
@@ -290,10 +299,14 @@ def generate_and_persist_playlist(
         if tracks
         else []
     )
+    snapshot = settings_snapshot(settings)
+    if queue_tags:
+        # Record the tag restriction on the run itself, so a saved session says what it was.
+        snapshot["queue_tags"] = list(queue_tags)
     run = PlaylistRun(
         seed=str(seed) if seed is not None else None,
         length=length,
-        settings_json=json.dumps(settings_snapshot(settings)),
+        settings_json=json.dumps(snapshot),
         owner_config_id=owner_config_id,
     )
     session.add(run)
@@ -345,6 +358,7 @@ def settings_snapshot(settings: Settings) -> dict[str, object]:
         "visual_priority_enabled": settings.visual_priority_enabled,
         "visual_priority_multiplier": settings.visual_priority_multiplier,
         "group_clustering_bias": settings.group_clustering_bias,
+        "tag_clustering_bias": settings.tag_clustering_bias,
         "skip_penalty_halflife": settings.skip_penalty_halflife,
         "rating_normalization_enabled": settings.rating_normalization_enabled,
         "rating_calibration_enabled": settings.rating_calibration_enabled,

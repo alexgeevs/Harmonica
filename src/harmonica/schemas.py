@@ -78,6 +78,7 @@ class TrackRead(BaseModel):
     embeds: list[EmbedRead] = Field(default_factory=list)
     groups: list[TrackGroupRead] = Field(default_factory=list)
     cooldown_tags: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     ratings: dict[str, float | None] = Field(default_factory=dict)
 
 
@@ -102,9 +103,31 @@ class TrackUpdate(BaseModel):
     embeds: list[EmbedWrite] | None = Field(default=None, max_length=20)
     groups: list[TrackGroupWrite] | None = None
     cooldown_tags: list[str] | None = None
+    tags: list[str] | None = Field(default=None, max_length=100)
     ratings: dict[str, float | None] | None = None
     # Optional client "sitting" id, threaded onto rating samples for session-mood (Phase B).
     rating_session_id: str | None = None
+
+
+class TagRead(BaseModel):
+    id: int
+    name: str
+    kind: str
+    shared: bool
+    affects_algorithm: bool
+    track_count: int = 0
+
+
+class TagCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    shared: bool = False
+    affects_algorithm: bool = False
+
+
+class TagUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    shared: bool | None = None
+    affects_algorithm: bool | None = None
 
 
 class ScanRequest(BaseModel):
@@ -125,6 +148,9 @@ class QueueGenerateRequest(BaseModel):
     explain: bool = True
     ui_active: bool = False
     config_id: int | None = None
+    # Restrict the candidate pool to tracks carrying ANY of these tags (union). Ignored is
+    # dropped server-side, so the exclusion has no override.
+    tags: list[str] | None = Field(default=None, max_length=50)
 
 
 class QueueItemRead(BaseModel):
@@ -190,6 +216,7 @@ class SettingsRead(BaseModel):
     visual_priority_enabled: bool
     visual_priority_multiplier: float
     group_clustering_bias: float
+    tag_clustering_bias: float
     avoid_consecutive_compressed: bool
     compressed_break_reminder: bool
     loudness_warning_enabled: bool

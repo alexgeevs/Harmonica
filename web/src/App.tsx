@@ -69,6 +69,7 @@ import type {
   RunSummary,
   SettingControl,
   StatsSummary,
+  Tag,
   Track,
   TrackGroup,
   WhyReason
@@ -119,6 +120,7 @@ export default function App() {
   const [ratingFactors, setRatingFactors] = useState<RatingFactor[]>([]);
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [events, setEvents] = useState<PlaybackEvent[]>([]);
   const [savedRuns, setSavedRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -255,6 +257,7 @@ export default function App() {
       void api.playbackEvents(300).then(setEvents).catch(() => undefined);
       void refreshSavedRuns();
       void configsSupported().then(setConfigsOk).catch(() => setConfigsOk(false));
+      void api.listTags().then(setTags).catch(() => setTags([]));
       // Best-effort: an older backend without the endpoint just leaves YouTube off.
       void api.youtubeConfig().then(setYoutubeCfg).catch(() => setYoutubeCfg(null));
     } catch (err) {
@@ -279,11 +282,20 @@ export default function App() {
     void api.playbackEvents(300).then(setEvents).catch(() => undefined);
   }
 
-  async function generateQueue(length: number, seed: string) {
+  function refreshTags() {
+    void api.listTags().then(setTags).catch(() => undefined);
+  }
+
+  async function generateQueue(length: number, seed: string, queueTags: string[]) {
     setBusy(true);
     setError(null);
     try {
-      const run = await api.generateQueue(length, seed.trim() || undefined, activeConfig?.id ?? null);
+      const run = await api.generateQueue(
+        length,
+        seed.trim() || undefined,
+        activeConfig?.id ?? null,
+        queueTags
+      );
       player.loadQueue(run, { autoplay: true });
       void refreshSavedRuns();
     } catch (err) {
@@ -380,6 +392,7 @@ export default function App() {
       const saved = await api.updateTrack(track);
       setTracks((current) => current.map((item) => (item.id === saved.id ? saved : item)));
       void refreshStats();
+      refreshTags(); // a save may have created a new tag or moved counts
       return saved;
     } catch (err) {
       setError(message(err, "Could not save the track"));
@@ -470,6 +483,7 @@ export default function App() {
               onGrantYouTubeConsent={grantYouTubeConsent}
               ratingFactors={ratingFactors}
               liveTracks={tracks}
+              tags={tags}
               showMath={Boolean(settings?.why_show_math)}
               onRate={rateTrack}
               onGenerate={generateQueue}
@@ -483,6 +497,8 @@ export default function App() {
           {view === "library" ? (
             <LibraryView
               tracks={libraryTracks}
+              tags={tags}
+              onTagsChanged={refreshTags}
               ratingFactors={ratingFactors}
               busy={busy}
               currentTrackId={player.currentItem?.track.id ?? null}
@@ -786,9 +802,10 @@ function QueueView(props: {
   onGrantYouTubeConsent: () => void;
   ratingFactors: RatingFactor[];
   liveTracks: Track[];
+  tags: Tag[];
   showMath: boolean;
   onRate: (track: Track, factorKey: string, value: number | null) => void;
-  onGenerate: (length: number, seed: string) => void;
+  onGenerate: (length: number, seed: string, tags: string[]) => void;
   onLoadRun: (id: number) => void;
   onRefreshSaved: () => void;
   onRenameRun: (id: number, name: string) => void;
@@ -797,6 +814,7 @@ function QueueView(props: {
   const { player } = props;
   const [length, setLength] = useState(props.defaultLength);
   const [seed, setSeed] = useState("");
+  const [queueTags, setQueueTags] = useState<string[]>([]);
   const item = player.currentItem;
   // Prefer the live track (with the latest ratings) over the queue snapshot.
   const liveTrack = item ? props.liveTracks.find((t) => t.id === item.track.id) ?? item.track : null;
@@ -865,6 +883,33 @@ function QueueView(props: {
 
         <div className="generate-card">
           <h4>Build a session</h4>
+          {props.tags.some((tag) => tag.name !== "Ignored" && tag.track_count > 0) ? (
+            <div className="queue-tag-picker">
+              {props.tags
+                .filter((tag) => tag.name !== "Ignored" && tag.track_count > 0)
+                .map((tag) => {
+                  const on = queueTags.includes(tag.name);
+                  return (
+                    <button
+                      key={tag.id}
+                      className={`chip toggle ${on ? "on" : ""}`}
+                      onClick={() =>
+                        setQueueTags((cur) =>
+                          on ? cur.filter((name) => name !== tag.name) : [...cur, tag.name]
+                        )
+                      }
+                    >
+                      {tag.name} <b>{tag.track_count}</b>
+                    </button>
+                  );
+                })}
+            </div>
+          ) : null}
+          {queueTags.length ? (
+            <small className="queue-tag-note">
+              Only songs tagged {queueTags.join(" or ")} will be queued.
+            </small>
+          ) : null}
           <div className="generate-row">
             <label>
               Length
@@ -880,7 +925,11 @@ function QueueView(props: {
               Seed <span className="hint">optional</span>
               <input value={seed} placeholder="reproducible" onChange={(event) => setSeed(event.target.value)} />
             </label>
-            <button className="primary" disabled={props.busy} onClick={() => props.onGenerate(length, seed)}>
+            <button
+              className="primary"
+              disabled={props.busy}
+              onClick={() => props.onGenerate(length, seed, queueTags)}
+            >
               <RefreshCw size={16} />
               Generate
             </button>
@@ -1285,6 +1334,8 @@ type Facet = { key: string; label: string; type: string; count: number };
 
 function LibraryView(props: {
   tracks: Track[];
+  tags: Tag[];
+  onTagsChanged: () => void;
   ratingFactors: RatingFactor[];
   busy: boolean;
   currentTrackId: number | null;
@@ -1296,6 +1347,7 @@ function LibraryView(props: {
 }) {
   const [search, setSearch] = useState("");
   const [facet, setFacet] = useState<string>("all");
+  const [manageTags, setManageTags] = useState(false);
   const [quick, setQuick] = useState<"all" | "video" | "unrated">("all");
   const [selected, setSelected] = useState<Track | null>(null);
   const [scanPath, setScanPath] = useState("");
@@ -1353,7 +1405,11 @@ function LibraryView(props: {
       }
       if (facet !== "all") {
         const [type, name] = facet.split("::");
-        if (type === "variant") {
+        if (type === "tag") {
+          if (!(track.tags ?? []).includes(name)) {
+            return false;
+          }
+        } else if (type === "variant") {
           if (track.sub_group !== name) {
             return false;
           }
@@ -1364,7 +1420,14 @@ function LibraryView(props: {
       if (!needle) {
         return true;
       }
-      return [track.title, track.artist, track.album, track.sub_group, ...track.groups.map((g) => g.name)]
+      return [
+        track.title,
+        track.artist,
+        track.album,
+        track.sub_group,
+        ...track.groups.map((g) => g.name),
+        ...(track.tags ?? [])
+      ]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(needle));
     });
@@ -1393,6 +1456,11 @@ function LibraryView(props: {
         <FacetGroup title="Artists" facets={facets.artist} active={facet} busy={groupBusy} onPick={setFacet} onRename={renameGroup} onMerge={mergeGroup} />
         <FacetGroup title="Themes" facets={facets.theme} active={facet} busy={groupBusy} onPick={setFacet} onRename={renameGroup} onMerge={mergeGroup} />
         <FacetGroup title="Variant families" facets={facets.variant} active={facet} onPick={setFacet} />
+        <FacetGroup title="Tags" facets={facets.tag} active={facet} onPick={setFacet} />
+        <button className="facet manage-tags" onClick={() => setManageTags((open) => !open)}>
+          {manageTags ? "Close tag manager" : "Manage tags…"}
+        </button>
+        {manageTags ? <TagManager tags={props.tags} onChanged={props.onTagsChanged} /> : null}
       </aside>
 
       <div className="library-main">
@@ -1430,7 +1498,9 @@ function LibraryView(props: {
             filtered.map((track) => (
               <button
                 key={track.id}
-                className={`track-card ${selected?.id === track.id ? "active" : ""}`}
+                className={`track-card ${selected?.id === track.id ? "active" : ""} ${
+                  (track.tags ?? []).includes("Ignored") ? "ignored" : ""
+                }`}
                 onClick={() => setSelected(track)}
               >
                 <span className="track-art" style={artStyle(track.id)}>
@@ -1459,6 +1529,7 @@ function LibraryView(props: {
         <TrackEditor
           key={selected.id}
           track={selected}
+          tags={props.tags}
           factors={props.ratingFactors}
           busy={props.busy}
           isCurrent={props.currentTrackId === selected.id}
@@ -1514,6 +1585,98 @@ function FacetGroup(props: {
           ) : null}
         </div>
       ))}
+    </div>
+  );
+}
+
+// Rename, delete, and flag custom tags. System tags (Favourite, Ignored) are fixed.
+function TagManager(props: { tags: Tag[]; onChanged: () => void }) {
+  const [name, setName] = useState("");
+  async function run(action: Promise<unknown>) {
+    try {
+      await action;
+    } catch (err) {
+      // e.g. a profile trying to delete a household-shared tag; the backend explains why.
+      window.alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      props.onChanged();
+    }
+  }
+  return (
+    <div className="tag-manager">
+      {props.tags.map((tag) => (
+        <div key={tag.id} className="tag-row">
+          <span className="tag-name">
+            {tag.name} <b>{tag.track_count}</b>
+          </span>
+          {tag.kind === "system" ? (
+            <small>built-in</small>
+          ) : (
+            <span className="tag-ops">
+              <label title="Assignments are shared by every profile in the household">
+                <input
+                  type="checkbox"
+                  checked={tag.shared}
+                  onChange={(e) => void run(api.updateTag(tag.id, { shared: e.target.checked }))}
+                />
+                shared
+              </label>
+              <label title="Feeds the tag pacing bias in Settings">
+                <input
+                  type="checkbox"
+                  checked={tag.affects_algorithm}
+                  onChange={(e) =>
+                    void run(api.updateTag(tag.id, { affects_algorithm: e.target.checked }))
+                  }
+                />
+                algorithm
+              </label>
+              <button
+                className="mini"
+                title="Rename tag"
+                onClick={() => {
+                  const next = window.prompt(`Rename tag "${tag.name}" to:`, tag.name)?.trim();
+                  if (next && next !== tag.name) {
+                    void run(api.updateTag(tag.id, { name: next }));
+                  }
+                }}
+              >
+                <Pencil size={12} />
+              </button>
+              <button
+                className="mini"
+                title="Delete tag"
+                onClick={() => {
+                  if (window.confirm(`Delete the tag "${tag.name}"? Its assignments go too.`)) {
+                    void run(api.deleteTag(tag.id));
+                  }
+                }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+        </div>
+      ))}
+      <div className="new-tag-row">
+        <input
+          value={name}
+          placeholder="New tag name…"
+          onChange={(e) => setName(e.target.value)}
+        />
+        <button
+          className="mini-text"
+          onClick={() => {
+            const clean = name.trim();
+            if (clean) {
+              setName("");
+              void run(api.createTag({ name: clean }));
+            }
+          }}
+        >
+          Add
+        </button>
+      </div>
     </div>
   );
 }
@@ -1630,6 +1793,7 @@ function youtubeLinkFor(embed: TrackEmbed | null): string {
 
 function TrackEditor(props: {
   track: Track;
+  tags: Tag[];
   factors: RatingFactor[];
   busy: boolean;
   isCurrent: boolean;
@@ -1650,6 +1814,17 @@ function TrackEditor(props: {
 
   function update<K extends keyof Track>(key: K, value: Track[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  const [newTag, setNewTag] = useState("");
+  function toggleTag(name: string) {
+    setDraft((current) => {
+      const cur = current.tags ?? [];
+      const next = cur.includes(name) ? cur.filter((t) => t !== name) : [...cur, name];
+      // Favourite rides in both places; keep the star in step with the chip.
+      const favourite = name === "Favourite" ? next.includes("Favourite") : current.favourite;
+      return { ...current, tags: next, favourite };
+    });
   }
 
   function save() {
@@ -1681,7 +1856,7 @@ function TrackEditor(props: {
           title="Favourite"
           aria-label="Favourite"
           aria-pressed={draft.favourite ?? false}
-          onClick={() => update("favourite", !draft.favourite)}
+          onClick={() => toggleTag("Favourite")}
         >
           <Star size={18} fill={draft.favourite ? "currentColor" : "none"} />
         </button>
@@ -1766,6 +1941,59 @@ function TrackEditor(props: {
             />
           </label>
         </div>
+      </div>
+
+      <div className="editor-section">
+        <h5>Tags</h5>
+        <div className="tag-chips">
+          {[
+            ...props.tags.filter((tag) => tag.kind === "custom").map((tag) => tag.name),
+            ...(draft.tags ?? []).filter(
+              (name) =>
+                name !== "Favourite" &&
+                name !== "Ignored" &&
+                !props.tags.some((tag) => tag.name === name)
+            )
+          ].map((name) => {
+            const on = (draft.tags ?? []).includes(name);
+            return (
+              <button
+                key={name}
+                className={`chip toggle ${on ? "on" : ""}`}
+                onClick={() => toggleTag(name)}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </div>
+        <div className="new-tag-row">
+          <input
+            value={newTag}
+            placeholder="New tag…"
+            onChange={(e) => setNewTag(e.target.value)}
+          />
+          <button
+            className="mini-text"
+            onClick={() => {
+              const clean = newTag.trim();
+              if (clean) {
+                setNewTag("");
+                toggleTag(clean);
+              }
+            }}
+          >
+            Add
+          </button>
+        </div>
+        <label className="check-line">
+          <input
+            type="checkbox"
+            checked={(draft.tags ?? []).includes("Ignored")}
+            onChange={() => toggleTag("Ignored")}
+          />
+          Ignored: never included in generated queues (manual play still works)
+        </label>
       </div>
 
       {draft.sub_group ? <CoverSetPanel subGroup={draft.sub_group} /> : null}
@@ -2096,7 +2324,12 @@ const SETTING_SECTIONS: {
     title: "Anti-repetition & variety",
     note: "How quickly a just-played song, group, or variant is allowed back.",
     advanced: true,
-    keys: ["group_cooldown_floor", "sub_group_cooldown_floor", "group_clustering_bias"]
+    keys: [
+      "group_cooldown_floor",
+      "sub_group_cooldown_floor",
+      "group_clustering_bias",
+      "tag_clustering_bias"
+    ]
   },
   {
     title: "History & feedback",
@@ -3054,12 +3287,15 @@ function SettingControlRow(props: {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildFacets(tracks: Track[]): Record<"source" | "artist" | "theme" | "variant", Facet[]> {
+function buildFacets(
+  tracks: Track[]
+): Record<"source" | "artist" | "theme" | "variant" | "tag", Facet[]> {
   const counters: Record<string, Map<string, number>> = {
     source: new Map(),
     artist: new Map(),
     theme: new Map(),
-    variant: new Map()
+    variant: new Map(),
+    tag: new Map()
   };
   for (const track of tracks) {
     for (const group of track.groups) {
@@ -3068,6 +3304,9 @@ function buildFacets(tracks: Track[]): Record<"source" | "artist" | "theme" | "v
     }
     if (track.sub_group) {
       counters.variant.set(track.sub_group, (counters.variant.get(track.sub_group) ?? 0) + 1);
+    }
+    for (const name of track.tags ?? []) {
+      counters.tag.set(name, (counters.tag.get(name) ?? 0) + 1);
     }
   }
   const toFacets = (type: string, map: Map<string, number>): Facet[] =>
@@ -3078,7 +3317,8 @@ function buildFacets(tracks: Track[]): Record<"source" | "artist" | "theme" | "v
     source: toFacets("source", counters.source),
     artist: toFacets("artist", counters.artist),
     theme: toFacets("theme", counters.theme),
-    variant: toFacets("variant", counters.variant)
+    variant: toFacets("variant", counters.variant),
+    tag: toFacets("tag", counters.tag)
   };
 }
 

@@ -16,17 +16,28 @@
 <meta name="twitter:card" content="summary">
 <link rel="canonical" href="https://harmonica.org.uk/">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary">
+<meta name="theme-color" content="#1b362e">
 <style>
   :root{
     --dark:#1b362e; --mint:#eef3f1; --teal:#206a5d; --gold:#f1c84b;
     --ink:#22312f; --muted:#54655f; --card:#ffffff; --line:#d8e3de;
+    --head:#1b362e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --mint:#11201b; --ink:#dce8e2; --muted:#93a89f; --card:#1e3a30;
+      --line:#2c4a40; --head:#eaf3ee; --teal:#5cbfa6;
+    }
+    .btn.primary{color:#0f1f1b}
+    .btn.primary:hover{background:#6fcaa9}
+    .btn.ghost:hover{background:rgba(255,255,255,.08)}
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--mint);color:var(--ink);
     font:400 1.0625rem/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif}
   .wrap{max-width:56rem;margin:0 auto;padding:0 1.25rem}
   a{color:var(--teal)}
-  h1,h2,h3{line-height:1.2;color:var(--dark)}
+  h1,h2,h3{line-height:1.2;color:var(--head)}
 
   header{background:var(--dark);color:#e8f0ec;padding:.9rem 0}
   header .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
@@ -49,7 +60,7 @@
   section{padding:2.4rem 0}
   section h2{font-size:1.5rem;margin-bottom:1rem}
   .prose p{max-width:65ch;margin-bottom:1rem}
-  .prose strong{color:var(--dark)}
+  .prose strong{color:var(--head)}
 
   .features{list-style:none;max-width:44rem;border-top:1px solid var(--line)}
   .features li{padding:1rem 0;border-bottom:1px solid var(--line)}
@@ -129,6 +140,7 @@
         <li><h3>Rediscovery</h3><p>Well-rated songs that have gone unheard for months regain weight and return to the queue.</p></li>
         <li><h3>Fair cold start</h3><p>New and unrated songs are prioritised until everything has been heard at least once.</p></li>
         <li><h3>Rating normalisation</h3><p>Ratings from an unusually harsh or generous session are reverted towards the mean, so a song's standing does not hinge on the day it happened to be rated.</p></li>
+        <li><h3>Custom tags</h3><p>Songs carry whatever labels fit, yours to create and customise. The library filters by any of them.</p></li>
         <li><h3>Per-user profiles</h3><p>One shared media pool on a NAS. Private libraries, ratings and listening history for each person.</p></li>
       </ul>
     </section>

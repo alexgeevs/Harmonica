@@ -21,6 +21,8 @@ from harmonica.embeds import is_valid_external_id, known_providers, parse_embed_
 from harmonica.history import playback_event_signal
 from harmonica.http_security import install_security
 from harmonica.models import (
+    FAVOURITE_TAG_NAME,
+    IGNORED_TAG_NAME,
     CooldownTag,
     CoverSetState,
     DeviceConfig,
@@ -33,12 +35,19 @@ from harmonica.models import (
     PlaylistRun,
     RatingFactor,
     RatingSample,
+    Tag,
     Track,
     TrackCooldownTag,
     TrackRating,
+    TrackTag,
     WeightGroup,
     favourite_track_ids,
+    materialise_shared_assignments,
     now_utc,
+    set_favourite_tag,
+    tag_track_ids,
+    visible_tag_rows,
+    visible_tags_by_track,
 )
 from harmonica.normalization import plain_rating_averages
 from harmonica.playlist import generate_and_persist_playlist, preferred_asset
@@ -71,6 +80,9 @@ from harmonica.schemas import (
     SpotifyPlaylistRead,
     SpotifyTrackRead,
     StatsSummaryRead,
+    TagCreate,
+    TagRead,
+    TagUpdate,
     TrackGroupWrite,
     TrackRead,
     TrackUpdate,
@@ -505,9 +517,13 @@ def create_app() -> FastAPI:
         tracks = session.scalars(query).all()
         averages = plain_rating_averages(session, owner_config_id=owner.id if owner else None)
         favourites = owner_favourite_lookup(session, owner)
+        tags_map = visible_tags_by_track(session, owner.id if owner else None)
         return [
             track_to_schema(
-                track, averages.get(track.id) or {}, favourite=resolve_favourite(track, favourites)
+                track,
+                averages.get(track.id) or {},
+                favourite=resolve_favourite(track, favourites),
+                tags=tags_map.get(track.id),
             )
             for track in tracks
         ]
@@ -524,7 +540,8 @@ def create_app() -> FastAPI:
             session, [track_id], owner_config_id=owner.id if owner else None
         )
         favourite = resolve_favourite(track, owner_favourite_lookup(session, owner))
-        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite)
+        tags = visible_tags_by_track(session, owner.id if owner else None).get(track_id)
+        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite, tags=tags)
 
     @app.patch("/tracks/{track_id}", response_model=TrackRead)
     def update_track(
@@ -549,7 +566,8 @@ def create_app() -> FastAPI:
             session, [track_id], owner_config_id=owner.id if owner else None
         )
         favourite = resolve_favourite(track, owner_favourite_lookup(session, owner))
-        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite)
+        tags = visible_tags_by_track(session, owner.id if owner else None).get(track_id)
+        return track_to_schema(track, averages.get(track_id) or {}, favourite=favourite, tags=tags)
 
     @app.post("/scan", response_model=ScanResponse)
     def scan(
@@ -602,6 +620,18 @@ def create_app() -> FastAPI:
                 owner_config_id = owner.id
             else:
                 included_track_ids = set(ids) if ids else None  # legacy: empty selection = all
+        requested_tags = [
+            name.strip()
+            for name in (payload.tags or [])
+            if name.strip() and name.strip() != IGNORED_TAG_NAME
+        ]
+        if requested_tags:
+            # Union: a track carrying ANY requested tag qualifies; intersected with the
+            # profile's library. Unknown names contribute nothing (an empty pool = empty run).
+            tag_pool = tag_track_ids(session, requested_tags, owner.id if owner else None)
+            included_track_ids = (
+                tag_pool if included_track_ids is None else included_track_ids & tag_pool
+            )
         run, _items = generate_and_persist_playlist(
             session,
             effective_settings,
@@ -611,6 +641,7 @@ def create_app() -> FastAPI:
             ui_active=payload.ui_active,
             included_track_ids=included_track_ids,
             owner_config_id=owner_config_id,
+            queue_tags=requested_tags or None,
         )
         return load_run_response(session, run.id)
 
@@ -814,6 +845,102 @@ def create_app() -> FastAPI:
         )
         return {"ok": True, **summary}
 
+    # --- Tags (organisational labels; system tags Favourite/Ignored are fixed) ---
+
+    @app.get("/tags", response_model=list[TagRead])
+    def list_tags(session: SessionDep, owner: OwnerDep) -> list[TagRead]:
+        counts: dict[int, set[int]] = {}
+        for track_id, tag in visible_tag_rows(session, owner.id if owner else None):
+            counts.setdefault(tag.id, set()).add(track_id)
+        tags = session.scalars(select(Tag).order_by(Tag.kind.desc(), Tag.name)).all()
+        return [tag_to_schema(tag, len(counts.get(tag.id, ()))) for tag in tags]
+
+    @app.post("/tags", response_model=TagRead)
+    def create_tag(payload: TagCreate, session: SessionDep) -> TagRead:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="Tag name cannot be empty")
+        if session.scalar(select(Tag).where(Tag.name == name)):
+            raise HTTPException(status_code=409, detail="A tag with that name already exists")
+        tag = Tag(
+            name=name,
+            kind="custom",
+            shared=payload.shared,
+            affects_algorithm=payload.affects_algorithm,
+        )
+        session.add(tag)
+        session.commit()
+        return tag_to_schema(tag, 0)
+
+    @app.patch("/tags/{tag_id}", response_model=TagRead)
+    def update_tag(
+        tag_id: int, payload: TagUpdate, session: SessionDep, owner: OwnerDep
+    ) -> TagRead:
+        tag = session.get(Tag, tag_id)
+        if tag is None:
+            raise HTTPException(status_code=404, detail="Tag not found")
+        if tag.kind == "system":
+            raise HTTPException(status_code=403, detail="System tags cannot be edited")
+        if payload.name is not None:
+            name = payload.name.strip()
+            if not name:
+                raise HTTPException(status_code=422, detail="Tag name cannot be empty")
+            clash = session.scalar(select(Tag).where(Tag.name == name, Tag.id != tag.id))
+            if clash is not None:
+                raise HTTPException(
+                    status_code=409, detail="A tag with that name already exists"
+                )
+            tag.name = name
+        if payload.shared is not None:
+            if tag.shared and not payload.shared:
+                # Unsharing must not take the tag away from anyone: every scope keeps its
+                # own copy of what the household had.
+                materialise_shared_assignments(session, tag.id)
+            tag.shared = payload.shared
+        if payload.affects_algorithm is not None:
+            tag.affects_algorithm = payload.affects_algorithm
+        session.commit()
+        count = len(
+            {
+                track_id
+                for track_id, visible in visible_tag_rows(
+                    session, owner.id if owner else None
+                )
+                if visible.id == tag.id
+            }
+        )
+        return tag_to_schema(tag, count)
+
+    @app.delete("/tags/{tag_id}", status_code=204)
+    def delete_tag(tag_id: int, session: SessionDep, owner: OwnerDep) -> Response:
+        tag = session.get(Tag, tag_id)
+        if tag is None:
+            raise HTTPException(status_code=404, detail="Tag not found")
+        if tag.kind == "system":
+            raise HTTPException(status_code=403, detail="System tags cannot be deleted")
+        if owner is not None:
+            # A profile deletes only its own assignments, shared tag or not. The definition
+            # survives while any other scope still uses the tag, and goes once nobody does.
+            session.execute(
+                delete(TrackTag).where(
+                    TrackTag.tag_id == tag.id, TrackTag.owner_config_id == owner.id
+                )
+            )
+            session.flush()
+            still_used = session.scalar(
+                select(TrackTag.id).where(TrackTag.tag_id == tag.id).limit(1)
+            )
+            if still_used is None:
+                session.delete(tag)
+            session.commit()
+            return Response(status_code=204)
+        # Local mode is single-user administration: the tag and every assignment go together.
+        # Explicit: SQLite FK cascades are not enforced through this connection.
+        session.execute(delete(TrackTag).where(TrackTag.tag_id == tag.id))
+        session.delete(tag)
+        session.commit()
+        return Response(status_code=204)
+
     # --- Device configs (multi-device profiles; see docs/planning/multi-device-architecture.md) ---
 
     @app.get("/configs", response_model=list[DeviceConfigSummary])
@@ -1010,6 +1137,7 @@ def track_to_schema(
     track: Track,
     ratings_average: dict[str, float] | None = None,
     favourite: bool = False,
+    tags: list[str] | None = None,
 ) -> TrackRead:
     return TrackRead(
         id=track.id,
@@ -1061,6 +1189,7 @@ def track_to_schema(
             if membership.group is not None
         ],
         cooldown_tags=[link.tag.name for link in track.cooldown_tags if link.tag is not None],
+        tags=tags or [],
         # The displayed rating is the plain AVERAGE of the user's past ratings (computed from
         # history); fall back to the raw latest star only when history hasn't been computed.
         ratings=(
@@ -1095,6 +1224,17 @@ def rating_factor_to_schema(factor: RatingFactor) -> RatingFactorRead:
         applies_to_instrumental=factor.applies_to_instrumental,
         applies_to_variants_only=factor.applies_to_variants_only,
         enabled=factor.enabled,
+    )
+
+
+def tag_to_schema(tag: Tag, track_count: int) -> TagRead:
+    return TagRead(
+        id=tag.id,
+        name=tag.name,
+        kind=tag.kind,
+        shared=tag.shared,
+        affects_algorithm=tag.affects_algorithm,
+        track_count=track_count,
     )
 
 
@@ -1150,6 +1290,11 @@ def apply_track_update(
         # Favourite is a per-user opinion: an owned profile writes it to its own link, never onto
         # the shared Track (which would leak its taste to everyone sharing the song).
         set_owner_favourite(session, owner_config_id, track.id, bool(fields["favourite"]))
+    if payload.tags is None and "favourite" in fields:
+        # A favourite-only write (older clients, curation flows) still keeps the tag in step.
+        set_favourite_tag(session, track.id, bool(fields["favourite"]), owner_config_id)
+    if payload.tags is not None:
+        replace_track_tags(session, track, payload.tags, owner_config_id)
     if payload.ratings is not None:
         upsert_ratings(
             session,
@@ -1224,6 +1369,55 @@ def replace_tags(session: Session, track: Track, tag_names: list[str]) -> None:
             session.add(tag)
             session.flush()
         session.add(TrackCooldownTag(track=track, tag=tag))
+
+
+def replace_track_tags(
+    session: Session, track: Track, tag_names: list[str], owner_config_id: int | None
+) -> None:
+    """Replace the track's tag assignments in the requesting scope. Every scope owns its own
+    rows: a profile's removals never touch another profile's rows or local mode's (a shared tag
+    just makes everyone's rows visible to all, so a shared assignment only disappears once every
+    scope that added it has removed its own). Unknown names become cosmetic custom tags. The
+    favourite boolean columns are kept in step so the algorithm and exports keep working
+    unchanged."""
+    wanted: list[str] = []
+    seen: set[str] = set()
+    for name in tag_names:
+        cleaned = name.strip()[:120]
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            wanted.append(cleaned)
+    tags_by_name = {tag.name: tag for tag in session.scalars(select(Tag))}
+    for name in wanted:
+        if name not in tags_by_name:
+            tag = Tag(name=name, kind="custom")
+            session.add(tag)
+            session.flush()
+            tags_by_name[name] = tag
+    tag_by_id = {tag.id: tag for tag in tags_by_name.values()}
+    rows = session.scalars(select(TrackTag).where(TrackTag.track_id == track.id)).all()
+    existing: set[int] = set()
+    for row in rows:
+        tag = tag_by_id.get(row.tag_id)
+        if tag is None:
+            continue
+        if row.owner_config_id != owner_config_id:
+            continue  # another scope's contribution — never touched
+        if tag.name in seen:
+            existing.add(row.tag_id)
+        else:
+            session.delete(row)
+    for name in wanted:
+        tag = tags_by_name[name]
+        if tag.id not in existing:
+            session.add(
+                TrackTag(track_id=track.id, tag_id=tag.id, owner_config_id=owner_config_id)
+            )
+    favourite = FAVOURITE_TAG_NAME in seen
+    if owner_config_id is None:
+        track.favourite = favourite
+    else:
+        set_owner_favourite(session, owner_config_id, track.id, favourite)
 
 
 # One listen must never be double-counted: a re-rate within this window is treated as a

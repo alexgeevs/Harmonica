@@ -22,11 +22,15 @@ from harmonica.models import (
     MediaAsset,
     RatingFactor,
     RatingSample,
+    Tag,
     Track,
     TrackCooldownTag,
     TrackRating,
+    TrackTag,
     WeightGroup,
     favourite_track_ids,
+    set_favourite_tag,
+    visible_tag_rows,
 )
 from harmonica.settings_store import (
     SETTING_MAP,
@@ -185,6 +189,7 @@ def export_library_payload(
             )
             for track in tracks
         ]
+        payload["tags"] = tags_export(session, owner_config_id)
     if with_ratings:
         # Raw, append-only history the algorithm derives from. Keyed by song_id/factor_key so it
         # survives a move to another device (where local row ids differ). Device-local session/run
@@ -292,6 +297,28 @@ def cover_comparisons_payload(
     return out
 
 
+def tags_export(session: Session, owner_config_id: int | None) -> dict[str, Any]:
+    """Tag definitions plus the assignments visible to the exporting scope (a profile's own
+    rows plus every shared-tag row), keyed by song_id so they survive moving devices."""
+    song_by_id = dict(session.execute(select(Track.id, Track.song_id)).all())
+    definitions = [
+        {
+            "name": tag.name,
+            "kind": tag.kind,
+            "shared": tag.shared,
+            "affects_algorithm": tag.affects_algorithm,
+        }
+        for tag in session.scalars(select(Tag).order_by(Tag.name))
+    ]
+    assignments = [
+        {"song_id": song_by_id[track_id], "tag": tag.name}
+        for track_id, tag in visible_tag_rows(session, owner_config_id)
+        if track_id in song_by_id
+    ]
+    assignments.sort(key=lambda entry: (entry["tag"], entry["song_id"]))
+    return {"definitions": definitions, "assignments": assignments}
+
+
 def import_library(session: Session, input_path: Path) -> None:
     payload = json.loads(input_path.read_text(encoding="utf-8"))
     import_library_payload(session, payload if isinstance(payload, dict) else {})
@@ -365,6 +392,7 @@ def import_library_payload(
         "rating_samples_added": 0,
         "cover_comparisons_added": 0,
         "track_ratings_applied": 0,
+        "tags_applied": 0,
         "settings_applied": 0,
     }
 
@@ -460,7 +488,14 @@ def import_library_payload(
         if owner_config_id is None and fav_value is not None:
             track.favourite = fav_value
         _link_owner(session, owner_config_id, track.id, favourite=fav_value)
+        if fav_value is not None:
+            # Keep the Favourite tag in step with a legacy favourite boolean.
+            set_favourite_tag(session, track.id, fav_value, owner_config_id)
     session.flush()
+
+    summary["tags_applied"] = import_tags(
+        session, payload.get("tags"), owner_config_id=owner_config_id
+    )
 
     # Current stars from a ratings-only export (no track payloads to ride on). Legacy-only by
     # design: a profile's current ratings derive from its imported rating_samples instead.
@@ -629,6 +664,52 @@ def import_cover_comparisons(
         affected.add(sub_group)
     session.flush()
     return added, affected
+
+
+def import_tags(session: Session, raw: Any, owner_config_id: int | None = None) -> int:
+    """Merge a tags block: definitions by name (system tags never demoted or reflagged),
+    assignments idempotently under the shared/per-profile owner rule."""
+    if not isinstance(raw, dict):
+        return 0
+    tags_by_name = {tag.name: tag for tag in session.scalars(select(Tag))}
+    for entry in _dict_list(raw.get("definitions")):
+        name = _text(entry.get("name"), max_len=120)
+        if name is None:
+            continue
+        tag = tags_by_name.get(name)
+        if tag is None:
+            tag = Tag(name=name, kind="custom")
+            session.add(tag)
+            session.flush()
+            tags_by_name[name] = tag
+        if tag.kind != "system":
+            if isinstance(entry.get("shared"), bool):
+                tag.shared = entry["shared"]
+            if isinstance(entry.get("affects_algorithm"), bool):
+                tag.affects_algorithm = entry["affects_algorithm"]
+    track_by_song = {track.song_id: track for track in session.scalars(select(Track))}
+    existing = {
+        (row.track_id, row.tag_id, row.owner_config_id)
+        for row in session.scalars(select(TrackTag))
+    }
+    applied = 0
+    for entry in _dict_list(raw.get("assignments")):
+        name = _text(entry.get("tag"), max_len=120)
+        track = track_by_song.get(entry.get("song_id"))
+        tag = tags_by_name.get(name) if name else None
+        if track is None or tag is None:
+            continue
+        # Every scope owns its own rows, shared tags included (shared only widens visibility).
+        key = (track.id, tag.id, owner_config_id)
+        if key in existing:
+            continue
+        existing.add(key)
+        session.add(
+            TrackTag(track_id=track.id, tag_id=tag.id, owner_config_id=owner_config_id)
+        )
+        applied += 1
+    session.flush()
+    return applied
 
 
 def track_to_payload(

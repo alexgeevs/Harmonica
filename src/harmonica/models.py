@@ -166,6 +166,50 @@ class TrackCooldownTag(Base):
     tag: Mapped[CooldownTag] = relationship(back_populates="tracks")
 
 
+FAVOURITE_TAG_NAME = "Favourite"
+IGNORED_TAG_NAME = "Ignored"
+SYSTEM_TAG_NAMES = (FAVOURITE_TAG_NAME, IGNORED_TAG_NAME)
+DEFAULT_CUSTOM_TAG_NAMES = ("Fun", "Focused")
+
+
+class Tag(Base):
+    """A user-facing organisational label on tracks. ``kind`` separates the fixed system tags
+    (Favourite, Ignored) from user-managed custom tags. ``shared`` shows every scope's
+    assignments to everyone (each scope still owns its own rows, so one profile's removals
+    never touch another's). ``affects_algorithm`` opts a tag into the light pacing layer
+    (cosmetic otherwise). Distinct from ``CooldownTag``, which is the scanner's grouping
+    shorthand, not a user tag."""
+
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="custom")  # 'system' | 'custom'
+    shared: Mapped[bool] = mapped_column(Boolean, default=False)
+    affects_algorithm: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class TrackTag(Base):
+    """One tag assignment. ``owner_config_id`` scopes it: a profile's private opinion, or NULL for
+    local mode and for every assignment of a shared tag. No UNIQUE constraint because SQLite
+    treats NULLs as distinct inside one; uniqueness of (track, tag, owner) is enforced by the
+    idempotent upserts in the API and import layers."""
+
+    __tablename__ = "track_tags"
+    __table_args__ = (Index("ix_track_tags_tag_owner", "tag_id", "owner_config_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id", ondelete="CASCADE"), index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id", ondelete="CASCADE"), index=True)
+    owner_config_id: Mapped[int | None] = mapped_column(
+        ForeignKey("device_configs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+    tag: Mapped[Tag] = relationship()
+
+
 class RatingFactor(Base):
     __tablename__ = "rating_factors"
 
@@ -556,3 +600,133 @@ def ensure_additive_owner_columns(engine: Engine) -> None:
                 connection.exec_driver_sql(
                     f"ALTER TABLE {table} ADD COLUMN owner_config_id INTEGER"
                 )
+
+
+def seed_and_backfill_tags(engine: Engine) -> None:
+    """One-time, idempotent: create the system tags (Favourite, Ignored) and the starter custom
+    tags, then copy the existing favourite booleans into tag assignments (``Track.favourite`` →
+    an unowned row; ``DeviceConfigTrack.favourite`` → a row owned by that profile). No-op once
+    any tag exists."""
+    with Session(engine) as session:
+        if session.scalar(select(func.count()).select_from(Tag)):
+            return
+        by_name: dict[str, Tag] = {}
+        for name in SYSTEM_TAG_NAMES:
+            tag = Tag(name=name, kind="system")
+            session.add(tag)
+            by_name[name] = tag
+        for name in DEFAULT_CUSTOM_TAG_NAMES:
+            session.add(Tag(name=name, kind="custom"))
+        session.flush()
+        favourite = by_name[FAVOURITE_TAG_NAME]
+        for track_id in session.scalars(select(Track.id).where(Track.favourite.is_(True))):
+            session.add(TrackTag(track_id=track_id, tag_id=favourite.id, owner_config_id=None))
+        rows = session.execute(
+            select(DeviceConfigTrack.track_id, DeviceConfigTrack.config_id).where(
+                DeviceConfigTrack.favourite.is_(True)
+            )
+        ).all()
+        for track_id, config_id in rows:
+            session.add(
+                TrackTag(track_id=track_id, tag_id=favourite.id, owner_config_id=config_id)
+            )
+        session.commit()
+
+
+def visible_tag_rows(session: Session, owner_config_id: int | None) -> list[tuple[int, Tag]]:
+    """Every (track_id, Tag) assignment visible to one scope. A shared tag's assignments count
+    for everyone; a per-profile tag counts only rows stamped with the requesting owner (NULL in
+    local mode)."""
+    rows = session.execute(
+        select(TrackTag.track_id, TrackTag.owner_config_id, Tag).join(
+            Tag, TrackTag.tag_id == Tag.id
+        )
+    ).all()
+    return [
+        (track_id, tag)
+        for track_id, row_owner, tag in rows
+        if tag.shared or row_owner == owner_config_id
+    ]
+
+
+def visible_tags_by_track(session: Session, owner_config_id: int | None) -> dict[int, list[str]]:
+    """Tag names per track for one scope, sorted for stable API output."""
+    result: dict[int, list[str]] = {}
+    for track_id, tag in visible_tag_rows(session, owner_config_id):
+        names = result.setdefault(track_id, [])
+        if tag.name not in names:
+            names.append(tag.name)
+    for names in result.values():
+        names.sort()
+    return result
+
+
+def tag_track_ids(
+    session: Session, tag_names: list[str], owner_config_id: int | None
+) -> set[int]:
+    """Union of track ids carrying ANY of the named tags, in one scope."""
+    wanted = set(tag_names)
+    return {
+        track_id
+        for track_id, tag in visible_tag_rows(session, owner_config_id)
+        if tag.name in wanted
+    }
+
+
+def algorithm_tag_inputs(
+    session: Session, owner_config_id: int | None
+) -> tuple[set[int], dict[int, frozenset[str]]]:
+    """What queue generation needs from the tags in one scope: the ignored track ids (always
+    excluded from the candidate pool) and each track's algorithm-active tag names (fed to the
+    light pacing layer). Favourite stays out of both — its algorithm effect is favourite pacing,
+    driven by the existing boolean input."""
+    ignored: set[int] = set()
+    active: dict[int, set[str]] = {}
+    for track_id, tag in visible_tag_rows(session, owner_config_id):
+        if tag.name == IGNORED_TAG_NAME:
+            ignored.add(track_id)
+        elif tag.affects_algorithm:
+            active.setdefault(track_id, set()).add(tag.name)
+    return ignored, {track_id: frozenset(names) for track_id, names in active.items()}
+
+
+def materialise_shared_assignments(session: Session, tag_id: int) -> None:
+    """When a household-shared tag becomes per-profile, nobody may lose it: every song the
+    household saw tagged stays tagged in each existing profile and in local mode. Each scope
+    then owns its copy independently."""
+    rows = session.scalars(select(TrackTag).where(TrackTag.tag_id == tag_id)).all()
+    if not rows:
+        return
+    track_ids = {row.track_id for row in rows}
+    existing = {(row.track_id, row.owner_config_id) for row in rows}
+    scopes: list[int | None] = [None, *session.scalars(select(DeviceConfig.id))]
+    for track_id in track_ids:
+        for scope in scopes:
+            if (track_id, scope) not in existing:
+                session.add(
+                    TrackTag(track_id=track_id, tag_id=tag_id, owner_config_id=scope)
+                )
+
+
+def set_favourite_tag(
+    session: Session, track_id: int, value: bool, owner_config_id: int | None
+) -> None:
+    """Keep the Favourite tag row in step with the favourite boolean for one scope (the tag
+    tables are the source of truth, but both systems must agree on every write)."""
+    tag = session.scalar(select(Tag).where(Tag.name == FAVOURITE_TAG_NAME))
+    if tag is None:
+        return
+    owner_clause = (
+        TrackTag.owner_config_id.is_(None)
+        if owner_config_id is None
+        else TrackTag.owner_config_id == owner_config_id
+    )
+    row = session.scalar(
+        select(TrackTag).where(
+            TrackTag.track_id == track_id, TrackTag.tag_id == tag.id, owner_clause
+        )
+    )
+    if value and row is None:
+        session.add(TrackTag(track_id=track_id, tag_id=tag.id, owner_config_id=owner_config_id))
+    elif not value and row is not None:
+        session.delete(row)
